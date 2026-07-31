@@ -38,6 +38,12 @@ class MOEXClient:
         return None
 
     async def fetch_daily_closes(self, ticker: str, days: int = 60) -> list[float]:
+        bars = await self.fetch_daily_bars(ticker, days)
+        return [close for _, close in bars]
+
+    async def fetch_daily_bars(
+        self, ticker: str, days: int = 120
+    ) -> list[tuple[date, float]]:
         url = (
             f"{self.base_url}/engines/stock/markets/shares/boards/TQBR/"
             f"securities/{ticker}/candles.json"
@@ -46,7 +52,7 @@ class MOEXClient:
         params = {
             "iss.meta": "off",
             "iss.only": "candles",
-            "candles.columns": "close",
+            "candles.columns": "begin,close",
             "interval": "24",
             "from": (today - timedelta(days=days)).isoformat(),
             "to": today.isoformat(),
@@ -57,10 +63,17 @@ class MOEXClient:
             data = resp.json()
 
         columns = data.get("candles", {}).get("columns", [])
-        closes = []
+        bars = []
         for row in data.get("candles", {}).get("data", []):
             record = dict(zip(columns, row))
             value = record.get("close")
-            if value is not None:
-                closes.append(float(value))
-        return closes
+            begin = record.get("begin")
+            if value is None or not begin:
+                continue
+            try:
+                bar_date = date.fromisoformat(begin[:10])
+            except ValueError:
+                continue
+            bars.append((bar_date, float(value)))
+        bars.sort(key=lambda b: b[0])
+        return bars

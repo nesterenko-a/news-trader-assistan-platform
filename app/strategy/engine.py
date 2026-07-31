@@ -21,15 +21,18 @@ from app.market.indicators import rsi, sma, volatility
 
 DECAY_PER_HOUR = 0.0137
 LOOKBACK_DAYS = 7
-BUY_THRESHOLD = 0.3
-SELL_THRESHOLD = -0.3
+BUY_THRESHOLD = 0.2
+SELL_THRESHOLD = -0.2
+MIN_CONFIDENCE_FOR_VERDICT = 0.4
 SENTIMENT_SIGN = {"positive": 1.0, "negative": -1.0, "neutral": 0.0}
 
 
-def _decay_weight(published_at: datetime) -> float:
-    now = datetime.now(timezone.utc)
+def _decay_weight(published_at: datetime, now: datetime | None = None) -> float:
+    now = now or datetime.now(timezone.utc)
     if published_at.tzinfo is None:
         published_at = published_at.replace(tzinfo=timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
     hours = max((now - published_at).total_seconds() / 3600.0, 0.0)
     return math.exp(-DECAY_PER_HOUR * hours)
 
@@ -50,7 +53,10 @@ def _horizon_for_score(net_score: float) -> str:
     return "long"
 
 
-async def generate_strategy(session: AsyncSession, ticker: str) -> dict:
+async def generate_strategy(
+    session: AsyncSession, ticker: str, as_of: datetime | None = None
+) -> dict:
+    now = as_of or datetime.now(timezone.utc)
     security = await session.scalar(select(Security).where(Security.ticker == ticker))
     if security is None:
         raise ValueError(f"Бумага {ticker} не найдена")
@@ -67,7 +73,7 @@ async def generate_strategy(session: AsyncSession, ticker: str) -> dict:
             quotes=None,
         )
 
-    since = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(days=LOOKBACK_DAYS)
+    since = (now - timedelta(days=LOOKBACK_DAYS)).replace(microsecond=0)
     recent_articles = (
         await session.scalars(
             select(Article)
@@ -109,7 +115,7 @@ async def generate_strategy(session: AsyncSession, ticker: str) -> dict:
         if entity is None:
             continue
 
-        decay = _decay_weight(article.published_at)
+        decay = _decay_weight(article.published_at, now)
         base = ae.impact * decay * article.source_reputation
 
         if ae.entity_id in target_entity_ids:
@@ -136,25 +142,29 @@ async def generate_strategy(session: AsyncSession, ticker: str) -> dict:
                 )
             path_cache[ae.entity_id] = paths
 
-        for path in paths:
-            contribution = (
-                SENTIMENT_SIGN.get(ae.sentiment, 0.0)
-                * base
-                * path.sign
-                * path.strength
-                * path.confidence
-            )
-            signals.append(
-                {
-                    "entity": entity.name,
-                    "snippet": ae.snippet or article.title,
-                    "url": article.url,
-                    "sentiment": ae.sentiment,
-                    "kind": "indirect",
-                    "path": path.entities,
-                    "weight": contribution,
-                }
-            )
+        if not paths:
+            continue
+        best = max(paths, key=lambda p: p.strength * p.confidence)
+        contribution = (
+            SENTIMENT_SIGN.get(ae.sentiment, 0.0)
+            * base
+            * best.sign
+            * best.strength
+            * best.confidence
+        )
+        signals.append(
+            {
+                "entity": entity.name,
+                "snippet": ae.snippet or article.title,
+                "url": article.url,
+                "sentiment": ae.sentiment,
+                "kind": "indirect",
+                "path": best.entities,
+                "weight": contribution,
+                "path_strength": best.strength,
+                "path_confidence": best.confidence,
+            }
+        )
 
     if not signals:
         return _build_result(
@@ -193,6 +203,8 @@ async def generate_strategy(session: AsyncSession, ticker: str) -> dict:
     coverage = min(len(signals) / 5.0, 1.0)
     confidence = max(0.0, min(0.95, agreement * 0.5 + coverage * 0.3 + 0.2))
     verdict = _verdict_for_score(net_score)
+    if verdict != "HOLD" and confidence < MIN_CONFIDENCE_FOR_VERDICT:
+        verdict = "HOLD"
     horizon = _horizon_for_score(net_score)
 
     result = _build_result(
