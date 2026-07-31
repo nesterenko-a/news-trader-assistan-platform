@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -65,13 +66,49 @@ async def _load_news(session: AsyncSession, security_id: int) -> list[dict]:
 
 
 @router.get("/")
-async def index(request: Request, session: AsyncSession = Depends(get_session)):
-    securities = (
-        await session.scalars(select(Security).order_by(Security.ticker))
+async def index(
+    request: Request,
+    sector: str = "",
+    market: str = "",
+    session: AsyncSession = Depends(get_session),
+):
+    statement = select(Security).order_by(Security.ticker)
+    if sector:
+        statement = statement.where(Security.sector == sector)
+    if market:
+        statement = statement.where(Security.market == market)
+    securities = (await session.scalars(statement)).all()
+
+    sectors = (
+        await session.scalars(
+            select(Security.sector).distinct().order_by(Security.sector)
+        )
     ).all()
+    markets = (
+        await session.scalars(
+            select(Security.market).distinct().order_by(Security.market)
+        )
+    ).all()
+
     return templates.TemplateResponse(
-        request, "index.html", {"securities": securities}
+        request,
+        "index.html",
+        {
+            "securities": securities,
+            "sectors": sectors,
+            "markets": markets,
+            "current_sector": sector,
+            "current_market": market,
+        },
     )
+
+
+@router.get("/securities")
+async def search_redirect(request: Request, ticker: str = ""):
+    ticker = ticker.strip().upper()
+    if ticker:
+        return RedirectResponse(url=f"/securities/{ticker}", status_code=307)
+    return RedirectResponse(url="/", status_code=307)
 
 
 @router.get("/securities/{ticker}")

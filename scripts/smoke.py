@@ -44,5 +44,16 @@ try:
 
         css = client.get("/static/style.css")
         print("web css:", css.status_code)
+
+        search_web = client.get("/securities", params={"ticker": "AFLT"})
+        print("web search redirect:", search_web.status_code, "AFLT" in search_web.text)
+
+        filtered = client.get("/", params={"sector": "Авиаперевозки"})
+        print(
+            "web sector filter:",
+            filtered.status_code,
+            "AFLT" in filtered.text,
+            "LKOH" not in filtered.text,
+        )
 finally:
     asyncio.run(engine.dispose())
