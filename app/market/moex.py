@@ -44,36 +44,57 @@ class MOEXClient:
     async def fetch_daily_bars(
         self, ticker: str, days: int = 120
     ) -> list[tuple[date, float]]:
+        candles = await self.fetch_candles(
+            ticker,
+            from_date=date.today() - timedelta(days=days),
+            till_date=date.today(),
+        )
+        return [(c["date"], c["close"]) for c in candles]
+
+    async def fetch_candles(
+        self,
+        ticker: str,
+        from_date: date,
+        till_date: date,
+        interval: int = 24,
+    ) -> list[dict]:
         url = (
             f"{self.base_url}/engines/stock/markets/shares/boards/TQBR/"
             f"securities/{ticker}/candles.json"
         )
-        today = date.today()
         params = {
             "iss.meta": "off",
             "iss.only": "candles",
-            "candles.columns": "begin,close",
-            "interval": "24",
-            "from": (today - timedelta(days=days)).isoformat(),
-            "to": today.isoformat(),
+            "candles.columns": "begin,open,high,low,close,volume",
+            "interval": str(interval),
+            "from": from_date.isoformat(),
+            "till": till_date.isoformat(),
         }
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.get(url, params=params)
             resp.raise_for_status()
             data = resp.json()
 
         columns = data.get("candles", {}).get("columns", [])
-        bars = []
+        candles = []
         for row in data.get("candles", {}).get("data", []):
             record = dict(zip(columns, row))
-            value = record.get("close")
             begin = record.get("begin")
-            if value is None or not begin:
+            if not begin:
                 continue
             try:
                 bar_date = date.fromisoformat(begin[:10])
             except ValueError:
                 continue
-            bars.append((bar_date, float(value)))
-        bars.sort(key=lambda b: b[0])
-        return bars
+            candles.append(
+                {
+                    "date": bar_date,
+                    "open": float(record["open"]) if record.get("open") is not None else None,
+                    "high": float(record["high"]) if record.get("high") is not None else None,
+                    "low": float(record["low"]) if record.get("low") is not None else None,
+                    "close": float(record["close"]) if record.get("close") is not None else None,
+                    "volume": int(record["volume"]) if record.get("volume") else 0,
+                }
+            )
+        candles.sort(key=lambda c: c["date"])
+        return candles

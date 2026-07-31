@@ -1,9 +1,11 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     Column,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -136,3 +138,16 @@ class EvidenceItem(Base):
     quote: Mapped[str] = mapped_column(Text, default="")
     url: Mapped[str] = mapped_column(String(1000), default="")
     weight: Mapped[float] = mapped_column(Float, default=0.0)
+
+
+class MarketCandle(Base):
+    __tablename__ = "market_candles"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    security_id: Mapped[int] = mapped_column(ForeignKey("securities.id"), index=True)
+    trading_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    open: Mapped[float | None] = mapped_column(nullable=True)
+    high: Mapped[float | None] = mapped_column(nullable=True)
+    low: Mapped[float | None] = mapped_column(nullable=True)
+    close: Mapped[float | None] = mapped_column(nullable=True)
+    volume: Mapped[int] = mapped_column(BigInteger, default=0)
