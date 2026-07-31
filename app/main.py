@@ -3,12 +3,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api.router import api_router
+from app.config import get_settings
 from app.db.connection import init_db
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    await init_db()
+    settings = get_settings()
+    if settings.auto_create_schema:
+        await init_db()
     yield
 
 

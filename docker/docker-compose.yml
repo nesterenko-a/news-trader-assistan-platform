@@ -17,5 +17,16 @@ services:
       timeout: 3s
       retries: 12
 
+  migrations:
+    image: liquibase/liquibase:4.31
+    container_name: newstrader-liquibase
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ../liquibase:/liquibase/changelog
+    command: ["--defaultsFile=/liquibase/changelog/liquibase.properties", "update"]
+
 volumes:
   pgdata:

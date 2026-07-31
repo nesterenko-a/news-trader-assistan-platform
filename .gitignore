@@ -8,6 +8,9 @@ venv/
 # DB
 *.db
 
+# Logs
+logs/
+
 # Env
 .env
 

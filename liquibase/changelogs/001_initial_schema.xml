@@ -1,0 +1,356 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+
+    <changeSet id="001-sources" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="sources"/>
+            </not>
+        </preConditions>
+        <createTable tableName="sources">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="varchar(200)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="kind" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="reputation_score" type="double precision" defaultValueNumeric="0.5"/>
+            <column name="is_active" type="boolean" defaultValueBoolean="true"/>
+            <column name="config" type="json"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="002-entities" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="entities"/>
+            </not>
+        </preConditions>
+        <createTable tableName="entities">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="type" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="varchar(200)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="aliases" type="json"/>
+            <column name="meta" type="json"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="003-securities" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="securities"/>
+            </not>
+        </preConditions>
+        <createTable tableName="securities">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="ticker" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="varchar(300)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="market" type="varchar(20)" defaultValue="MOEX"/>
+            <column name="security_type" type="varchar(20)" defaultValue="stock"/>
+            <column name="sector" type="varchar(100)" defaultValue=""/>
+            <column name="currency" type="varchar(10)" defaultValue="RUB"/>
+            <column name="aliases" type="json"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="004-articles" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="articles"/>
+            </not>
+        </preConditions>
+        <createTable tableName="articles">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="title" type="varchar(500)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="text" type="text">
+                <constraints nullable="false"/>
+            </column>
+            <column name="url" type="varchar(1000)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="source_id" type="bigint">
+                <constraints foreignKeyName="fk_articles_source_id" references="sources(id)"/>
+            </column>
+            <column name="source_reputation" type="double precision" defaultValueNumeric="0.5"/>
+            <column name="published_at" type="timestamp with time zone"/>
+            <column name="language" type="varchar(10)" defaultValue="ru"/>
+            <column name="cluster_id" type="bigint">
+                <constraints foreignKeyName="fk_articles_cluster_id" references="articles(id)"/>
+            </column>
+            <column name="analysis_version" type="varchar(50)"/>
+            <column name="created_at" type="timestamp with time zone" defaultValueComputed="now()"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="005-influences" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="influences"/>
+            </not>
+        </preConditions>
+        <createTable tableName="influences">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="from_entity_id" type="bigint">
+                <constraints foreignKeyName="fk_influences_from_entity_id" references="entities(id)"/>
+            </column>
+            <column name="to_entity_id" type="bigint">
+                <constraints foreignKeyName="fk_influences_to_entity_id" references="entities(id)"/>
+            </column>
+            <column name="direction" type="varchar(10)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="strength" type="varchar(10)" defaultValue="medium"/>
+            <column name="kind" type="varchar(10)" defaultValue="direct"/>
+            <column name="confidence" type="double precision" defaultValueNumeric="0.5"/>
+            <column name="rationale" type="text" defaultValue=""/>
+            <column name="source_ref" type="varchar(1000)" defaultValue=""/>
+            <column name="created_by" type="varchar(20)" defaultValue="curator"/>
+            <column name="is_approved" type="boolean" defaultValueBoolean="true"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="006-article-entities" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="article_entities"/>
+            </not>
+        </preConditions>
+        <createTable tableName="article_entities">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="article_id" type="bigint">
+                <constraints foreignKeyName="fk_article_entities_article_id" references="articles(id)"/>
+            </column>
+            <column name="entity_id" type="bigint">
+                <constraints foreignKeyName="fk_article_entities_entity_id" references="entities(id)"/>
+            </column>
+            <column name="sentiment" type="varchar(10)" defaultValue="neutral"/>
+            <column name="topic" type="varchar(50)" defaultValue=""/>
+            <column name="impact" type="double precision" defaultValueNumeric="0.0"/>
+            <column name="snippet" type="text" defaultValue=""/>
+            <column name="entity_role" type="varchar(10)" defaultValue="secondary"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="007-strategies" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="strategies"/>
+            </not>
+        </preConditions>
+        <createTable tableName="strategies">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="security_id" type="bigint">
+                <constraints foreignKeyName="fk_strategies_security_id" references="securities(id)"/>
+            </column>
+            <column name="user_id" type="bigint"/>
+            <column name="verdict" type="varchar(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="horizon" type="varchar(20)" defaultValue="medium"/>
+            <column name="confidence" type="varchar(20)" defaultValue="low"/>
+            <column name="entry_price" type="double precision"/>
+            <column name="take_profit" type="double precision"/>
+            <column name="stop_loss" type="double precision"/>
+            <column name="generated_at" type="timestamp with time zone" defaultValueComputed="now()"/>
+            <column name="model_version" type="varchar(50)" defaultValue="mvp-0.1"/>
+            <column name="rationale_summary" type="text" defaultValue=""/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="008-evidence-items" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="evidence_items"/>
+            </not>
+        </preConditions>
+        <createTable tableName="evidence_items">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="strategy_id" type="bigint">
+                <constraints foreignKeyName="fk_evidence_strategy_id" references="strategies(id)"/>
+            </column>
+            <column name="kind" type="varchar(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="article_id" type="bigint">
+                <constraints foreignKeyName="fk_evidence_article_id" references="articles(id)"/>
+            </column>
+            <column name="graph_path" type="json"/>
+            <column name="indicator_ref" type="json"/>
+            <column name="quote" type="text" defaultValue=""/>
+            <column name="url" type="varchar(1000)" defaultValue=""/>
+            <column name="weight" type="double precision" defaultValueNumeric="0.0"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="009-security-entity" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="security_entity"/>
+            </not>
+        </preConditions>
+        <createTable tableName="security_entity">
+            <column name="security_id" type="bigint">
+                <constraints primaryKey="true" foreignKeyName="fk_security_entity_security_id" references="securities(id)"/>
+            </column>
+            <column name="entity_id" type="bigint">
+                <constraints primaryKey="true" foreignKeyName="fk_security_entity_entity_id" references="entities(id)"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="010-unique-sources-name" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="sources_name_key"/>
+            </not>
+        </preConditions>
+        <addUniqueConstraint tableName="sources" columnNames="name" constraintName="sources_name_key"/>
+    </changeSet>
+
+    <changeSet id="011-unique-articles-url" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="articles_url_key"/>
+            </not>
+        </preConditions>
+        <addUniqueConstraint tableName="articles" columnNames="url" constraintName="articles_url_key"/>
+    </changeSet>
+
+    <changeSet id="012-unique-entities-name" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="entities_name_key"/>
+            </not>
+        </preConditions>
+        <addUniqueConstraint tableName="entities" columnNames="name" constraintName="entities_name_key"/>
+    </changeSet>
+
+    <changeSet id="013-unique-securities-ticker" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="ix_securities_ticker"/>
+            </not>
+        </preConditions>
+        <addUniqueConstraint tableName="securities" columnNames="ticker" constraintName="ix_securities_ticker"/>
+    </changeSet>
+
+    <changeSet id="014-index-articles-published-at" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="ix_articles_published_at"/>
+            </not>
+        </preConditions>
+        <createIndex indexName="ix_articles_published_at" tableName="articles">
+            <column name="published_at"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="015-index-entities-type" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="ix_entities_type"/>
+            </not>
+        </preConditions>
+        <createIndex indexName="ix_entities_type" tableName="entities">
+            <column name="type"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="016-index-influences-from" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="ix_influences_from_entity_id"/>
+            </not>
+        </preConditions>
+        <createIndex indexName="ix_influences_from_entity_id" tableName="influences">
+            <column name="from_entity_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="017-index-influences-to" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="ix_influences_to_entity_id"/>
+            </not>
+        </preConditions>
+        <createIndex indexName="ix_influences_to_entity_id" tableName="influences">
+            <column name="to_entity_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="018-index-article-entities-article" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="ix_article_entities_article_id"/>
+            </not>
+        </preConditions>
+        <createIndex indexName="ix_article_entities_article_id" tableName="article_entities">
+            <column name="article_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="019-index-article-entities-entity" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="ix_article_entities_entity_id"/>
+            </not>
+        </preConditions>
+        <createIndex indexName="ix_article_entities_entity_id" tableName="article_entities">
+            <column name="entity_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="020-index-strategies-security" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="ix_strategies_security_id"/>
+            </not>
+        </preConditions>
+        <createIndex indexName="ix_strategies_security_id" tableName="strategies">
+            <column name="security_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="021-index-evidence-strategy" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="ix_evidence_items_strategy_id"/>
+            </not>
+        </preConditions>
+        <createIndex indexName="ix_evidence_items_strategy_id" tableName="evidence_items">
+            <column name="strategy_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

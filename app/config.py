@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     telegram_api_id: str = ""
     telegram_api_hash: str = ""
     mvp_tickers: str = "AFLT,LKOH,GAZP,SBER"
+    auto_create_schema: bool = True
 
     @property
     def ticker_list(self) -> list[str]:
