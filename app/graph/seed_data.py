@@ -1,0 +1,48 @@
+ENTITIES = [
+    {"name": "Нефть", "type": "commodity", "aliases": ["нефть", "Brent", "марка Brent", "Urals"]},
+    {"name": "Топливо", "type": "commodity", "aliases": ["керосин", "топливо", "авиатопливо", "авиакеросин"]},
+    {"name": "Природный газ", "type": "commodity", "aliases": ["газ", "природный газ"]},
+    {"name": "Золото", "type": "commodity", "aliases": ["золото"]},
+    {"name": "Доллар США", "type": "currency", "aliases": ["доллар", "USD", "USD/RUB"]},
+    {"name": "Рубль", "type": "currency", "aliases": ["рубль", "RUB"]},
+    {"name": "Ключевая ставка ЦБ", "type": "macro_indicator", "aliases": ["ключевая ставка", "ставка ЦБ", "ставка Банка России"]},
+    {"name": "Инфляция", "type": "macro_indicator", "aliases": ["инфляция", "ИПЦ", "индекс потребительских цен"]},
+    {"name": "Индекс деловой активности (PMI)", "type": "macro_indicator", "aliases": ["PMI", "индекс деловой активности", "промпроизводство"]},
+    {"name": "Индекс МосБиржи", "type": "index", "aliases": ["MOEX", "индекс Мосбиржи", "IMOEX"]},
+    {"name": "Индекс RTS", "type": "index", "aliases": ["RTS", "индекс РТС"]},
+    {"name": "Авиаперевозки", "type": "sector", "aliases": ["авиация", "авиаперевозки", "авиаотрасль"]},
+    {"name": "Нефтегазовый сектор", "type": "sector", "aliases": ["нефтегазовый сектор", "нефтянка", "нефтегаз"]},
+    {"name": "Банковский сектор", "type": "sector", "aliases": ["банки", "банковский сектор"]},
+    {"name": "Аэрофлот", "type": "company", "aliases": ["Аэрофлот", "ПАО Аэрофлот", "AFLT"]},
+    {"name": "Лукойл", "type": "company", "aliases": ["Лукойл", "ЛУКОЙЛ", "LKOH"]},
+    {"name": "Газпром", "type": "company", "aliases": ["Газпром", "GAZP"]},
+    {"name": "Сбербанк", "type": "company", "aliases": ["Сбер", "Сбербанк", "SBER"]},
+]
+
+INFLUENCES = [
+    {"from": "Нефть", "to": "Топливо", "direction": "positive", "strength": "strong", "kind": "direct", "confidence": 0.9, "rationale": "Сырая нефть — основное сырьё для производства топлива и керосина; рост нефти напрямую удорожает топливо.", "source_ref": "curated"},
+    {"from": "Топливо", "to": "Авиаперевозки", "direction": "negative", "strength": "strong", "kind": "direct", "confidence": 0.85, "rationale": "Авиатопливо — крупнейшая статья операционных издержек авиакомпаний; рост цен на топливо снижает маржинальность.", "source_ref": "curated"},
+    {"from": "Нефть", "to": "Авиаперевозки", "direction": "negative", "strength": "medium", "kind": "indirect", "confidence": 0.7, "rationale": "Косвенная цепочка: нефть → топливо → издержки авиакомпаний.", "source_ref": "curated"},
+    {"from": "Нефть", "to": "Нефтегазовый сектор", "direction": "positive", "strength": "strong", "kind": "direct", "confidence": 0.9, "rationale": "Выручка нефтегазовых компаний напрямую зависит от цен на сырьё.", "source_ref": "curated"},
+    {"from": "Нефтегазовый сектор", "to": "Лукойл", "direction": "positive", "strength": "strong", "kind": "direct", "confidence": 0.9, "rationale": "Лукойл — одна из крупнейших нефтедобывающих компаний РФ.", "source_ref": "curated"},
+    {"from": "Нефтегазовый сектор", "to": "Газпром", "direction": "positive", "strength": "strong", "kind": "direct", "confidence": 0.85, "rationale": "Газпром — системообразующая компания сектора; цена на газ коррелирует с энергетическим рынком.", "source_ref": "curated"},
+    {"from": "Авиаперевозки", "to": "Аэрофлот", "direction": "positive", "strength": "strong", "kind": "direct", "confidence": 0.9, "rationale": "Аэрофлот — флагманский авиаперевозчик России, напрямую зависит от состояния отрасли.", "source_ref": "curated"},
+    {"from": "Рубль", "to": "Авиаперевозки", "direction": "negative", "strength": "medium", "kind": "indirect", "confidence": 0.6, "rationale": "Девальвация рубля удорожает лизинг, обслуживание иностранных самолётов и зарубежную логистику.", "source_ref": "curated"},
+    {"from": "Рубль", "to": "Нефтегазовый сектор", "direction": "positive", "strength": "medium", "kind": "indirect", "confidence": 0.65, "rationale": "Выручка экспортёров в валюте, расходы частично в рублях: слабый рубль повышает рублёвую прибыль.", "source_ref": "curated"},
+    {"from": "Доллар США", "to": "Рубль", "direction": "positive", "strength": "strong", "kind": "direct", "confidence": 0.9, "rationale": "Рост доллара ослабляет рубль (курс USD/RUB растёт).", "source_ref": "curated"},
+    {"from": "Доллар США", "to": "Индекс RTS", "direction": "positive", "strength": "medium", "kind": "direct", "confidence": 0.7, "rationale": "Индекс RTS считается в долларах: слабый рубль повышает его значение.", "source_ref": "curated"},
+    {"from": "Ключевая ставка ЦБ", "to": "Банковский сектор", "direction": "positive", "strength": "medium", "kind": "indirect", "confidence": 0.6, "rationale": "Высокие ставки расширяют чистую процентную маржу банков.", "source_ref": "curated"},
+    {"from": "Ключевая ставка ЦБ", "to": "Авиаперевозки", "direction": "negative", "strength": "medium", "kind": "indirect", "confidence": 0.55, "rationale": "Высокие ставки удорожают кредитное финансирование и лизинг самолётов.", "source_ref": "curated"},
+    {"from": "Инфляция", "to": "Ключевая ставка ЦБ", "direction": "positive", "strength": "medium", "kind": "indirect", "confidence": 0.8, "rationale": "Рост инфляции провоцирует ужесточение денежно-кредитной политики.", "source_ref": "curated"},
+    {"from": "Банковский сектор", "to": "Сбербанк", "direction": "positive", "strength": "strong", "kind": "direct", "confidence": 0.9, "rationale": "Сбербанк — крупнейший банк России, ключевой представитель сектора.", "source_ref": "curated"},
+    {"from": "Нефтегазовый сектор", "to": "Индекс МосБиржи", "direction": "positive", "strength": "medium", "kind": "indirect", "confidence": 0.8, "rationale": "Нефтегаз — крупнейшая доля индекса МосБиржи по капитализации.", "source_ref": "curated"},
+    {"from": "Банковский сектор", "to": "Индекс МосБиржи", "direction": "positive", "strength": "medium", "kind": "indirect", "confidence": 0.7, "rationale": "Банки — весомая часть индекса МосБиржи.", "source_ref": "curated"},
+    {"from": "Индекс деловой активности (PMI)", "to": "Индекс МосБиржи", "direction": "positive", "strength": "weak", "kind": "indirect", "confidence": 0.6, "rationale": "Рост деловой активности поддерживает рынок акций.", "source_ref": "curated"},
+]
+
+SECURITIES = [
+    {"ticker": "AFLT", "name": "Аэрофлот", "market": "MOEX", "security_type": "stock", "sector": "Авиаперевозки", "currency": "RUB", "aliases": ["ПАО Аэрофлот", "Аэрофлот"]},
+    {"ticker": "LKOH", "name": "Лукойл", "market": "MOEX", "security_type": "stock", "sector": "Нефтегазовый сектор", "currency": "RUB", "aliases": ["ЛУКОЙЛ", "Лукойл"]},
+    {"ticker": "GAZP", "name": "Газпром", "market": "MOEX", "security_type": "stock", "sector": "Нефтегазовый сектор", "currency": "RUB", "aliases": ["Газпром"]},
+    {"ticker": "SBER", "name": "Сбербанк", "market": "MOEX", "security_type": "stock", "sector": "Банковский сектор", "currency": "RUB", "aliases": ["Сбер", "Сбербанк"]},
+]
