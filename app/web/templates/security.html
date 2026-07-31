@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ security.ticker }} — NewsTrader Assistant{% endblock %}
+{% block title %}{{ view.ticker }} — NewsTrader Assistant{% endblock %}
 
 {% block content %}
 <p class="crumb"><a href="/">← Все бумаги</a></p>
@@ -8,11 +8,11 @@
 <section class="card">
   <div class="security-head">
     <div>
-      <h1>{{ security.ticker }}</h1>
-      <p class="muted">{{ security.name }} · {{ security.sector }} · {{ security.market }}</p>
+      <h1>{{ view.ticker }}</h1>
+      <p class="muted">{{ view.name }} · {{ view.sector }} · {{ view.market }}</p>
     </div>
     <div class="head-actions">
-      <div class="badge badge-{{ strategy.verdict }}">{{ strategy.verdict }}</div>
+      <div class="badge badge-{{ view.verdict }}">{{ view.verdict }}</div>
       <button class="btn" onclick="capturePage()">Сделать скриншот</button>
     </div>
   </div>
@@ -20,15 +20,15 @@
   <div class="grid">
     <div class="mini">
       <span class="label">Горизонт</span>
-      <span class="value">{{ strategy.horizon }}</span>
+      <span class="value">{{ view.horizon }}</span>
     </div>
     <div class="mini">
       <span class="label">Уверенность</span>
-      <span class="value">{{ strategy.confidence }}</span>
+      <span class="value">{{ view.confidence }}</span>
     </div>
     <div class="mini">
       <span class="label">Net score</span>
-      <span class="value">{{ "%.3f"|format(strategy.net_score) }}</span>
+      <span class="value">{{ "%.3f"|format(view.net_score) }}</span>
     </div>
   </div>
 
@@ -54,7 +54,7 @@
       <h2>История цены</h2>
       <div class="chart-range">
         {% for opt in range_options %}
-        <a class="{{ 'active' if opt == chart_range else '' }}" href="/securities/{{ security.ticker }}?range={{ opt }}">{{ {'1y': '1 год', '5y': '5 лет', 'all': 'Всё'}[opt] }}</a>
+        <a class="{{ 'active' if opt == chart_range else '' }}" href="/securities/{{ view.ticker }}?range={{ opt }}">{{ {'1y': '1 год', '5y': '5 лет', 'all': 'Всё'}[opt] }}</a>
         {% endfor %}
       </div>
     </div>
@@ -72,28 +72,28 @@
     {% endif %}
   </section>
 
-  {% if strategy.levels.entry %}
+  {% if view.levels.entry %}
   <div class="grid levels-grid">
     <div class="mini">
       <span class="label">Вход</span>
-      <span class="value big">{{ strategy.levels.entry }}</span>
+      <span class="value big">{{ view.levels.entry }}</span>
     </div>
     <div class="mini level-tp">
       <span class="label">Take-profit</span>
-      <span class="value big">{{ strategy.levels.take_profit }}</span>
+      <span class="value big">{{ view.levels.take_profit }}</span>
     </div>
     <div class="mini level-sl">
       <span class="label">Stop-loss</span>
-      <span class="value big">{{ strategy.levels.stop_loss }}</span>
+      <span class="value big">{{ view.levels.stop_loss }}</span>
     </div>
   </div>
   {% endif %}
 
-  <p class="rationale">{{ rationale }}</p>
+  <p class="rationale">{{ view.rationale }}</p>
 </section>
 
 <section class="card">
-  <h2>Сигналы ({{ signals|length }})</h2>
+  <h2>Сигналы ({{ view.signals|length }})</h2>
   <table class="table">
     <thead>
       <tr>
@@ -105,13 +105,13 @@
       </tr>
     </thead>
     <tbody>
-      {% for s in signals %}
+      {% for s in view.signals %}
       <tr>
         <td>{{ s.entity }}</td>
-        <td>{{ "прямой" if s.kind == "direct" else "косвенный" }}</td>
+        <td>{{ s.kind_label }}</td>
         <td>{{ s.sentiment }}</td>
-        <td class="{{ 'pos' if s.weight > 0 else 'neg' }}">{{ "%+.3f"|format(s.weight) }}</td>
-        <td class="muted">{{ " → ".join(s.path) }}</td>
+        <td class="{{ 'pos' if s.weight > 0 else 'neg' }}">{{ s.weight_str }}</td>
+        <td class="muted">{{ s.path }}</td>
       </tr>
       {% endfor %}
     </tbody>

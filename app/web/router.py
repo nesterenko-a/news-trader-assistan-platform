@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.connection import get_session
 from app.db.models import Article, ArticleEntity, Entity, MarketCandle, Security, Source
 from app.graph.service import security_entity_ids
+from app.presentation.factories import WebContextFactory
+from app.presentation.view import build_strategy_view
 from app.strategy.engine import generate_strategy
 
 router = APIRouter(tags=["web"])
@@ -17,6 +19,8 @@ templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 
 RANGE_OPTIONS = {"1y": 365, "5y": 5 * 365, "all": None}
 MAX_CHART_POINTS = 360
+
+_web_context_factory = WebContextFactory()
 
 
 def _build_chart(candles: list[MarketCandle], width: int = 900, height: int = 280) -> dict | None:
@@ -178,18 +182,20 @@ async def security_page(
 
     result = await generate_strategy(session, security.ticker)
     news = await _load_news(session, security.id)
-    return templates.TemplateResponse(
-        request,
-        "security.html",
+
+    view = build_strategy_view(
+        security,
+        result,
+        web_url=f"/securities/{security.ticker}",
+    )
+    context = _web_context_factory.build(view)
+    context.update(
         {
-            "security": security,
-            "strategy": result["strategy"],
-            "signals": result["signals"],
             "quotes": result["quotes"],
-            "rationale": result["rationale_summary"],
             "news": news,
             "chart": chart,
             "chart_range": chart_range,
             "range_options": list(RANGE_OPTIONS.keys()),
-        },
+        }
     )
+    return templates.TemplateResponse(request, "security.html", context)

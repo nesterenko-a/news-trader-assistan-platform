@@ -1,43 +1,39 @@
+from sqlalchemy import select
 from telegram import Update
 from telegram.ext import ContextTypes
 
 from app.config import get_settings
 from app.db.connection import SessionLocal
 from app.db.models import Security
+from app.presentation.factories import TelegramMessageFactory
+from app.presentation.view import build_strategy_view
 from app.strategy.engine import generate_strategy
 
-from sqlalchemy import select
+_telegram_factory = TelegramMessageFactory()
 
 
-async def _ticker_result(ticker: str) -> str:
+async def _build_reply(ticker: str) -> dict:
+    settings = get_settings()
     async with SessionLocal() as session:
         security = await session.scalar(
             select(Security).where(Security.ticker == ticker)
         )
         if security is None:
-            return (
-                f"Бумага <b>{ticker}</b> не найдена.\n"
-                "Попробуйте тикер из списка: AFLT, SBER, LKOH, GAZP, NLMK, PLZL, YDEX и др."
-            )
+            return {
+                "found": False,
+                "text": (
+                    f"Бумага <b>{ticker}</b> не найдена.\n"
+                    "Попробуйте тикер из списка: AFLT, SBER, LKOH, GAZP, NLMK, PLZL, YDEX и др."
+                ),
+            }
         result = await generate_strategy(session, ticker)
 
-    strategy = result["strategy"]
-    levels = strategy["levels"]
-    settings = get_settings()
-
-    lines = [
-        f"<b>{security.ticker}</b> — {security.name} ({security.sector})",
-        f"Вердикт: <b>{strategy['verdict']}</b>",
-        f"Горизонт: {strategy['horizon']} · Уверенность: {strategy['confidence']} · Score: {strategy['net_score']}",
-    ]
-    if levels.get("entry"):
-        lines.append(
-            f"Вход: {levels['entry']} · TP: {levels['take_profit']} · SL: {levels['stop_loss']}"
-        )
-    if result["rationale_summary"]:
-        lines.append(f"Обоснование: {result['rationale_summary']}")
-    lines.append(f"Подробнее: {settings.app_url}/securities/{ticker}")
-    return "\n".join(lines)
+    view = build_strategy_view(
+        security,
+        result,
+        web_url=f"{settings.app_url}/securities/{ticker}",
+    )
+    return {"found": True, "text": _telegram_factory.build(view)}
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -61,12 +57,13 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    text = (update.message.text or "").strip().upper()
-    if not text:
+    ticker = (update.message.text or "").strip().upper()
+    if not ticker:
         return
-    reply = await _ticker_result(text)
+
+    reply = await _build_reply(ticker)
     await update.message.reply_text(
-        reply,
+        reply["text"],
         parse_mode="HTML",
         disable_web_page_preview=True,
     )
