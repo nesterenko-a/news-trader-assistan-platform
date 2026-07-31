@@ -3,7 +3,7 @@ import logging
 
 import uvicorn
 
-from app.bot.application import build_application
+from app.bot.application import apply_menu, build_application
 from app.config import get_settings
 
 logging.basicConfig(
@@ -34,6 +34,7 @@ async def main() -> None:
         await bot.initialize()
         await bot.start()
         await bot.updater.start_polling()
+        await apply_menu(bot)
         logger.info("Telegram bot started")
     else:
         logger.warning("TELEGRAM_BOT_TOKEN is not set — Telegram bot skipped")

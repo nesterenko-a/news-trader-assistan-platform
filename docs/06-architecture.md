@@ -169,4 +169,5 @@
 - Конвейер анализа: [08-analysis-pipeline.md](./08-analysis-pipeline.md)
 - Движок стратегий: [09-strategy-engine.md](./09-strategy-engine.md)
 - Инфраструктура и эксплуатация: [13-operations.md](./13-operations.md)
-- Пользовательские интерфейсы (веб + бот): [14-user-interfaces.md](./14-user-interfaces.md)
+- Веб-интерфейс: [14-web-interface.md](./14-web-interface.md)
+- Telegram-бот: [15-telegram-bot.md](./15-telegram-bot.md)
