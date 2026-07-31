@@ -1,6 +1,6 @@
 # 13. Инфраструктура и эксплуатация
 
-**Статус:** утверждено v1.4  
+**Статус:** утверждено v1.5  
 **Система:** NewsTrader Assistant
 
 Практическое руководство: как запускается система, как управлять схемой БД, как работает планировщик сбора новостей и какие утилиты доступны.
@@ -71,15 +71,18 @@ schtasks /Delete /TN "NewsTraderBot\CollectNews" /F # удалить
 0 9 * * * cd /path/to/NewsTraderBot && .venv/bin/python -m scripts.daily_pipeline >> logs/daily_pipeline.log 2>&1
 ```
 
-## 4. Telegram-бот
+## 4. Единый запуск приложения и Telegram-бот
 
-Интерактивный канал доступа: пользователь пишет тикер боту и получает вердикт.
+**Единый лаунчер `scripts/run_app.py`** поднимает в одном процессе и веб-интерфейс (uvicorn), и Telegram-бота. Запуск: `python -m scripts.run_app` (или `scripts/run_app.bat` — через `pythonw`, без окна консоли).
 
-- Скрипт: `scripts/run_bot.py` (python-telegram-bot, режим polling).
-- Автозапуск: ярлык `NewsTraderBot.lnk` в папке «Автозагрузка» Windows запускает `scripts/run_bot.bat` (через `pythonw`, без окна консоли).
-- Лог: `logs/bot.log`.
+- Автозапуск: ярлык `NewsTraderBot.lnk` в папке «Автозагрузка» Windows указывает на `scripts/run_app.bat`.
+- Лог: `logs/app.log`.
+- Если `TELEGRAM_BOT_TOKEN` не задан — запускается только веб-интерфейс (с предупреждением в логе).
+
+**Telegram-бот:**
 - Команды: `/start`, `/help`, либо просто тикер (AFLT, SBER, LKOH и т.д.).
-- Токен: `TELEGRAM_BOT_TOKEN` в `.env`. Публичный адрес веб-интерфейса для ссылок в ответах — `APP_URL`.
+- Отдельный запуск только бота: `python -m scripts.run_bot` (полезно для отладки).
+- Публичный адрес веб-интерфейса для ссылок в ответах бота — `APP_URL`.
 
 ## 5. Утилиты
 
@@ -89,7 +92,8 @@ schtasks /Delete /TN "NewsTraderBot\CollectNews" /F # удалить
 | `scripts/collect_news.py` | Собирает RSS, фильтрует релевантное, анализирует через LLM, сохраняет в БД (шаг конвейера) |
 | `scripts/update_prices.py` | Синхронизирует дневные свечи из MOEX ISS; `--days N` — обновление за N дней; `--from YYYY-MM-DD` — полный бэкфилл истории |
 | `scripts/daily_pipeline.py` | Ежедневный конвейер: новости → цены → генерация стратегий |
-| `scripts/run_bot.py` | Запуск Telegram-бота (polling) |
+| `scripts/run_app.py` | Единый запуск: веб-интерфейс (uvicorn) + Telegram-бот |
+| `scripts/run_bot.py` | Запуск только Telegram-бота (polling) |
 | `scripts/calibrate.py` | Генерирует стратегии по всем бумагам и анализирует распределение скоринга (для настройки порогов) |
 | `scripts/backtest.py` | Оценивает сохранённые вердикты против фактического движения цены по дневным свечам (вход = close на дату генерации, выход = close через 5 торговых дней) |
 | `scripts/smoke.py` | Сквозная проверка API и веб-интерфейса на SQLite |
