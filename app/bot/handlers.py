@@ -5,6 +5,7 @@ from telegram.ext import ContextTypes
 from app.config import get_settings
 from app.db.connection import SessionLocal
 from app.db.models import Security
+from app.news.service import load_security_news
 from app.presentation.factories import TelegramMessageFactory
 from app.presentation.view import build_strategy_view
 from app.strategy.engine import generate_strategy
@@ -27,11 +28,13 @@ async def _build_reply(ticker: str) -> dict:
                 ),
             }
         result = await generate_strategy(session, ticker)
+        news = await load_security_news(session, security.id, limit=10)
 
     view = build_strategy_view(
         security,
         result,
         web_url=f"{settings.app_url}/securities/{ticker}",
+        news=news,
     )
     return {"found": True, "text": _telegram_factory.build(view)}
 

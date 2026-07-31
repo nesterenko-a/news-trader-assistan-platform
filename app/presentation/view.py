@@ -22,6 +22,15 @@ class SignalView:
 
 
 @dataclass
+class NewsItemView:
+    title: str
+    url: str
+    source_name: str
+    date_str: str
+    entity_tags: list[tuple[str, str]] = field(default_factory=list)
+
+
+@dataclass
 class StrategyView:
     ticker: str
     name: str
@@ -34,10 +43,16 @@ class StrategyView:
     levels: LevelsView = field(default_factory=LevelsView)
     rationale: str = ""
     signals: list[SignalView] = field(default_factory=list)
+    news: list[NewsItemView] = field(default_factory=list)
     web_url: str = ""
 
 
-def build_strategy_view(security, result: dict, web_url: str) -> StrategyView:
+def build_strategy_view(
+    security,
+    result: dict,
+    web_url: str,
+    news: list[NewsItemView] | None = None,
+) -> StrategyView:
     strategy = result["strategy"]
     levels = strategy["levels"]
     signals = []
@@ -70,5 +85,6 @@ def build_strategy_view(security, result: dict, web_url: str) -> StrategyView:
         ),
         rationale=result["rationale_summary"],
         signals=signals,
+        news=news or [],
         web_url=web_url,
     )

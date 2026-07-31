@@ -8,8 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.connection import get_session
-from app.db.models import Article, ArticleEntity, Entity, MarketCandle, Security, Source
-from app.graph.service import security_entity_ids
+from app.db.models import MarketCandle, Security
+from app.news.service import load_security_news
 from app.presentation.factories import WebContextFactory
 from app.presentation.view import build_strategy_view
 from app.strategy.engine import generate_strategy
@@ -55,56 +55,6 @@ def _build_chart(candles: list[MarketCandle], width: int = 900, height: int = 28
         "width": width,
         "height": height,
     }
-
-
-async def _load_news(session: AsyncSession, security_id: int) -> list[dict]:
-    target_ids = await security_entity_ids(session, security_id)
-    if not target_ids:
-        return []
-
-    entities = {e.id: e for e in await session.scalars(select(Entity))}
-    mentions = (
-        await session.scalars(
-            select(ArticleEntity).where(ArticleEntity.entity_id.in_(target_ids))
-        )
-    ).all()
-    article_ids = [m.article_id for m in mentions]
-    if not article_ids:
-        return []
-
-    articles = (
-        await session.scalars(
-            select(Article)
-            .where(Article.id.in_(article_ids))
-            .order_by(Article.published_at.desc())
-            .limit(30)
-        )
-    ).all()
-    sources = {s.id: s.name for s in await session.scalars(select(Source))}
-
-    items = []
-    for article in articles:
-        article_mentions = [
-            {
-                "name": entities[m.entity_id].name,
-                "sentiment": m.sentiment,
-                "impact": m.impact,
-            }
-            for m in mentions
-            if m.article_id == article.id and m.entity_id in entities
-        ]
-        items.append(
-            {
-                "id": article.id,
-                "title": article.title,
-                "url": article.url,
-                "published_at": article.published_at,
-                "source_name": sources.get(article.source_id, ""),
-                "text": article.text[:300],
-                "entities": article_mentions,
-            }
-        )
-    return items
 
 
 @router.get("/")
@@ -181,18 +131,18 @@ async def security_page(
     chart = _build_chart(candles)
 
     result = await generate_strategy(session, security.ticker)
-    news = await _load_news(session, security.id)
+    news = await load_security_news(session, security.id)
 
     view = build_strategy_view(
         security,
         result,
         web_url=f"/securities/{security.ticker}",
+        news=news,
     )
     context = _web_context_factory.build(view)
     context.update(
         {
             "quotes": result["quotes"],
-            "news": news,
             "chart": chart,
             "chart_range": chart_range,
             "range_options": list(RANGE_OPTIONS.keys()),

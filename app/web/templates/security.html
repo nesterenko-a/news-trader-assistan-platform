@@ -119,18 +119,18 @@
 </section>
 
 <section class="card">
-  <h2>Новости ({{ news|length }})</h2>
-  {% if news %}
-    {% for item in news %}
+  <h2>Новости ({{ view.news|length }})</h2>
+  {% if view.news %}
+    {% for item in view.news %}
     <article class="news-item">
       <div class="news-head">
         <a href="{{ item.url }}" target="_blank" rel="noopener">{{ item.title }}</a>
-        <span class="muted">{{ item.source_name }} · {{ item.published_at.strftime("%d.%m.%Y %H:%M") }}</span>
+        <span class="muted">{{ item.source_name }} · {{ item.date_str }}</span>
       </div>
-      {% if item.entities %}
+      {% if item.entity_tags %}
       <p class="tags">
-        {% for e in item.entities %}
-        <span class="tag tag-{{ e.sentiment }}">{{ e.name }} ({{ e.sentiment }})</span>
+        {% for name, sentiment in item.entity_tags %}
+        <span class="tag tag-{{ sentiment }}">{{ name }} ({{ sentiment }})</span>
         {% endfor %}
       </p>
       {% endif %}
