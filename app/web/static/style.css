@@ -130,7 +130,24 @@ main { padding: 24px 16px 40px; }
 
 .security-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .security-head h1 { margin: 0; font-size: 26px; }
+.head-actions { display: flex; align-items: center; gap: 10px; }
 .muted { color: var(--muted); }
+
+.btn {
+  padding: 8px 14px;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.value.big { font-size: 24px; font-weight: 700; }
+.level-tp .value { color: var(--green); }
+.level-sl .value { color: var(--red); }
+.levels-grid { margin: 16px 0; }
 
 .badge {
   padding: 8px 16px;

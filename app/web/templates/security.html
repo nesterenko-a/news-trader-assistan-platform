@@ -11,7 +11,10 @@
       <h1>{{ security.ticker }}</h1>
       <p class="muted">{{ security.name }} · {{ security.sector }} · {{ security.market }}</p>
     </div>
-    <div class="badge badge-{{ strategy.verdict }}">{{ strategy.verdict }}</div>
+    <div class="head-actions">
+      <div class="badge badge-{{ strategy.verdict }}">{{ strategy.verdict }}</div>
+      <button class="btn" onclick="capturePage()">Сделать скриншот</button>
+    </div>
   </div>
 
   <div class="grid">
@@ -51,10 +54,7 @@
       <h2>История цены</h2>
       <div class="chart-range">
         {% for opt in range_options %}
-        <a class="{{ 'active' if opt == chart_range else '' }}"
-           href="/securities/{{ security.ticker }}?range={{ opt }}">
-          {{ {'1y': '1 год', '5y': '5 лет', 'all': 'С 2012'}[opt] }}
-        </a>
+        <a class="{{ 'active' if opt == chart_range else '' }}" href="/securities/{{ security.ticker }}?range={{ opt }}">{{ {'1y': '1 год', '5y': '5 лет', 'all': 'Всё'}[opt] }}</a>
         {% endfor %}
       </div>
     </div>
@@ -73,10 +73,19 @@
   </section>
 
   {% if strategy.levels.entry %}
-  <div class="levels">
-    Вход <b>{{ strategy.levels.entry }}</b> ·
-    Take-profit <b>{{ strategy.levels.take_profit }}</b> ·
-    Stop-loss <b>{{ strategy.levels.stop_loss }}</b>
+  <div class="grid levels-grid">
+    <div class="mini">
+      <span class="label">Вход</span>
+      <span class="value big">{{ strategy.levels.entry }}</span>
+    </div>
+    <div class="mini level-tp">
+      <span class="label">Take-profit</span>
+      <span class="value big">{{ strategy.levels.take_profit }}</span>
+    </div>
+    <div class="mini level-sl">
+      <span class="label">Stop-loss</span>
+      <span class="value big">{{ strategy.levels.stop_loss }}</span>
+    </div>
   </div>
   {% endif %}
 
@@ -131,4 +140,7 @@
     <p class="muted">Новостей, связанных с бумагой, пока нет.</p>
   {% endif %}
 </section>
+
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="/static/app.js"></script>
 {% endblock %}

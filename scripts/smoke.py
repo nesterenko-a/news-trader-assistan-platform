@@ -62,6 +62,15 @@ try:
             chart_page.status_code,
             "История цены" in chart_page.text,
             "chart-range" in chart_page.text,
+            ">Всё</a>" in chart_page.text,
+        )
+
+        page = client.get("/securities/AFLT")
+        print(
+            "web screenshot btn:",
+            page.status_code,
+            "Сделать скриншот" in page.text,
+            "app.js" in page.text,
         )
 finally:
     asyncio.run(engine.dispose())
