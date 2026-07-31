@@ -23,18 +23,17 @@ class MOEXClient:
             resp.raise_for_status()
             data = resp.json()
 
+        columns = data.get("marketdata", {}).get("columns", [])
         for row in data.get("marketdata", {}).get("data", []):
-            if row[0] == ticker:
-                _, last, open_, high, low, volume = row
-                if last is None:
-                    return None
+            record = dict(zip(columns, row))
+            if record.get("SECID") == ticker and record.get("LAST") is not None:
                 return {
                     "ticker": ticker,
-                    "price": float(last),
-                    "open": float(open_) if open_ else None,
-                    "high": float(high) if high else None,
-                    "low": float(low) if low else None,
-                    "volume": int(volume) if volume else 0,
+                    "price": float(record["LAST"]),
+                    "open": float(record["OPEN"]) if record.get("OPEN") else None,
+                    "high": float(record["HIGH"]) if record.get("HIGH") else None,
+                    "low": float(record["LOW"]) if record.get("LOW") else None,
+                    "volume": int(record["VOLUME"]) if record.get("VOLUME") else 0,
                 }
         return None
 
@@ -57,9 +56,11 @@ class MOEXClient:
             resp.raise_for_status()
             data = resp.json()
 
+        columns = data.get("candles", {}).get("columns", [])
         closes = []
         for row in data.get("candles", {}).get("data", []):
-            value = row[0]
+            record = dict(zip(columns, row))
+            value = record.get("close")
             if value is not None:
                 closes.append(float(value))
         return closes
