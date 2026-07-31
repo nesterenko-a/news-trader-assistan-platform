@@ -15,49 +15,43 @@
 <section class="card">
   <h2>Поддерживаемые бумаги ({{ securities|length }})</h2>
 
-  <form class="filters" method="get" action="/">
-    <label>
-      Сектор
-      <select name="sector" onchange="this.form.submit()">
-        <option value="">Все</option>
-        {% for s in sectors %}
-        <option value="{{ s }}" {% if s == current_sector %}selected{% endif %}>{{ s }}</option>
+  <form method="get" action="/">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Тикер</th>
+          <th>Название</th>
+          <th>
+            Сектор
+            <select class="th-filter" name="sector" onchange="this.form.submit()">
+              <option value="">Все</option>
+              {% for s in sectors %}
+              <option value="{{ s }}" {% if s == current_sector %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </th>
+          <th>
+            Рынок
+            <select class="th-filter" name="market" onchange="this.form.submit()">
+              <option value="">Все</option>
+              {% for m in markets %}
+              <option value="{{ m }}" {% if m == current_market %}selected{% endif %}>{{ m }}</option>
+              {% endfor %}
+            </select>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for sec in securities %}
+        <tr>
+          <td><a href="/securities/{{ sec.ticker }}">{{ sec.ticker }}</a></td>
+          <td>{{ sec.name }}</td>
+          <td>{{ sec.sector }}</td>
+          <td>{{ sec.market }}</td>
+        </tr>
         {% endfor %}
-      </select>
-    </label>
-    <label>
-      Рынок
-      <select name="market" onchange="this.form.submit()">
-        <option value="">Все</option>
-        {% for m in markets %}
-        <option value="{{ m }}" {% if m == current_market %}selected{% endif %}>{{ m }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    {% if current_sector or current_market %}
-    <a class="reset" href="/">Сбросить</a>
-    {% endif %}
+      </tbody>
+    </table>
   </form>
-
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Тикер</th>
-        <th>Название</th>
-        <th>Сектор</th>
-        <th>Рынок</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for sec in securities %}
-      <tr>
-        <td><a href="/securities/{{ sec.ticker }}">{{ sec.ticker }}</a></td>
-        <td>{{ sec.name }}</td>
-        <td>{{ sec.sector }}</td>
-        <td>{{ sec.market }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
 </section>
 {% endblock %}

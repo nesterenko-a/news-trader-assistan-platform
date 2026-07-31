@@ -63,38 +63,48 @@ class MOEXClient:
             f"securities/{ticker}/candles.json"
         )
         params = {
-            "iss.meta": "off",
             "iss.only": "candles",
             "candles.columns": "begin,open,high,low,close,volume",
             "interval": str(interval),
             "from": from_date.isoformat(),
             "till": till_date.isoformat(),
         }
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.get(url, params=params)
-            resp.raise_for_status()
-            data = resp.json()
-
-        columns = data.get("candles", {}).get("columns", [])
         candles = []
-        for row in data.get("candles", {}).get("data", []):
-            record = dict(zip(columns, row))
-            begin = record.get("begin")
-            if not begin:
-                continue
-            try:
-                bar_date = date.fromisoformat(begin[:10])
-            except ValueError:
-                continue
-            candles.append(
-                {
-                    "date": bar_date,
-                    "open": float(record["open"]) if record.get("open") is not None else None,
-                    "high": float(record["high"]) if record.get("high") is not None else None,
-                    "low": float(record["low"]) if record.get("low") is not None else None,
-                    "close": float(record["close"]) if record.get("close") is not None else None,
-                    "volume": int(record["volume"]) if record.get("volume") else 0,
-                }
-            )
+        start = 0
+        page_size = 500
+        while True:
+            params["start"] = str(start)
+            params["limit"] = str(page_size)
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.get(url, params=params)
+                resp.raise_for_status()
+                data = resp.json()
+
+            block = data.get("candles", {})
+            columns = block.get("columns", [])
+            rows = block.get("data", [])
+            for row in rows:
+                record = dict(zip(columns, row))
+                begin = record.get("begin")
+                if not begin:
+                    continue
+                try:
+                    bar_date = date.fromisoformat(begin[:10])
+                except ValueError:
+                    continue
+                candles.append(
+                    {
+                        "date": bar_date,
+                        "open": float(record["open"]) if record.get("open") is not None else None,
+                        "high": float(record["high"]) if record.get("high") is not None else None,
+                        "low": float(record["low"]) if record.get("low") is not None else None,
+                        "close": float(record["close"]) if record.get("close") is not None else None,
+                        "volume": int(record["volume"]) if record.get("volume") else 0,
+                    }
+                )
+            if len(rows) < page_size:
+                break
+            start += len(rows)
+
         candles.sort(key=lambda c: c["date"])
         return candles

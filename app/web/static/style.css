@@ -63,31 +63,55 @@ main { padding: 24px 16px 40px; }
 }
 .search button:hover { filter: brightness(1.1); }
 
-.filters {
-  display: flex;
-  gap: 16px;
-  align-items: flex-end;
-  margin-bottom: 14px;
-  flex-wrap: wrap;
-}
-.filters label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
-  color: var(--muted);
-}
-.filters select {
-  padding: 8px 10px;
-  border-radius: 8px;
+.th-filter {
+  display: block;
+  margin-top: 4px;
+  padding: 4px 6px;
+  border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--panel-2);
   color: var(--text);
-  min-width: 180px;
+  font-size: 12px;
+  max-width: 180px;
 }
-.filters .reset {
+
+.chart-card .chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.chart-range a {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
   font-size: 13px;
-  padding-bottom: 8px;
+  color: var(--muted);
+  margin-left: 6px;
+}
+.chart-range a.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.chart {
+  width: 100%;
+  height: auto;
+  background: var(--panel-2);
+  border-radius: 8px;
+  margin-top: 12px;
+}
+.chart polyline {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+.chart-labels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 4px;
 }
 
 .card {

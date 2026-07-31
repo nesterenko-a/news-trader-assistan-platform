@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
@@ -7,12 +8,49 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.connection import get_session
-from app.db.models import Article, ArticleEntity, Entity, Security, Source
+from app.db.models import Article, ArticleEntity, Entity, MarketCandle, Security, Source
 from app.graph.service import security_entity_ids
 from app.strategy.engine import generate_strategy
 
 router = APIRouter(tags=["web"])
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+
+RANGE_OPTIONS = {"1y": 365, "5y": 5 * 365, "all": None}
+MAX_CHART_POINTS = 360
+
+
+def _build_chart(candles: list[MarketCandle], width: int = 900, height: int = 280) -> dict | None:
+    valid = [(c.trading_date, c.close) for c in candles if c.close is not None]
+    if len(valid) < 2:
+        return None
+
+    step = max(1, len(valid) // MAX_CHART_POINTS)
+    sampled = valid[::step]
+
+    prices = [close for _, close in sampled]
+    min_price = min(prices)
+    max_price = max(prices)
+    span = max_price - min_price or 1.0
+    pad = span * 0.05
+    low = min_price - pad
+    high = max_price + pad
+
+    points = []
+    n = len(sampled)
+    for i, (_, close) in enumerate(sampled):
+        x = round(10 + i * (width - 20) / (n - 1), 1)
+        y = round(10 + (high - close) / (high - low) * (height - 20), 1)
+        points.append(f"{x},{y}")
+
+    return {
+        "points": " ".join(points),
+        "min_price": round(min_price, 2),
+        "max_price": round(max_price, 2),
+        "first_date": sampled[0][0].isoformat(),
+        "last_date": sampled[-1][0].isoformat(),
+        "width": width,
+        "height": height,
+    }
 
 
 async def _load_news(session: AsyncSession, security_id: int) -> list[dict]:
@@ -115,6 +153,7 @@ async def search_redirect(request: Request, ticker: str = ""):
 async def security_page(
     request: Request,
     ticker: str,
+    range: str = "1y",
     session: AsyncSession = Depends(get_session),
 ):
     security = await session.scalar(
@@ -122,6 +161,20 @@ async def security_page(
     )
     if security is None:
         raise HTTPException(status_code=404, detail="Бумага не найдена")
+
+    chart_range = range if range in RANGE_OPTIONS else "1y"
+    lookback_days = RANGE_OPTIONS[chart_range]
+    statement = (
+        select(MarketCandle)
+        .where(MarketCandle.security_id == security.id)
+        .order_by(MarketCandle.trading_date)
+    )
+    if lookback_days is not None:
+        statement = statement.where(
+            MarketCandle.trading_date >= date.today() - timedelta(days=lookback_days)
+        )
+    candles = (await session.scalars(statement)).all()
+    chart = _build_chart(candles)
 
     result = await generate_strategy(session, security.ticker)
     news = await _load_news(session, security.id)
@@ -135,5 +188,8 @@ async def security_page(
             "quotes": result["quotes"],
             "rationale": result["rationale_summary"],
             "news": news,
+            "chart": chart,
+            "chart_range": chart_range,
+            "range_options": list(RANGE_OPTIONS.keys()),
         },
     )

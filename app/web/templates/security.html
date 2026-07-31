@@ -46,6 +46,32 @@
   </div>
   {% endif %}
 
+  <section class="card chart-card">
+    <div class="chart-head">
+      <h2>История цены</h2>
+      <div class="chart-range">
+        {% for opt in range_options %}
+        <a class="{{ 'active' if opt == chart_range else '' }}"
+           href="/securities/{{ security.ticker }}?range={{ opt }}">
+          {{ {'1y': '1 год', '5y': '5 лет', 'all': 'С 2012'}[opt] }}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% if chart %}
+    <svg class="chart" viewBox="0 0 {{ chart.width }} {{ chart.height }}" preserveAspectRatio="none">
+      <polyline points="{{ chart.points }}"/>
+    </svg>
+    <div class="chart-labels">
+      <span>{{ chart.first_date }}</span>
+      <span>{{ chart.min_price }} – {{ chart.max_price }}</span>
+      <span>{{ chart.last_date }}</span>
+    </div>
+    {% else %}
+    <p class="muted">Нет исторических данных для графика.</p>
+    {% endif %}
+  </section>
+
   {% if strategy.levels.entry %}
   <div class="levels">
     Вход <b>{{ strategy.levels.entry }}</b> ·

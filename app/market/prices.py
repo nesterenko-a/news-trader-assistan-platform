@@ -7,14 +7,24 @@ from app.db.models import MarketCandle, Security
 from app.market.moex import MOEXClient
 
 
-async def sync_security_prices(session: AsyncSession, ticker: str, days: int) -> int:
+async def sync_security_prices(
+    session: AsyncSession,
+    ticker: str,
+    days: int | None = None,
+    since: date | None = None,
+) -> int:
     security = await session.scalar(select(Security).where(Security.ticker == ticker))
     if security is None:
         return 0
 
+    if since is not None:
+        from_date = since
+    else:
+        from_date = date.today() - timedelta(days=days or 5)
+
     candles = await MOEXClient().fetch_candles(
         ticker,
-        from_date=date.today() - timedelta(days=days),
+        from_date=from_date,
         till_date=date.today(),
     )
 

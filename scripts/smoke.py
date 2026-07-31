@@ -55,5 +55,13 @@ try:
             "AFLT" in filtered.text,
             "LKOH" not in filtered.text,
         )
+
+        chart_page = client.get("/securities/AFLT", params={"range": "all"})
+        print(
+            "web chart block:",
+            chart_page.status_code,
+            "История цены" in chart_page.text,
+            "chart-range" in chart_page.text,
+        )
 finally:
     asyncio.run(engine.dispose())
