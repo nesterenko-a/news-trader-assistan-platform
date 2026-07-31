@@ -1,6 +1,6 @@
 # 13. Инфраструктура и эксплуатация
 
-**Статус:** утверждено v1.3  
+**Статус:** утверждено v1.4  
 **Система:** NewsTrader Assistant
 
 Практическое руководство: как запускается система, как управлять схемой БД, как работает планировщик сбора новостей и какие утилиты доступны.
@@ -71,7 +71,17 @@ schtasks /Delete /TN "NewsTraderBot\CollectNews" /F # удалить
 0 9 * * * cd /path/to/NewsTraderBot && .venv/bin/python -m scripts.daily_pipeline >> logs/daily_pipeline.log 2>&1
 ```
 
-## 4. Утилиты
+## 4. Telegram-бот
+
+Интерактивный канал доступа: пользователь пишет тикер боту и получает вердикт.
+
+- Скрипт: `scripts/run_bot.py` (python-telegram-bot, режим polling).
+- Автозапуск: ярлык `NewsTraderBot.lnk` в папке «Автозагрузка» Windows запускает `scripts/run_bot.bat` (через `pythonw`, без окна консоли).
+- Лог: `logs/bot.log`.
+- Команды: `/start`, `/help`, либо просто тикер (AFLT, SBER, LKOH и т.д.).
+- Токен: `TELEGRAM_BOT_TOKEN` в `.env`. Публичный адрес веб-интерфейса для ссылок в ответах — `APP_URL`.
+
+## 5. Утилиты
 
 | Скрипт | Назначение |
 |---|---|
@@ -79,9 +89,10 @@ schtasks /Delete /TN "NewsTraderBot\CollectNews" /F # удалить
 | `scripts/collect_news.py` | Собирает RSS, фильтрует релевантное, анализирует через LLM, сохраняет в БД (шаг конвейера) |
 | `scripts/update_prices.py` | Синхронизирует дневные свечи из MOEX ISS; `--days N` — обновление за N дней; `--from YYYY-MM-DD` — полный бэкфилл истории |
 | `scripts/daily_pipeline.py` | Ежедневный конвейер: новости → цены → генерация стратегий |
+| `scripts/run_bot.py` | Запуск Telegram-бота (polling) |
 | `scripts/calibrate.py` | Генерирует стратегии по всем бумагам и анализирует распределение скоринга (для настройки порогов) |
 | `scripts/backtest.py` | Оценивает сохранённые вердикты против фактического движения цены по дневным свечам (вход = close на дату генерации, выход = close через 5 торговых дней) |
-| `scripts/smoke.py` | Сквозная проверка API на SQLite |
+| `scripts/smoke.py` | Сквозная проверка API и веб-интерфейса на SQLite |
 
 Запуск: `.venv\Scripts\python.exe -m scripts.<имя>` из корня проекта.
 
@@ -91,7 +102,7 @@ schtasks /Delete /TN "NewsTraderBot\CollectNews" /F # удалить
 - Бэктест становится осмысленным после ~2–4 недель накопления (нужны вердикты, для которых прошло 5 торговых дней).
 - Веб-интерфейс показывает историю цены на карточке бумаги: диапазоны 1 год / 5 лет / с 2012 года (серверный SVG-график по сохранённым свечам).
 
-## 5. Конфигурация (`.env`)
+## 6. Конфигурация (`.env`)
 
 | Переменная | Назначение |
 |---|---|
@@ -99,7 +110,9 @@ schtasks /Delete /TN "NewsTraderBot\CollectNews" /F # удалить
 | `AUTO_CREATE_SCHEMA` | `true` — приложение создаёт схему само (dev); `false` — только Liquibase (prod) |
 | `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | Провайдер NLP (DeepSeek, OpenAI-совместимый) |
 | `MOEX_BASE_URL` | Базовый URL MOEX ISS |
-| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` | Каналы Telegram (бот и сбор) |
+| `TELEGRAM_BOT_TOKEN` | Токен Telegram-бота (канал доступа) |
+| `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` | Для чтения Telegram-каналов как источника (этап 1, Telethon) |
+| `APP_URL` | Публичный адрес веб-интерфейса (ссылки в ответах бота) |
 | `MVP_TICKERS` | Список отслеживаемых тикеров |
 
 Секреты (ключи API, токены) хранятся только в `.env` и не попадают в репозиторий.

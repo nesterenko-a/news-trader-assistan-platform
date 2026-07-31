@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_api_id: str = ""
     telegram_api_hash: str = ""
+    app_url: str = "http://localhost:8000"
     mvp_tickers: str = "AFLT,LKOH,GAZP,SBER"
     auto_create_schema: bool = True
 
