@@ -1,10 +1,12 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api.router import api_router
 from app.config import get_settings
 from app.db.connection import init_db
+from app.web.router import router as web_router
 
 
 @asynccontextmanager
@@ -21,4 +23,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.mount("/static", StaticFiles(directory="app/web/static"), name="static")
+app.include_router(web_router)
 app.include_router(api_router)

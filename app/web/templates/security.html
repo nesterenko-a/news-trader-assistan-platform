@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}{{ security.ticker }} — NewsTrader Assistant{% endblock %}
+
+{% block content %}
+<p class="crumb"><a href="/">← Все бумаги</a></p>
+
+<section class="card">
+  <div class="security-head">
+    <div>
+      <h1>{{ security.ticker }}</h1>
+      <p class="muted">{{ security.name }} · {{ security.sector }} · {{ security.market }}</p>
+    </div>
+    <div class="badge badge-{{ strategy.verdict }}">{{ strategy.verdict }}</div>
+  </div>
+
+  <div class="grid">
+    <div class="mini">
+      <span class="label">Горизонт</span>
+      <span class="value">{{ strategy.horizon }}</span>
+    </div>
+    <div class="mini">
+      <span class="label">Уверенность</span>
+      <span class="value">{{ strategy.confidence }}</span>
+    </div>
+    <div class="mini">
+      <span class="label">Net score</span>
+      <span class="value">{{ "%.3f"|format(strategy.net_score) }}</span>
+    </div>
+  </div>
+
+  {% if quotes %}
+  <div class="grid">
+    <div class="mini">
+      <span class="label">Цена</span>
+      <span class="value">{{ quotes.price }}</span>
+    </div>
+    <div class="mini">
+      <span class="label">Макс/мин</span>
+      <span class="value">{{ quotes.high }} / {{ quotes.low }}</span>
+    </div>
+    <div class="mini">
+      <span class="label">Объём</span>
+      <span class="value">{{ quotes.volume }}</span>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if strategy.levels.entry %}
+  <div class="levels">
+    Вход <b>{{ strategy.levels.entry }}</b> ·
+    Take-profit <b>{{ strategy.levels.take_profit }}</b> ·
+    Stop-loss <b>{{ strategy.levels.stop_loss }}</b>
+  </div>
+  {% endif %}
+
+  <p class="rationale">{{ rationale }}</p>
+</section>
+
+<section class="card">
+  <h2>Сигналы ({{ signals|length }})</h2>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Сущность</th>
+        <th>Тип</th>
+        <th>Тональность</th>
+        <th>Вес</th>
+        <th>Цепочка</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in signals %}
+      <tr>
+        <td>{{ s.entity }}</td>
+        <td>{{ "прямой" if s.kind == "direct" else "косвенный" }}</td>
+        <td>{{ s.sentiment }}</td>
+        <td class="{{ 'pos' if s.weight > 0 else 'neg' }}">{{ "%+.3f"|format(s.weight) }}</td>
+        <td class="muted">{{ " → ".join(s.path) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <h2>Новости ({{ news|length }})</h2>
+  {% if news %}
+    {% for item in news %}
+    <article class="news-item">
+      <div class="news-head">
+        <a href="{{ item.url }}" target="_blank" rel="noopener">{{ item.title }}</a>
+        <span class="muted">{{ item.source_name }} · {{ item.published_at.strftime("%d.%m.%Y %H:%M") }}</span>
+      </div>
+      {% if item.entities %}
+      <p class="tags">
+        {% for e in item.entities %}
+        <span class="tag tag-{{ e.sentiment }}">{{ e.name }} ({{ e.sentiment }})</span>
+        {% endfor %}
+      </p>
+      {% endif %}
+    </article>
+    {% endfor %}
+  {% else %}
+    <p class="muted">Новостей, связанных с бумагой, пока нет.</p>
+  {% endif %}
+</section>
+{% endblock %}

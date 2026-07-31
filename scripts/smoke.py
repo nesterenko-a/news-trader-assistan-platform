@@ -35,5 +35,14 @@ try:
 
         unknown = client.post("/v1/securities/XXXX/strategy")
         print("strategy unknown:", unknown.status_code)
+
+        index = client.get("/")
+        print("web index:", index.status_code, "NewsTrader" in index.text)
+
+        page = client.get("/securities/AFLT")
+        print("web AFLT page:", page.status_code, "AFLT" in page.text)
+
+        css = client.get("/static/style.css")
+        print("web css:", css.status_code)
 finally:
     asyncio.run(engine.dispose())

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Аналитика — NewsTrader Assistant{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1>Аналитика на основе новостного фона</h1>
+  <p>Стратегия по ценной бумаге строится из свежих новостей и цепочек влияния между отраслями экономики.</p>
+  <form class="search" action="/securities" method="get">
+    <input type="text" name="ticker" placeholder="Тикер, например AFLT" autofocus>
+    <button type="submit">Анализировать</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Поддерживаемые бумаги ({{ securities|length }})</h2>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Тикер</th>
+        <th>Название</th>
+        <th>Сектор</th>
+        <th>Рынок</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for sec in securities %}
+      <tr>
+        <td><a href="/securities/{{ sec.ticker }}">{{ sec.ticker }}</a></td>
+        <td>{{ sec.name }}</td>
+        <td>{{ sec.sector }}</td>
+        <td>{{ sec.market }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
