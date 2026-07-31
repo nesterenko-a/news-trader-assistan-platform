@@ -18,6 +18,12 @@ DEFAULT_FEEDS = [
     {"name": "Интерфакс", "url": "https://www.interfax.ru/rss.asp", "reputation": 0.8},
     {"name": "ТАСС", "url": "https://tass.ru/rss/v2.xml", "reputation": 0.8},
     {"name": "Коммерсантъ", "url": "https://www.kommersant.ru/RSS/news.xml", "reputation": 0.75},
+    {"name": "Ведомости", "url": "https://www.vedomosti.ru/rss/news", "reputation": 0.8},
+    {"name": "Прайм", "url": "https://1prime.ru/export/rss2/index.xml", "reputation": 0.8},
+    {"name": "Forbes Россия", "url": "https://www.forbes.ru/feed", "reputation": 0.75},
+    {"name": "БКС Экспресс", "url": "https://bcs-express.ru/rss/news", "reputation": 0.7},
+    {"name": "Финам", "url": "https://www.finam.ru/rss/", "reputation": 0.7},
+    {"name": "Smart-lab", "url": "https://smart-lab.ru/rss/", "reputation": 0.65},
 ]
 
 
