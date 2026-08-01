@@ -15,6 +15,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import UniqueConstraint
 
 from app.db.connection import Base
 
@@ -232,6 +233,22 @@ class Strategy(Base):
     )
     model_version: Mapped[str] = mapped_column(String(50), default="mvp-0.1")
     rationale_summary: Mapped[str] = mapped_column(Text, default="")
+
+
+class UserFeedback(Base):
+    __tablename__ = "user_feedback"
+    __table_args__ = (
+        UniqueConstraint("strategy_id", "user_id", name="uq_user_feedback_strategy_user"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    strategy_id: Mapped[int] = mapped_column(ForeignKey("strategies.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    rating: Mapped[str] = mapped_column(String(20))
+    comment: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class EvidenceItem(Base):

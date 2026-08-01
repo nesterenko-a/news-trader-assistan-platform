@@ -17,6 +17,7 @@ from app.auth import (
 )
 from app.bot.linking import consume_link_code, set_user_chat, unlink_telegram
 from app.bot.push import get_bot_username
+from app.feedback.service import get_rating, ratings_map, set_feedback, user_stats
 from app.db.connection import get_session
 from app.db.models import (
     MarketCandle,
@@ -175,6 +176,18 @@ async def security_page(
         news=news,
     )
     context = _web_context_factory.build(view)
+    last_strategy = await session.scalar(
+        select(Strategy)
+        .where(Strategy.security_id == security.id)
+        .order_by(Strategy.generated_at.desc(), Strategy.id.desc())
+        .limit(1)
+    )
+    strategy_id = last_strategy.id if last_strategy else None
+    my_rating = (
+        await get_rating(session, strategy_id, user.id)
+        if strategy_id is not None and user is not None
+        else None
+    )
     macro_rows = await list_security_events(session, security.id)
     macro_items = [
         {
@@ -194,6 +207,8 @@ async def security_page(
             "chart_range": chart_range,
             "range_options": list(RANGE_OPTIONS.keys()),
             "macro_events": macro_items,
+            "strategy_id": strategy_id,
+            "my_rating": my_rating,
         }
     )
     return templates.TemplateResponse(request, "security.html", context)
@@ -493,6 +508,69 @@ async def alerts_telegram_unlink(
         return RedirectResponse(url="/login", status_code=303)
     await unlink_telegram(session, user.id)
     return RedirectResponse(url="/alerts", status_code=303)
+
+
+@router.get("/history")
+async def history_page(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    rows = (
+        await session.execute(
+            select(Strategy, Security)
+            .join(Security, Security.id == Strategy.security_id)
+            .order_by(Strategy.generated_at.desc())
+            .limit(200)
+        )
+    ).all()
+    strategy_ids = [strategy.id for strategy, _ in rows]
+    ratings = await ratings_map(session, strategy_ids, user.id)
+    items = [
+        {
+            "id": strategy.id,
+            "ticker": security.ticker,
+            "name": security.name,
+            "verdict": strategy.verdict,
+            "horizon": strategy.horizon,
+            "confidence": strategy.confidence,
+            "generated_at": strategy.generated_at,
+            "model_version": strategy.model_version,
+            "my_rating": ratings.get(strategy.id),
+        }
+        for strategy, security in rows
+    ]
+    stats = await user_stats(session, user.id)
+    context = _base_context(user)
+    context.update({"items": items, "stats": stats})
+    return templates.TemplateResponse(request, "history.html", context)
+
+
+@router.post("/api-strategy-feedback")
+async def strategy_feedback_form(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    try:
+        strategy_id = int(str(form.get("strategy_id") or "0"))
+    except ValueError:
+        strategy_id = 0
+    rating = str(form.get("rating") or "").strip()
+    if strategy_id and rating:
+        try:
+            await set_feedback(session, strategy_id, user.id, rating)
+        except (KeyError, ValueError):
+            pass
+    redirect = str(form.get("next") or "/history")
+    if not redirect.startswith("/"):
+        redirect = "/history"
+    return RedirectResponse(url=redirect, status_code=303)
 
 
 @router.get("/macro")

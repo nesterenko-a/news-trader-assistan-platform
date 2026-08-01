@@ -147,6 +147,7 @@ main { padding: 24px 16px 40px; }
   cursor: pointer;
 }
 .btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.active { border-color: var(--accent); background: var(--accent); color: #fff; }
 
 .value.big { font-size: 24px; font-weight: 700; }
 .level-tp .value { color: var(--green); }

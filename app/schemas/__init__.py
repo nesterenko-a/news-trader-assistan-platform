@@ -123,6 +123,7 @@ class StrategyHistoryItem(BaseModel):
     confidence: str
     generated_at: datetime
     model_version: str
+    my_rating: str | None = None
 
 
 class AlertOut(BaseModel):
@@ -153,6 +154,27 @@ class TelegramLinkIn(BaseModel):
 class TelegramLinkOut(BaseModel):
     status: str
     chat_id: int | None = None
+
+
+class FeedbackIn(BaseModel):
+    rating: str
+    comment: str = ""
+
+
+class FeedbackOut(BaseModel):
+    id: int
+    strategy_id: int
+    rating: str
+    comment: str
+    created_at: datetime
+
+
+class FeedbackStats(BaseModel):
+    worked: int
+    partial: int
+    failed: int
+    total: int
+    worked_percent: float | None = None
 
 
 class MacroEventOut(BaseModel):

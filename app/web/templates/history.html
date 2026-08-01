@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}История стратегий — NewsTrader Assistant{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h1>История стратегий</h1>
+  <p class="muted">Сохранённые вердикты по бумагам. Отметьте, как сработала каждая стратегия, — статистика качества накапливается.</p>
+
+  <div class="grid">
+    <div class="mini">
+      <span class="label">Сработало</span>
+      <span class="value pos">{{ stats.worked }}</span>
+    </div>
+    <div class="mini">
+      <span class="label">Частично</span>
+      <span class="value">{{ stats.partial }}</span>
+    </div>
+    <div class="mini">
+      <span class="label">Не сработало</span>
+      <span class="value neg">{{ stats.failed }}</span>
+    </div>
+    <div class="mini">
+      <span class="label">Оценено / всего</span>
+      <span class="value">{{ stats.total }} / {{ items|length }}</span>
+    </div>
+    <div class="mini">
+      <span class="label">% сработало</span>
+      <span class="value">{{ "%.1f"|format(stats.worked_percent) if stats.worked_percent is not none else "—" }}</span>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  {% if items %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Тикер</th>
+        <th>Вердикт</th>
+        <th>Горизонт</th>
+        <th>Уверенность</th>
+        <th>Дата</th>
+        <th>Версия</th>
+        <th>Сработало?</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in items %}
+      <tr>
+        <td><a href="/securities/{{ s.ticker }}">{{ s.ticker }}</a></td>
+        <td><span class="badge badge-{{ s.verdict }}">{{ s.verdict }}</span></td>
+        <td>{{ s.horizon }}</td>
+        <td>{{ s.confidence }}</td>
+        <td>{{ s.generated_at.strftime("%d.%m.%Y %H:%M") }}</td>
+        <td class="muted">{{ s.model_version }}</td>
+        <td>
+          <form class="inline-add" method="post" action="/api-strategy-feedback">
+            <input type="hidden" name="strategy_id" value="{{ s.id }}">
+            <input type="hidden" name="next" value="/history">
+            {% for value, label in [('worked', 'Сработало'), ('partial', 'Частично'), ('failed', 'Не сработало')] %}
+            <button class="btn {{ 'active' if s.my_rating == value else '' }}" type="submit" name="rating" value="{{ value }}">{{ label }}</button>
+            {% endfor %}
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">История пуста. Вердикты появятся после генерации стратегий (ежедневный конвейер или запрос аналитики по бумаге).</p>
+  {% endif %}
+</section>
+{% endblock %}

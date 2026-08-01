@@ -35,6 +35,7 @@ from app.db.models import (
     Strategy,
     TelegramLinkCode,
     User,
+    UserFeedback,
     WatchlistItem,
     macro_event_security,
 )
@@ -47,6 +48,7 @@ from app.bot.linking import (
     unlink_telegram,
 )
 from app.alerts.delivery import deliver_telegram
+from app.feedback.service import get_rating, ratings_map, set_feedback, user_stats
 from scripts.collect_news import _mention_check, _parse_since, _within_since
 from app.graph.service import (
     find_influence_paths,
@@ -545,3 +547,49 @@ async def test_telegram_delivery(session, monkeypatch):
     assert sent["calls"][0][0] == 111
     assert "Большая новость по SBER" in sent["calls"][0][1]
     assert "SBER" in sent["calls"][0][1]
+
+
+async def test_feedback_flow(session):
+    await seed_graph(session)
+    sber = await session.scalar(select(Security).where(Security.ticker == "SBER"))
+    user = User(username="fbuser", password_hash="x")
+    session.add(user)
+    await session.commit()
+
+    strategy = Strategy(security_id=sber.id, verdict="BUY", horizon="medium")
+    session.add(strategy)
+    await session.commit()
+
+    feedback = await set_feedback(session, strategy.id, user.id, "worked")
+    assert feedback.rating == "worked"
+    assert await get_rating(session, strategy.id, user.id) == "worked"
+    assert await ratings_map(session, [strategy.id], user.id) == {strategy.id: "worked"}
+
+    await set_feedback(session, strategy.id, user.id, "failed", "не угадали")
+    rows = (
+        await session.scalars(
+            select(UserFeedback).where(UserFeedback.strategy_id == strategy.id)
+        )
+    ).all()
+    assert len(rows) == 1
+    assert rows[0].rating == "failed"
+    assert rows[0].comment == "не угадали"
+
+    try:
+        await set_feedback(session, strategy.id, user.id, "bogus")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("invalid rating must raise ValueError")
+
+    try:
+        await set_feedback(session, 999999, user.id, "worked")
+    except KeyError:
+        pass
+    else:
+        raise AssertionError("missing strategy must raise KeyError")
+
+    stats = await user_stats(session, user.id)
+    assert stats["failed"] == 1
+    assert stats["total"] == 1
+    assert stats["worked_percent"] == 0.0

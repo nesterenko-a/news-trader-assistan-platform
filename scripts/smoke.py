@@ -6,8 +6,10 @@ if os.path.exists("./smoke.db"):
     os.remove("./smoke.db")
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.db.connection import SessionLocal, engine, init_db
+from app.db.models import Security, Strategy
 from app.graph.service import seed_graph
 from app.main import app
 
@@ -16,6 +18,19 @@ async def _seed() -> None:
     await init_db()
     async with SessionLocal() as session:
         await seed_graph(session)
+        sber = await session.scalar(select(Security).where(Security.ticker == "SBER"))
+        if sber is not None:
+            session.add(
+                Strategy(
+                    security_id=sber.id,
+                    verdict="HOLD",
+                    horizon="medium",
+                    confidence="low",
+                    model_version="mvp-0.1",
+                    rationale_summary="smoke seed",
+                )
+            )
+            await session.commit()
 
 
 asyncio.run(_seed())
@@ -129,6 +144,28 @@ try:
         print("telegram link invalid:", link_bad.status_code)
         link_off = client.delete("/v1/alerts/telegram/link", headers=headers)
         print("telegram unlink:", link_off.status_code)
+
+        history = client.get("/v1/strategies/history", headers=headers)
+        hist_items = history.json()
+        print("strategy history:", history.status_code, len(hist_items))
+        first_id = hist_items[0]["id"] if hist_items else None
+        fb = None
+        if first_id:
+            fb = client.post(
+                f"/v1/strategies/{first_id}/feedback",
+                json={"rating": "worked"},
+                headers=headers,
+            )
+        print("feedback post:", fb.status_code if fb else "skip")
+        fb_stats = client.get("/v1/strategies/feedback/stats", headers=headers)
+        print("feedback stats:", fb_stats.status_code, fb_stats.json() if fb_stats.status_code == 200 else "")
+        history_page = client.get("/history", headers=headers)
+        print(
+            "web history page:",
+            history_page.status_code,
+            "История стратегий" in history_page.text,
+            "Сработало" in history_page.text,
+        )
 
         macro = client.get("/v1/macro/calendar")
         print("macro calendar:", macro.status_code)

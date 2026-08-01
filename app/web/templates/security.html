@@ -32,6 +32,19 @@
     </div>
   </div>
 
+  {% if strategy_id and user %}
+  <div class="inline-add" style="margin-bottom:0">
+    <span class="label" style="align-self:center">Сработало?</span>
+    <form method="post" action="/api-strategy-feedback" class="inline-add" style="margin:0">
+      <input type="hidden" name="strategy_id" value="{{ strategy_id }}">
+      <input type="hidden" name="next" value="/securities/{{ view.ticker }}">
+      {% for value, label in [('worked', 'Сработало'), ('partial', 'Частично'), ('failed', 'Не сработало')] %}
+      <button class="btn {{ 'active' if my_rating == value else '' }}" type="submit" name="rating" value="{{ value }}">{{ label }}</button>
+      {% endfor %}
+    </form>
+  </div>
+  {% endif %}
+
   {% if quotes %}
   <div class="grid">
     <div class="mini">
