@@ -148,7 +148,16 @@ async def _mark_status(run_id: int, **fields) -> None:
         await session.commit()
 
 
-async def _execute(script_key: str, param_value: int | None) -> tuple[int, str]:
+async def _append_output(run_id: int, text: str) -> None:
+    async with SessionLocal() as session:
+        run = await session.get(ScriptRun, run_id)
+        if run is None:
+            return
+        run.output = (run.output or "") + text
+        await session.commit()
+
+
+async def _execute(run_id: int, script_key: str, param_value: int | None) -> tuple[int, str]:
     argv = build_argv(script_key, param_value)
     proc = await asyncio.create_subprocess_exec(
         *argv,
@@ -156,14 +165,34 @@ async def _execute(script_key: str, param_value: int | None) -> tuple[int, str]:
         stderr=asyncio.subprocess.STDOUT,
         cwd=str(PROJECT_ROOT),
     )
+    all_parts: list[str] = []
+    pending: list[str] = []
+    exit_code = -1
     try:
-        raw = await asyncio.wait_for(proc.communicate(), timeout=SCRIPT_TIMEOUT_SECONDS)
-    except asyncio.TimeoutError:
+        async with asyncio.timeout(SCRIPT_TIMEOUT_SECONDS):
+            assert proc.stdout is not None
+            while True:
+                chunk = await proc.stdout.readline()
+                if not chunk:
+                    break
+                decoded = chunk.decode("utf-8", errors="replace")
+                all_parts.append(decoded)
+                pending.append(decoded)
+                if len(pending) >= 25:
+                    await _append_output(run_id, "".join(pending))
+                    pending = []
+            exit_code = proc.returncode or 0
+    except (asyncio.TimeoutError, TimeoutError):
         proc.kill()
-        await proc.communicate()
-        return 124, "Превышено время ожидания (30 минут), процесс остановлен"
-    output = (raw[0] or b"").decode("utf-8", errors="replace")
-    return proc.returncode or 0, output
+        await proc.wait()
+        exit_code = 124
+        note = "\nПревышено время ожидания (30 минут), процесс остановлен\n"
+        all_parts.append(note)
+        pending.append(note)
+    finally:
+        if pending:
+            await _append_output(run_id, "".join(pending))
+    return exit_code, "".join(all_parts)
 
 
 async def run_script_task(run_id: int, script_key: str, param_value: int | None) -> None:
@@ -173,7 +202,7 @@ async def run_script_task(run_id: int, script_key: str, param_value: int | None)
     try:
         await _mark_status(run_id, status="running")
         try:
-            exit_code, output = await _execute(script_key, param_value)
+            exit_code, output = await _execute(run_id, script_key, param_value)
             status = "success" if exit_code == 0 else "failed"
         except Exception as exc:
             exit_code = -1

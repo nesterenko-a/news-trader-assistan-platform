@@ -18,7 +18,8 @@
   {% if run.params %}<p class="muted">Параметры: {{ run.params }}</p>{% endif %}
 
   <h2>Вывод</h2>
-  <pre class="run-output">{{ run.output or "(вывод пока пуст — скрипт ещё выполняется)" }}</pre>
+  {% if running %}<p class="muted small">Лог обновляется автоматически каждые 3 секунды.</p>{% endif %}
+  <pre class="run-output">{{ run.output or "(лог пока пуст — скрипт ещё выполняется)" }}</pre>
 
   <p><a class="btn" href="/admin">← К списку запусков</a></p>
 </section>
