@@ -87,3 +87,11 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Пользователь не найден"
         )
     return user
+
+
+async def require_admin(user: User = Depends(get_current_user)) -> User:
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Требуются права администратора"
+        )
+    return user

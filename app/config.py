@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     telegram_api_hash: str = ""
     telegram_channels: str = ""
     telegram_session_name: str = "telethon_session"
+    admin_usernames: str = ""
     app_url: str = "http://localhost:8000"
     mvp_tickers: str = "AFLT,LKOH,GAZP,SBER"
     auto_create_schema: bool = True
@@ -30,6 +31,10 @@ class Settings(BaseSettings):
         return [
             c.strip().lstrip("@") for c in self.telegram_channels.split(",") if c.strip()
         ]
+
+    @property
+    def admin_username_list(self) -> list[str]:
+        return [u.strip() for u in self.admin_usernames.split(",") if u.strip()]
 
 
 @lru_cache

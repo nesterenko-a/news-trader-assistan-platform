@@ -1,6 +1,6 @@
 # 07. Модель данных
 
-**Статус:** утверждено v1.8  
+**Статус:** утверждено v1.9  
 **Система:** NewsTrader Assistant
 
 Описание сущностей системы и их взаимосвязей. Модель представлена концептуально, без привязки к конкретной СУБД (см. [06-architecture.md](./06-architecture.md)).
@@ -243,8 +243,24 @@
 | id | PK | Идентификатор |
 | username | string | Уникальное имя пользователя |
 | password_hash | string | Хэш пароля (PBKDF2-SHA256) |
+| role | enum | user / admin (администраторы — из `ADMIN_USERNAMES`, см. 11-security-compliance.md) |
 | telegram_chat_id | int | Привязанный Telegram-чат (после подтверждения кода из бота), null — не привязан |
 | created_at | datetime | Время регистрации |
+
+### 2.12.2. ScriptRun (запуск скрипта администратором)
+
+| Поле | Тип | Описание |
+|---|---|---|
+| id | PK | Идентификатор |
+| script_name | string | Ключ скрипта из whitelist (daily_pipeline, collect_news и др.) |
+| params | json | Параметры запуска |
+| user_id | FK | Администратор, запустивший скрипт |
+| status | enum | running / success / failed |
+| exit_code | int | Код выхода процесса |
+| output | text | Вывод скрипта (stdout+stderr) |
+| started_at / finished_at | datetime | Время запуска и завершения |
+
+Записи создаются при запуске скриптов из веб-интерфейса `/admin` (журнал действий администратора).
 
 ### 2.12.1. TelegramLinkCode (код привязки Telegram)
 

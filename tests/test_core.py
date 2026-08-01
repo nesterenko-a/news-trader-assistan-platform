@@ -68,6 +68,9 @@ from app.news.ingest import (
 from app.collectors.rss import RawArticle
 from app.collectors.telegram import _make_title
 from scripts.backtest_asof import backtest_ticker, build_report, evaluate
+from app.admin.roles import promote_admin_users
+from app.admin.runner import build_argv, get_script
+from app.web.router import admin_page as admin_page_route
 from app.graph.service import (
     find_influence_paths,
     resolve_entity_id,
@@ -860,3 +863,79 @@ async def test_backtest_asof_ticker(session):
     assert "Оценено:" in joined
     assert "По вердиктам:" in joined
     assert "По периодам (месяц):" in joined
+
+
+async def test_promote_admin_users(session):
+    user = User(username="alexkwest", password_hash="x")
+    plain = User(username="plain", password_hash="x")
+    session.add_all([user, plain])
+    await session.commit()
+
+    promoted = await promote_admin_users(session, ["alexkwest"])
+    assert promoted == 1
+    assert (await session.get(User, user.id)).role == "admin"
+    assert (await session.get(User, plain.id)).role == "user"
+
+    assert await promote_admin_users(session, ["alexkwest"]) == 0
+
+
+def test_runner_build_argv():
+    argv = build_argv("update_prices", None)
+    assert argv[-2:] == ["--days", "5"]
+    argv = build_argv("collect_news", 3)
+    assert argv[-2:] == ["--days", "3"]
+
+    assert build_argv("seed_db", None) == [__import__("sys").executable, "-m", "scripts.seed_db"]
+
+    try:
+        build_argv("nope", None)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("unknown script must raise ValueError")
+
+    try:
+        build_argv("collect_news", -1)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("non-positive param must raise ValueError")
+
+    assert get_script("backtest_asof") is not None
+
+
+async def test_admin_page_access(session):
+    await seed_graph(session)
+    admin = User(username="boss", password_hash="x", role="admin")
+    plain = User(username="worker", password_hash="x")
+    session.add_all([admin, plain])
+    await session.flush()
+    admin_token = await create_session(session, admin)
+    plain_token = await create_session(session, plain)
+    await session.commit()
+
+    def make_request(token: str | None) -> Request:
+        headers = [(b"cookie", f"nt_token={token}".encode())] if token else []
+        return Request(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": "/admin",
+                "headers": headers,
+                "server": ("test", 80),
+                "query_string": b"",
+                "client": ("test", 80),
+                "scheme": "http",
+            }
+        )
+
+    admin_html = (await admin_page_route(make_request(admin_token), session)).body.decode()
+    assert "Администрирование" in admin_html
+    assert "Ежедневный конвейер" in admin_html
+    assert "Последние запуски" in admin_html
+
+    plain_response = await admin_page_route(make_request(plain_token), session)
+    assert plain_response.status_code == 303
+
+    anon_response = await admin_page_route(make_request(None), session)
+    assert anon_response.status_code == 303

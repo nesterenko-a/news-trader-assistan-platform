@@ -17,6 +17,7 @@ from app.auth import (
 )
 from app.bot.linking import consume_link_code, set_user_chat, unlink_telegram
 from app.bot.push import get_bot_username
+from app.admin.runner import SCRIPTS, get_script, is_busy, launch
 from app.feedback.service import (
     get_rating,
     ratings_map,
@@ -28,6 +29,7 @@ from app.db.connection import get_session
 from app.db.models import (
     MarketCandle,
     PortfolioPosition,
+    ScriptRun,
     Security,
     Strategy,
     User,
@@ -60,7 +62,7 @@ async def _optional_user(
 
 
 def _base_context(user: User | None) -> dict:
-    return {"user": user}
+    return {"user": user, "is_admin": bool(user is not None and user.role == "admin")}
 
 
 def _build_chart(candles: list[MarketCandle], width: int = 900, height: int = 280) -> dict | None:
@@ -577,6 +579,109 @@ async def strategy_feedback_form(
     if not redirect.startswith("/"):
         redirect = "/history"
     return RedirectResponse(url=redirect, status_code=303)
+
+
+def _is_admin_user(user: User | None) -> bool:
+    return user is not None and user.role == "admin"
+
+
+@router.get("/admin")
+async def admin_page(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if not _is_admin_user(user):
+        return RedirectResponse(url="/login", status_code=303)
+    runs = (
+        await session.scalars(select(ScriptRun).order_by(ScriptRun.id.desc()).limit(20))
+    ).all()
+    usernames = {
+        u.id: u.username for u in (await session.scalars(select(User))).all()
+    }
+    items = [
+        {
+            "id": run.id,
+            "script": run.script_name,
+            "title": (get_script(run.script_name) or {}).get("title", run.script_name),
+            "status": run.status,
+            "exit_code": run.exit_code,
+            "started_at": run.started_at,
+            "user": usernames.get(run.user_id, ""),
+        }
+        for run in runs
+    ]
+    context = _base_context(user)
+    context.update(
+        {
+            "scripts": SCRIPTS,
+            "runs": items,
+            "busy": is_busy(),
+            "error": request.query_params.get("error") == "1",
+            "param_error": request.query_params.get("error") == "2",
+            "busy_error": request.query_params.get("busy") == "1",
+        }
+    )
+    return templates.TemplateResponse(request, "admin.html", context)
+
+
+@router.post("/admin/scripts/run")
+async def admin_run_script(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if not _is_admin_user(user):
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    script_key = str(form.get("script") or "")
+    script = get_script(script_key)
+    if script is None:
+        return RedirectResponse(url="/admin?error=1", status_code=303)
+    param_value = None
+    param_raw = str(form.get("param") or "").strip()
+    if param_raw:
+        try:
+            param_value = int(param_raw)
+        except ValueError:
+            return RedirectResponse(url="/admin?error=2", status_code=303)
+    run = ScriptRun(
+        script_name=script_key,
+        params={"param": param_value} if param_value is not None else {},
+        user_id=user.id,
+    )
+    session.add(run)
+    await session.commit()
+    try:
+        launch(run.id, script_key, param_value)
+    except RuntimeError:
+        return RedirectResponse(url="/admin?busy=1", status_code=303)
+    except ValueError:
+        return RedirectResponse(url="/admin?error=2", status_code=303)
+    return RedirectResponse(url=f"/admin/runs/{run.id}", status_code=303)
+
+
+@router.get("/admin/runs/{run_id}")
+async def admin_run_detail(
+    request: Request,
+    run_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if not _is_admin_user(user):
+        return RedirectResponse(url="/login", status_code=303)
+    run = await session.get(ScriptRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Запуск не найден")
+    context = _base_context(user)
+    context.update(
+        {
+            "run": run,
+            "script_title": (get_script(run.script_name) or {}).get("title", run.script_name),
+            "running": run.status == "running",
+        }
+    )
+    return templates.TemplateResponse(request, "admin_run.html", context)
 
 
 @router.get("/macro")

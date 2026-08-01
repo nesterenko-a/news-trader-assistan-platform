@@ -33,10 +33,27 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String(100), unique=True)
     password_hash: Mapped[str] = mapped_column(String(300))
+    role: Mapped[str] = mapped_column(String(20), default="user")
     telegram_chat_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class ScriptRun(Base):
+    __tablename__ = "script_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    script_name: Mapped[str] = mapped_column(String(50))
+    params: Mapped[dict] = mapped_column(JSON, default=dict)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="running")
+    exit_code: Mapped[int | None] = mapped_column(nullable=True)
+    output: Mapped[str] = mapped_column(Text, default="")
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
 
 class TelegramLinkCode(Base):

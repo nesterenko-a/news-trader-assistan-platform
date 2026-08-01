@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Запуск #{{ run.id }} — NewsTrader Assistant{% endblock %}
+
+{% block content %}
+{% if running %}<meta http-equiv="refresh" content="3">{% endif %}
+
+<section class="card">
+  <div class="security-head">
+    <h1>{{ script_title }} <span class="muted">#{{ run.id }}</span></h1>
+    <span class="run-status run-{{ run.status }}">{{ {'running': 'выполняется…', 'success': 'успех', 'failed': 'ошибка'}[run.status] }}</span>
+  </div>
+  <p class="muted">
+    Запущен: {{ run.started_at.strftime("%d.%m.%Y %H:%M:%S") }}
+    {% if run.finished_at %} · Завершён: {{ run.finished_at.strftime("%d.%m.%Y %H:%M:%S") }}{% endif %}
+    · Код выхода: {{ run.exit_code if run.exit_code is not none else "—" }}
+  </p>
+  {% if run.params %}<p class="muted">Параметры: {{ run.params }}</p>{% endif %}
+
+  <h2>Вывод</h2>
+  <pre class="run-output">{{ run.output or "(вывод пока пуст — скрипт ещё выполняется)" }}</pre>
+
+  <p><a class="btn" href="/admin">← К списку запусков</a></p>
+</section>
+{% endblock %}

@@ -74,6 +74,7 @@ class AuthOut(BaseModel):
 class UserOut(BaseModel):
     id: int
     username: str
+    role: str = "user"
 
 
 class WatchlistItemOut(BaseModel):

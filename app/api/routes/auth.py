@@ -68,4 +68,4 @@ async def logout(
 
 @router.get("/me", response_model=UserOut)
 async def me(user: User = Depends(get_current_user)) -> dict:
-    return {"id": user.id, "username": user.username}
+    return {"id": user.id, "username": user.username, "role": user.role}

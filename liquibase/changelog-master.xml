@@ -12,5 +12,6 @@
     <include file="changelogs/005_macro_events.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/006_telegram_alerts.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/007_user_feedback.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/008_roles_script_runs.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

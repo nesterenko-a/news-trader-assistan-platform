@@ -265,3 +265,18 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 }
 .modal-card h2 { margin: 0 0 6px; font-size: 18px; }
 .modal-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+
+.run-status { padding: 4px 10px; border-radius: 8px; font-weight: 700; font-size: 13px; white-space: nowrap; }
+.run-running { background: rgba(245, 166, 35, 0.15); color: var(--amber); }
+.run-success { background: rgba(47, 191, 113, 0.15); color: var(--green); }
+.run-failed { background: rgba(229, 72, 77, 0.15); color: var(--red); }
+.run-output {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  overflow: auto;
+  font-size: 12px;
+  max-height: 480px;
+}
+.mini input[type="number"] { width: 100%; margin-top: 6px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); }

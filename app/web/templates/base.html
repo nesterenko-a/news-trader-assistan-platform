@@ -17,6 +17,7 @@
         <a href="/alerts">Алерты</a>
         <a href="/history">История</a>
         <a href="/macro">Календарь</a>
+        {% if is_admin %}<a href="/admin">Админ</a>{% endif %}
         <a href="/docs">API</a>
         {% if user %}
         <span class="user">{{ user.username }} · <a href="/logout">Выйти</a></span>

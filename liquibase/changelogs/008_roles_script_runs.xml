@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+
+    <changeSet id="036-user-roles" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="users" columnName="role"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="users">
+            <column name="role" type="varchar(20)" defaultValue="user">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="037-script-runs" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="script_runs"/>
+            </not>
+        </preConditions>
+        <createTable tableName="script_runs">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="script_name" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="params" type="json" defaultValue="{}">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="bigint">
+                <constraints foreignKeyName="fk_script_runs_user" references="users(id)" nullable="true"/>
+            </column>
+            <column name="status" type="varchar(20)" defaultValue="running">
+                <constraints nullable="false"/>
+            </column>
+            <column name="exit_code" type="int"/>
+            <column name="output" type="text" defaultValue=""/>
+            <column name="started_at" type="timestamptz" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="finished_at" type="timestamptz"/>
+        </createTable>
+        <createIndex indexName="ix_script_runs_started_at" tableName="script_runs">
+            <column name="started_at"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

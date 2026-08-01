@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Администрирование — NewsTrader Assistant{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h1>Администрирование</h1>
+  <p class="muted">Запуск основных скриптов проекта и контроль их выполнения.</p>
+  {% if busy_error %}<p class="error">Другой скрипт уже выполняется. Дождитесь завершения.</p>{% endif %}
+  {% if param_error %}<p class="error">Недопустимый параметр.</p>{% endif %}
+  {% if busy %}<p class="muted">Выполняется скрипт — новые запуски недоступны до его завершения.</p>{% endif %}
+</section>
+
+<section class="card">
+  <h2>Скрипты</h2>
+  <div class="grid">
+    {% for s in scripts %}
+    <div class="mini">
+      <form method="post" action="/admin/scripts/run">
+        <input type="hidden" name="script" value="{{ s.key }}">
+        <span class="label">{{ s.title }}</span>
+        <p class="muted small" style="margin:4px 0 0">{{ s.description }}</p>
+        {% if s.param %}
+        <input type="number" name="param" min="1" value="{{ s.param[2] }}">
+        {% endif %}
+        <button class="btn" type="submit" {% if busy %}disabled{% endif %} style="margin-top:8px">Запустить</button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="card">
+  <h2>Последние запуски</h2>
+  {% if runs %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Скрипт</th>
+        <th>Статус</th>
+        <th>Код</th>
+        <th>Кто</th>
+        <th>Когда</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in runs %}
+      <tr>
+        <td><a href="/admin/runs/{{ r.id }}">#{{ r.id }}</a></td>
+        <td>{{ r.title }}</td>
+        <td><span class="run-status run-{{ r.status }}">{{ {'running': 'выполняется', 'success': 'успех', 'failed': 'ошибка'}[r.status] }}</span></td>
+        <td>{{ r.exit_code if r.exit_code is not none else "—" }}</td>
+        <td>{{ r.user }}</td>
+        <td>{{ r.started_at.strftime("%d.%m.%Y %H:%M:%S") }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Запусков ещё не было.</p>
+  {% endif %}
+</section>
+{% endblock %}

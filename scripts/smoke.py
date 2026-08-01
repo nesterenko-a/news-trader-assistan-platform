@@ -8,8 +8,9 @@ if os.path.exists("./smoke.db"):
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+from app.auth import hash_password
 from app.db.connection import SessionLocal, engine, init_db
-from app.db.models import Security, Strategy
+from app.db.models import Security, Strategy, User
 from app.graph.service import seed_graph
 from app.main import app
 
@@ -30,7 +31,14 @@ async def _seed() -> None:
                     rationale_summary="smoke seed",
                 )
             )
-            await session.commit()
+        session.add(
+            User(
+                username="admin",
+                password_hash=hash_password("admin123"),
+                role="admin",
+            )
+        )
+        await session.commit()
 
 
 asyncio.run(_seed())
@@ -181,6 +189,24 @@ try:
             pf_after.status_code,
             any(p["ticker"] == "SBER" for p in pf_after.json()),
         )
+
+        admin_login = client.post(
+            "/v1/auth/login", json={"username": "admin", "password": "admin123"}
+        )
+        admin_headers = {
+            "Authorization": f"Bearer {admin_login.json().get('token', '')}"
+        }
+        me = client.get("/v1/auth/me", headers=admin_headers)
+        print("admin me:", me.status_code, me.json().get("role") if me.status_code == 200 else "")
+        admin_page = client.get("/admin", headers=admin_headers)
+        print(
+            "web admin page:",
+            admin_page.status_code,
+            "Администрирование" in admin_page.text,
+            "Ежедневный конвейер" in admin_page.text,
+        )
+        admin_anon = client.get("/admin", follow_redirects=False)
+        print("web admin unauth:", admin_anon.status_code)
 
         macro = client.get("/v1/macro/calendar")
         print("macro calendar:", macro.status_code)
