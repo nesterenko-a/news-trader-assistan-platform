@@ -15,6 +15,8 @@ from app.auth import (
     hash_password,
     verify_password,
 )
+from app.bot.linking import consume_link_code, set_user_chat, unlink_telegram
+from app.bot.push import get_bot_username
 from app.db.connection import get_session
 from app.db.models import (
     MarketCandle,
@@ -398,8 +400,16 @@ async def alerts_page(
         for a in alerts
     ]
     context = _base_context(user)
+    bot_username = await get_bot_username()
     context.update(
-        {"items": items, "settings": settings, "unread": sum(1 for i in items if not i["is_read"])}
+        {
+            "items": items,
+            "settings": settings,
+            "unread": sum(1 for i in items if not i["is_read"]),
+            "telegram_chat_id": user.telegram_chat_id,
+            "bot_username": bot_username,
+            "tg_error": request.query_params.get("tg_error") == "1",
+        }
     )
     return templates.TemplateResponse(request, "alerts.html", context)
 
@@ -453,6 +463,35 @@ async def alerts_settings_post(
     if form.get("channel_telegram") == "on":
         channels.append("telegram")
     await update_settings(session, user.id, min_impact=min_impact, channels=channels)
+    return RedirectResponse(url="/alerts", status_code=303)
+
+
+@router.post("/api-alerts-telegram-link")
+async def alerts_telegram_link(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    code = str(form.get("code") or "").strip()
+    chat_id = await consume_link_code(session, code) if code else None
+    if chat_id is None:
+        return RedirectResponse(url="/alerts?tg_error=1", status_code=303)
+    await set_user_chat(session, user.id, chat_id)
+    return RedirectResponse(url="/alerts", status_code=303)
+
+
+@router.post("/api-alerts-telegram-unlink")
+async def alerts_telegram_unlink(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    await unlink_telegram(session, user.id)
     return RedirectResponse(url="/alerts", status_code=303)
 
 

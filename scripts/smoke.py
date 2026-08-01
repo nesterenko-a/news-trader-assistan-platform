@@ -116,8 +116,19 @@ try:
             "/v1/alerts/settings", json={"min_impact": 0.5}, headers=headers
         )
         print("alerts settings:", alert_settings.status_code)
-        alerts_page = client.get("/alerts")
-        print("web alerts page:", alerts_page.status_code, "Алерты" in alerts_page.text)
+        alerts_page = client.get("/alerts", headers=headers)
+        print(
+            "web alerts page:",
+            alerts_page.status_code,
+            "Алерты" in alerts_page.text,
+            "Telegram-уведомления" in alerts_page.text,
+        )
+        link_bad = client.post(
+            "/v1/alerts/telegram/link", json={"code": "INVALID"}, headers=headers
+        )
+        print("telegram link invalid:", link_bad.status_code)
+        link_off = client.delete("/v1/alerts/telegram/link", headers=headers)
+        print("telegram unlink:", link_off.status_code)
 
         macro = client.get("/v1/macro/calendar")
         print("macro calendar:", macro.status_code)

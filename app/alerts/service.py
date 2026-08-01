@@ -45,9 +45,9 @@ async def update_settings(
     return settings
 
 
-async def process_alerts(session: AsyncSession, since: datetime | None = None) -> int:
+async def process_alerts(session: AsyncSession, since: datetime | None = None) -> list[Alert]:
     users = (await session.scalars(select(User))).all()
-    created = 0
+    created: list[Alert] = []
     for user in users:
         settings = await get_settings(session, user.id)
         watch_items = (
@@ -83,18 +83,17 @@ async def process_alerts(session: AsyncSession, since: datetime | None = None) -
                 )
                 if existing is not None:
                     continue
-                session.add(
-                    Alert(
-                        user_id=user.id,
-                        security_id=item.security_id,
-                        article_id=article.id,
-                        headline=article.title,
-                        url=article.url,
-                        impact=ae.impact,
-                        is_ambiguous=(ae.sentiment == "neutral"),
-                    )
+                alert = Alert(
+                    user_id=user.id,
+                    security_id=item.security_id,
+                    article_id=article.id,
+                    headline=article.title,
+                    url=article.url,
+                    impact=ae.impact,
+                    is_ambiguous=(ae.sentiment == "neutral"),
                 )
-                created += 1
+                session.add(alert)
+                created.append(alert)
     await session.commit()
     return created
 

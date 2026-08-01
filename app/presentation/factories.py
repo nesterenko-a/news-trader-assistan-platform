@@ -45,3 +45,26 @@ class TelegramMessageFactory:
 class WebContextFactory:
     def build(self, view: StrategyView) -> dict:
         return {"view": view}
+
+
+def build_alert_message(
+    ticker: str,
+    headline: str,
+    url: str,
+    impact: float,
+    is_ambiguous: bool,
+    web_url: str,
+) -> str:
+    e = html.escape
+    lines = [
+        f"<b>Новый алерт по {e(ticker)}</b>",
+        f"Значимость: {impact:.2f}",
+    ]
+    if is_ambiguous:
+        lines.append("<i>Требует проверки</i>")
+    lines.append("")
+    lines.append(f'<a href="{e(url)}">{e(headline)}</a>')
+    lines.append(
+        f'Подробнее: <a href="{e(web_url)}">{e(ticker)} — аналитика</a>'
+    )
+    return "\n".join(lines)

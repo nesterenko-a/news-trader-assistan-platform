@@ -5,6 +5,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy import select
 
 from app.alerts.service import ALERT_LOOKBACK_DAYS, process_alerts
+from app.alerts.delivery import deliver_telegram
 from app.db.connection import SessionLocal, init_db
 from app.db.models import Security
 from app.market.prices import sync_security_prices
@@ -82,11 +83,13 @@ async def main() -> None:
             f"({', '.join(rejected_strategies) or '-'})"
         )
 
-        alerts_created = await process_alerts(
+        created_alerts = await process_alerts(
             session,
             since=datetime.now(timezone.utc) - timedelta(days=ALERT_LOOKBACK_DAYS),
         )
-        print(f"alerts: {alerts_created} created")
+        print(f"alerts: {len(created_alerts)} created")
+        telegram_sent = await deliver_telegram(session, created_alerts)
+        print(f"telegram: {telegram_sent} alerts pushed")
 
 
 if __name__ == "__main__":

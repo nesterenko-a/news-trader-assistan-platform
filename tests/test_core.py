@@ -33,12 +33,20 @@ from app.db.models import (
     Session,
     Source,
     Strategy,
+    TelegramLinkCode,
     User,
     WatchlistItem,
     macro_event_security,
 )
 from app.macro.service import event_tickers, list_events, list_security_events
 from app.web.router import macro_page
+from app.bot.linking import (
+    consume_link_code,
+    create_link_code,
+    set_user_chat,
+    unlink_telegram,
+)
+from app.alerts.delivery import deliver_telegram
 from scripts.collect_news import _mention_check, _parse_since, _within_since
 from app.graph.service import (
     find_influence_paths,
@@ -301,7 +309,7 @@ async def test_alerts_service(session):
     await session.commit()
 
     created = await process_alerts(session, since=None)
-    assert created == 1
+    assert len(created) == 1
 
     alerts = await load_alerts(session, user.id)
     assert len(alerts) == 1
@@ -446,3 +454,94 @@ async def test_macro_page_per_user_filters(session):
     assert "Бумаги из: Watchlist" not in anon_html
     assert "Бумаги из: Портфель" not in anon_html
     assert 'new Set([])' in anon_html
+
+
+async def test_telegram_link_flow(session):
+    code = await create_link_code(session, 123456)
+    assert len(code) == 6
+
+    assert await consume_link_code(session, code.lower()) == 123456
+    assert await consume_link_code(session, code) is None
+
+    code2 = await create_link_code(session, 789)
+    record = await session.scalar(
+        select(TelegramLinkCode).where(TelegramLinkCode.code == code2)
+    )
+    record.expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+    await session.commit()
+    assert await consume_link_code(session, code2) is None
+
+
+async def test_telegram_link_user(session):
+    user = User(username="tgbot", password_hash="x")
+    session.add(user)
+    await session.commit()
+
+    await set_user_chat(session, user.id, 555)
+    assert (await session.get(User, user.id)).telegram_chat_id == 555
+
+    await unlink_telegram(session, user.id)
+    assert (await session.get(User, user.id)).telegram_chat_id is None
+
+
+async def test_telegram_delivery(session, monkeypatch):
+    await seed_graph(session)
+    sber = await session.scalar(select(Security).where(Security.ticker == "SBER"))
+
+    sent = {"calls": []}
+
+    async def fake_send(chat_id: int, text: str) -> None:
+        sent["calls"].append((chat_id, text))
+
+    monkeypatch.setattr("app.alerts.delivery.send_message", fake_send)
+
+    linked = User(username="push", password_hash="x", telegram_chat_id=111)
+    session.add(linked)
+    await session.flush()
+    await update_settings(session, linked.id, channels=["telegram"])
+
+    no_chat = User(username="push2", password_hash="x")
+    session.add(no_chat)
+    await session.flush()
+    await update_settings(session, no_chat.id, channels=["telegram"])
+
+    app_only = User(username="push3", password_hash="x", telegram_chat_id=333)
+    session.add(app_only)
+    await session.flush()
+    await update_settings(session, app_only.id, channels=["app"])
+
+    alert1 = Alert(
+        user_id=linked.id,
+        security_id=sber.id,
+        article_id=1,
+        headline="Большая новость по SBER",
+        url="https://example.com/1",
+        impact=0.9,
+        is_ambiguous=False,
+    )
+    alert2 = Alert(
+        user_id=no_chat.id,
+        security_id=sber.id,
+        article_id=2,
+        headline="Без чата",
+        url="https://example.com/2",
+        impact=0.9,
+        is_ambiguous=False,
+    )
+    alert3 = Alert(
+        user_id=app_only.id,
+        security_id=sber.id,
+        article_id=3,
+        headline="Только веб",
+        url="https://example.com/3",
+        impact=0.9,
+        is_ambiguous=False,
+    )
+    session.add_all([alert1, alert2, alert3])
+    await session.commit()
+
+    count = await deliver_telegram(session, [alert1, alert2, alert3])
+    assert count == 1
+    assert sent["calls"][0][0] == 111
+    assert "Большая новость по SBER" in sent["calls"][0][1]
+    assert "SBER" in sent["calls"][0][1]

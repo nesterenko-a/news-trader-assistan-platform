@@ -59,8 +59,31 @@
       <input type="number" name="min_impact" min="0" max="1" step="0.05" value="{{ settings.min_impact }}">
     </label>
     <label class="muted"><input type="checkbox" name="channel_app" {% if 'app' in settings.channels %}checked{% endif %}> Веб-интерфейс</label>
-    <label class="muted"><input type="checkbox" name="channel_telegram" {% if 'telegram' in settings.channels %}checked{% endif %}> Telegram (этап 1, планируется)</label>
+    <label class="muted"><input type="checkbox" name="channel_telegram" {% if 'telegram' in settings.channels %}checked{% endif %}> Telegram</label>
     <button type="submit">Сохранить</button>
   </form>
+</section>
+
+<section class="card">
+  <h2>Telegram-уведомления</h2>
+  {% if telegram_chat_id %}
+    <p class="muted">Telegram подключён (chat_id: {{ telegram_chat_id }}). Алерты будут приходить после выбора канала «Telegram» в настройках выше.</p>
+    <form method="post" action="/api-alerts-telegram-unlink">
+      <button class="btn" type="submit">Отключить Telegram</button>
+    </form>
+  {% else %}
+    {% if bot_username %}
+      <p class="muted">Напишите боту <b>@{{ bot_username }}</b> команду <b>/link</b> и введите полученный код ниже.</p>
+    {% else %}
+      <p class="muted">Напишите боту команду <b>/link</b> (его имя указано в настройках <code>TELEGRAM_BOT_TOKEN</code>) и введите полученный код ниже.</p>
+    {% endif %}
+    {% if tg_error %}
+      <p class="error">Код недействителен или истёк. Запросите новый в боте.</p>
+    {% endif %}
+    <form class="inline-add" method="post" action="/api-alerts-telegram-link">
+      <input type="text" name="code" placeholder="Код из Telegram" required>
+      <button type="submit">Привязать</button>
+    </form>
+  {% endif %}
 </section>
 {% endblock %}

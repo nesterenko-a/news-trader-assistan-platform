@@ -2,6 +2,7 @@ from sqlalchemy import select
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from app.bot.linking import create_link_code
 from app.config import get_settings
 from app.db.connection import SessionLocal
 from app.db.models import Security
@@ -53,9 +54,26 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text(
         "Как пользоваться:\n"
         "- пришлите тикер (AFLT, SBER, LKOH, GAZP, NLMK, PLZL, YDEX и др.) — получите вердикт;\n"
+        "- /link — привязать аккаунт для уведомлений об алертах;\n"
         "- /start — приветствие;\n"
         "- /help — эта справка.\n"
         "Материалы носят информационный характер и не являются инвестиционной рекомендацией."
+    )
+
+
+async def link_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = update.effective_chat.id
+    settings = get_settings()
+    async with SessionLocal() as session:
+        code = await create_link_code(session, chat_id)
+    await update.message.reply_text(
+        "Привязка аккаунта для алертов.\n"
+        f"Ваш код: <b>{code}</b>\n"
+        f"Войдите на <a href=\"{settings.app_url}/alerts\">страницу алертов</a> "
+        "и введите код в блоке «Telegram».\n"
+        "Код действует 15 минут.",
+        parse_mode="HTML",
+        disable_web_page_preview=True,
     )
 
 

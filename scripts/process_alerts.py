@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 
+from app.alerts.delivery import deliver_telegram
 from app.alerts.service import process_alerts
 from app.db.connection import SessionLocal, init_db
 
@@ -23,7 +24,9 @@ async def main() -> None:
         since = datetime.now(timezone.utc) - timedelta(days=args.days)
     async with SessionLocal() as session:
         created = await process_alerts(session, since=since)
-        print(f"alerts created: {created}")
+        print(f"alerts created: {len(created)}")
+        telegram_sent = await deliver_telegram(session, created)
+        print(f"telegram: {telegram_sent} alerts pushed")
 
 
 if __name__ == "__main__":

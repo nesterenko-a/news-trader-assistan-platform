@@ -7,11 +7,12 @@ from telegram.ext import (
     filters,
 )
 
-from app.bot.handlers import handle_text, help_command, start
+from app.bot.handlers import handle_text, help_command, link_command, start
 from app.config import get_settings
 
 MENU_COMMANDS = [
     BotCommand("start", "Приветствие и инструкция"),
+    BotCommand("link", "Привязать аккаунт для алертов"),
     BotCommand("help", "Справка по командам"),
 ]
 
@@ -33,6 +34,7 @@ def build_application() -> Application:
         .build()
     )
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("link", link_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text)

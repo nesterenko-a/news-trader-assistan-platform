@@ -146,6 +146,15 @@ class AlertSettingsIn(BaseModel):
     channels: list[str] | None = None
 
 
+class TelegramLinkIn(BaseModel):
+    code: str
+
+
+class TelegramLinkOut(BaseModel):
+    status: str
+    chat_id: int | None = None
+
+
 class MacroEventOut(BaseModel):
     id: int
     event_type: str
