@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import re
 from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import select
@@ -39,7 +40,10 @@ async def _mention_check(
         if entity_names is not None and entity.name not in entity_names:
             continue
         for alias in [entity.name, *(entity.aliases or [])]:
-            if str(alias).lower() in lowered:
+            alias_str = str(alias).lower()
+            if re.search(
+                rf"(?<!\w){re.escape(alias_str)}(?!\w)", lowered
+            ):
                 return True
     return False
 

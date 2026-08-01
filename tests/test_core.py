@@ -175,3 +175,5 @@ async def test_mention_check_restricted_entities(session):
     assert await _mention_check(session, "Аэрофлот увеличил пассажиропоток", {"Аэрофлот"})
     assert not await _mention_check(session, "Нефть подорожала", {"Аэрофлот"})
     assert await _mention_check(session, "Нефть подорожала", None)
+    assert await _mention_check(session, "Магнит увеличил выручку", {"Магнит"})
+    assert not await _mention_check(session, "Землетрясение магнитудой 7,1", {"Магнит"})
