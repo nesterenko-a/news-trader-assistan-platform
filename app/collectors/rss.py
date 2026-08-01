@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 
 import feedparser
 
@@ -30,10 +31,19 @@ DEFAULT_FEEDS = [
 def _parse_date(value: str | None) -> datetime | None:
     if not value:
         return None
+    value = value.strip()
     try:
-        parsed = feedparser.parse(value)
-        dt = parsed.get("published_parsed")
-        return datetime.fromtimestamp(feedparser.mktime(dt)) if dt else None
+        parsed = parsedate_to_datetime(value)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except Exception:
+        pass
+    try:
+        parsed = datetime.fromisoformat(value)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
     except Exception:
         return None
 

@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db.connection import Base
+from app.collectors.rss import _parse_date
 from app.db.models import Article, ArticleEntity, Source, Strategy
 from scripts.collect_news import _parse_since, _within_since
 from app.graph.service import (
@@ -152,3 +153,17 @@ async def test_collect_news_date_filter(session):
 
     no_filter = _parse_since(SimpleNamespace(from_date="", days=0))
     assert no_filter is None
+
+
+async def test_rss_date_parsing():
+    assert _parse_date("Tue, 29 Jul 2026 12:34:56 +0300") == datetime(
+        2026, 7, 29, 9, 34, 56, tzinfo=timezone.utc
+    )
+    assert _parse_date("2026-07-29T12:34:56+03:00") == datetime(
+        2026, 7, 29, 9, 34, 56, tzinfo=timezone.utc
+    )
+    assert _parse_date("Wed, 30 Jul 2026 09:00:00 GMT") == datetime(
+        2026, 7, 30, 9, 0, 0, tzinfo=timezone.utc
+    )
+    assert _parse_date("") is None
+    assert _parse_date("garbage") is None
