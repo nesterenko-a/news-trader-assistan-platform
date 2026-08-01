@@ -27,6 +27,7 @@ from app.db.models import (
     Article,
     ArticleEntity,
     Entity,
+    MacroEvent,
     PortfolioPosition,
     Security,
     Session,
@@ -34,7 +35,9 @@ from app.db.models import (
     Strategy,
     User,
     WatchlistItem,
+    macro_event_security,
 )
+from app.macro.service import event_tickers, list_events, list_security_events
 from scripts.collect_news import _mention_check, _parse_since, _within_since
 from app.graph.service import (
     find_influence_paths,
@@ -317,3 +320,47 @@ async def test_alerts_service(session):
 
     await process_alerts(session, since=None)
     assert len(await load_alerts(session, user.id)) == 1
+
+
+async def test_macro_service(session):
+    await seed_graph(session)
+    security = await session.scalar(select(Security).where(Security.ticker == "SBER"))
+
+    wide = MacroEvent(
+        event_type="cpi",
+        title="CPI РФ",
+        event_time=datetime.now(timezone.utc) + timedelta(days=5),
+        region="RU",
+        expected_impact="high",
+        market_wide=True,
+        description="",
+    )
+    session.add(wide)
+    await session.flush()
+
+    bound = MacroEvent(
+        event_type="earnings_season",
+        title="Отчётность Сбербанка",
+        event_time=datetime.now(timezone.utc) + timedelta(days=10),
+        region="RU",
+        expected_impact="high",
+        market_wide=False,
+        description="",
+    )
+    session.add(bound)
+    await session.flush()
+    await session.execute(
+        macro_event_security.insert().values(
+            event_id=bound.id, security_id=security.id
+        )
+    )
+    await session.commit()
+
+    events = await list_events(session)
+    assert len(events) == 2
+
+    titles = [e.title for e, _ in await list_security_events(session, security.id)]
+    assert "Отчётность Сбербанка" in titles
+    assert "CPI РФ" in titles
+
+    assert await event_tickers(session, bound.id) == ["SBER"]

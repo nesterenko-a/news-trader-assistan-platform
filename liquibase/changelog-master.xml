@@ -9,5 +9,6 @@
     <include file="changelogs/002_market_candles.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/003_user_features.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/004_alerts.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/005_macro_events.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

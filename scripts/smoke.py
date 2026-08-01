@@ -118,5 +118,12 @@ try:
         print("alerts settings:", alert_settings.status_code)
         alerts_page = client.get("/alerts")
         print("web alerts page:", alerts_page.status_code, "Алерты" in alerts_page.text)
+
+        macro = client.get("/v1/macro/calendar")
+        print("macro calendar:", macro.status_code)
+        macro_page = client.get("/macro")
+        print("web macro page:", macro_page.status_code, "Макрокалендарь" in macro_page.text)
+        sber_macro = client.get("/v1/macro/securities/SBER")
+        print("macro by security:", sber_macro.status_code)
 finally:
     asyncio.run(engine.dispose())

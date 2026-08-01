@@ -132,6 +132,7 @@ main { padding: 24px 16px 40px; }
 .security-head h1 { margin: 0; font-size: 26px; }
 .head-actions { display: flex; align-items: center; gap: 10px; }
 .muted { color: var(--muted); }
+.small { font-size: 12px; }
 
 .btn {
   padding: 8px 14px;

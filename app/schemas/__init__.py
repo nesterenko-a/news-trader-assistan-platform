@@ -144,3 +144,15 @@ class AlertSettingsOut(BaseModel):
 class AlertSettingsIn(BaseModel):
     min_impact: float | None = None
     channels: list[str] | None = None
+
+
+class MacroEventOut(BaseModel):
+    id: int
+    event_type: str
+    title: str
+    event_time: datetime
+    region: str
+    expected_impact: str
+    market_wide: bool
+    description: str
+    tickers: list[str] = []

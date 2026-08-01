@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+
+    <changeSet id="031-macro-events" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="macro_events"/>
+            </not>
+        </preConditions>
+        <createTable tableName="macro_events">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="event_type" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="title" type="varchar(300)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="event_time" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="region" type="varchar(20)" defaultValue="RU"/>
+            <column name="expected_impact" type="varchar(10)" defaultValue="medium"/>
+            <column name="market_wide" type="boolean" defaultValueBoolean="false"/>
+            <column name="description" type="text" defaultValue=""/>
+        </createTable>
+        <createIndex indexName="ix_macro_events_event_time" tableName="macro_events">
+            <column name="event_time"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="032-macro-event-securities" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="macro_event_securities"/>
+            </not>
+        </preConditions>
+        <createTable tableName="macro_event_securities">
+            <column name="event_id" type="bigint">
+                <constraints foreignKeyName="fk_mes_event_id" references="macro_events(id)" nullable="false"/>
+            </column>
+            <column name="security_id" type="bigint">
+                <constraints foreignKeyName="fk_mes_security_id" references="securities(id)" nullable="false"/>
+            </column>
+        </createTable>
+        <addPrimaryKey tableName="macro_event_securities" columnNames="event_id, security_id" constraintName="pk_macro_event_securities"/>
+        <createIndex indexName="ix_mes_security_id" tableName="macro_event_securities">
+            <column name="security_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

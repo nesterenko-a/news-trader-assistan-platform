@@ -100,6 +100,27 @@ class AlertSettings(Base):
     channels: Mapped[list] = mapped_column(JSON, default=list)
 
 
+macro_event_security = Table(
+    "macro_event_securities",
+    Base.metadata,
+    Column("event_id", ForeignKey("macro_events.id"), primary_key=True),
+    Column("security_id", ForeignKey("securities.id"), primary_key=True),
+)
+
+
+class MacroEvent(Base):
+    __tablename__ = "macro_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(50))
+    title: Mapped[str] = mapped_column(String(300))
+    event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    region: Mapped[str] = mapped_column(String(20), default="RU")
+    expected_impact: Mapped[str] = mapped_column(String(10), default="medium")
+    market_wide: Mapped[bool] = mapped_column(Boolean, default=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+
+
 class Source(Base):
     __tablename__ = "sources"
 

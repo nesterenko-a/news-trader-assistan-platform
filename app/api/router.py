@@ -4,6 +4,7 @@ from app.api.routes import (
     alerts,
     auth,
     health,
+    macro,
     portfolio,
     securities,
     strategies,
@@ -20,3 +21,4 @@ api_router.include_router(watchlist.router)
 api_router.include_router(portfolio.router)
 api_router.include_router(strategies.router)
 api_router.include_router(alerts.router)
+api_router.include_router(macro.router)

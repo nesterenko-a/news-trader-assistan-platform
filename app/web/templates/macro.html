@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Макрокалендарь — NewsTrader Assistant{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h1>Макрокалендарь</h1>
+  <p class="muted">Заседания ЦБ, публикации CPI/PMI/ВВП и сезоны отчётностей. События с пометкой «рыночные» влияют на весь рынок; по конкретным эмитентам — указаны тикеры.</p>
+
+  {% if items %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Дата</th>
+        <th>Событие</th>
+        <th>Регион</th>
+        <th>Значимость</th>
+        <th>Бумаги</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in items %}
+      <tr>
+        <td>{{ e.date_str }}</td>
+        <td>
+          {{ e.title }}
+          {% if e.description %}<div class="muted small">{{ e.description }}</div>{% endif %}
+        </td>
+        <td>{{ e.region }}</td>
+        <td>
+          <span class="tag tag-{{ 'positive' if e.impact == 'low' else ('negative' if e.impact == 'high' else 'neutral') }}">
+            {{ {'high': 'высокая', 'medium': 'средняя', 'low': 'низкая'}[e.impact] }}
+          </span>
+        </td>
+        <td>
+          {% if e.tickers %}
+            {% for t in e.tickers %}<a href="/securities/{{ t }}">{{ t }}</a> {% endfor %}
+          {% else %}
+            <span class="muted">весь рынок</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Событий нет.</p>
+  {% endif %}
+</section>
+{% endblock %}

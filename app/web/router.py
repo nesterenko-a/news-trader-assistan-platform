@@ -28,6 +28,7 @@ from app.market.moex import MOEXClient
 from app.news.service import load_security_news
 from app.presentation.factories import WebContextFactory
 from app.presentation.view import build_strategy_view
+from app.macro.service import event_tickers, list_events, list_security_events
 from app.strategy.engine import generate_strategy
 
 router = APIRouter(tags=["web"])
@@ -172,6 +173,17 @@ async def security_page(
         news=news,
     )
     context = _web_context_factory.build(view)
+    macro_rows = await list_security_events(session, security.id)
+    macro_items = [
+        {
+            "title": event.title,
+            "date_str": event.event_time.strftime("%d.%m.%Y %H:%M"),
+            "impact": event.expected_impact,
+            "region": event.region,
+            "tickers": tickers,
+        }
+        for event, tickers in macro_rows
+    ]
     context.update(
         {
             "user": user,
@@ -179,6 +191,7 @@ async def security_page(
             "chart": chart,
             "chart_range": chart_range,
             "range_options": list(RANGE_OPTIONS.keys()),
+            "macro_events": macro_items,
         }
     )
     return templates.TemplateResponse(request, "security.html", context)
@@ -441,6 +454,33 @@ async def alerts_settings_post(
         channels.append("telegram")
     await update_settings(session, user.id, min_impact=min_impact, channels=channels)
     return RedirectResponse(url="/alerts", status_code=303)
+
+
+@router.get("/macro")
+async def macro_page(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    events = await list_events(session)
+    impact_order = {"high": 0, "medium": 1, "low": 2}
+    events = sorted(events, key=lambda e: (e.event_time, impact_order.get(e.expected_impact, 3)))
+    items = []
+    for event in events:
+        item = {
+            "title": event.title,
+            "event_time": event.event_time,
+            "date_str": event.event_time.strftime("%d.%m.%Y %H:%M"),
+            "region": event.region,
+            "impact": event.expected_impact,
+            "description": event.description,
+        }
+        if not event.market_wide:
+            item["tickers"] = await event_tickers(session, event.id)
+        items.append(item)
+    context = _base_context(user)
+    context.update({"items": items})
+    return templates.TemplateResponse(request, "macro.html", context)
 
 
 @router.post("/api-watchlist-add")

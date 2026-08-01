@@ -141,6 +141,31 @@
   {% endif %}
 </section>
 
+{% if macro_events %}
+<section class="card">
+  <h2>Макрособытия</h2>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Дата</th>
+        <th>Событие</th>
+        <th>Значимость</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in macro_events %}
+      <tr>
+        <td>{{ e.date_str }}</td>
+        <td>{{ e.title }}</td>
+        <td>{{ {'high': 'высокая', 'medium': 'средняя', 'low': 'низкая'}[e.impact] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small"><a href="/macro">Полный календарь →</a></p>
+</section>
+{% endif %}
+
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="/static/app.js"></script>
 {% endblock %}

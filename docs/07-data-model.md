@@ -1,6 +1,6 @@
 # 07. Модель данных
 
-**Статус:** утверждено v1.4  
+**Статус:** утверждено v1.5  
 **Система:** NewsTrader Assistant
 
 Описание сущностей системы и их взаимосвязей. Модель представлена концептуально, без привязки к конкретной СУБД (см. [06-architecture.md](./06-architecture.md)).
@@ -301,6 +301,21 @@
 | min_impact | float | Порог значимости (по умолчанию 0.7) |
 | channels | string[] | Каналы доставки: app / telegram |
 
+### 2.18. MacroEvent (событие макрокалендаря)
+
+| Поле | Тип | Описание |
+|---|---|---|
+| id | PK | Идентификатор |
+| event_type | enum | central_bank_meeting / cpi / pmi / gdp / employment / earnings_season / other |
+| title | string | Название события |
+| event_time | datetime | Время события |
+| region | string | Регион (RU / US / EU / global) |
+| expected_impact | enum | low / medium / high |
+| market_wide | bool | Влияет ли на весь рынок |
+| description | text | Краткое описание |
+
+Связь с бумагами — таблица `macro_event_securities` (event_id, security_id): события, затрагивающие конкретных эмитентов.
+
 ## 3. Ключевые связи
 
 | Связь | Смысл |
@@ -314,6 +329,7 @@
 | User → PortfolioPosition → Security | Позиции пользователя по бумагам |
 | User → Alert → Security/Article | Алерты по значимым новостям отслеживаемых бумаг |
 | User → Session | Сессии авторизации пользователя |
+| MacroEvent → Security | Макрособытие затрагивает бумаги (прямо или рыночно) |
 | Security → TimeSeries/Indicator | Рыночные данные по бумаге |
 | MacroEvent → Entity | Макрособытие затрагивает сущности |
 
@@ -325,6 +341,7 @@
 - WatchlistItem уникальна для пары (user_id, security_id).
 - PortfolioPosition уникальна для пары (user_id, security_id).
 - Alert уникальна для тройки (user_id, article_id, security_id).
+- MacroEvent ↔ Security не дублируются (составной PK event_id, security_id).
 - Session.token уникален.
 - Дедупликация: Article с одинаковым cluster_id считается перепечаткой; каноническим считается первый загруженный.
 - Изменение модели анализа создаёт новую версию; старые вердикты не перезаписываются (историчность).
