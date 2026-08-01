@@ -1,4 +1,6 @@
+import argparse
 import asyncio
+from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import select
 
@@ -12,6 +14,22 @@ from app.llm.client import LLMClient
 MAX_PER_FEED = 30
 
 
+def _parse_since(args) -> datetime | None:
+    if args.from_date:
+        return datetime.combine(
+            date.fromisoformat(args.from_date), time.min, tzinfo=timezone.utc
+        )
+    if args.days and args.days > 0:
+        return datetime.now(timezone.utc) - timedelta(days=args.days)
+    return None
+
+
+def _within_since(published_at: datetime | None, since: datetime | None) -> bool:
+    if since is None or published_at is None:
+        return True
+    return published_at >= since
+
+
 async def _mention_check(session, text: str) -> bool:
     entities = await session.scalars(select(Entity))
     lowered = text.lower()
@@ -22,7 +40,7 @@ async def _mention_check(session, text: str) -> bool:
     return False
 
 
-async def collect_news(session) -> int:
+async def collect_news(session, since: datetime | None = None) -> int:
     client = LLMClient.from_settings()
     analyzer = ArticleAnalyzer(client)
 
@@ -50,6 +68,8 @@ async def collect_news(session) -> int:
         if article.url in seen_urls:
             continue
         seen_urls.add(article.url)
+        if not _within_since(article.published_at, since):
+            continue
         if await _mention_check(session, f"{article.title}\n{article.text}"):
             candidates.append(article)
         if len(candidates) >= MAX_PER_FEED:
@@ -102,9 +122,30 @@ async def collect_news(session) -> int:
 
 
 async def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Collect, filter and analyze news via RSS + LLM"
+    )
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=0,
+        help="collect only items published in the last N days (0 = no limit)",
+    )
+    parser.add_argument(
+        "--from",
+        dest="from_date",
+        default="",
+        help="start date YYYY-MM-DD (overrides --days)",
+    )
+    args = parser.parse_args()
+
+    since = _parse_since(args)
+    if since is not None:
+        print(f"Collecting news published since {since.isoformat()}")
+
     await init_db()
     async with SessionLocal() as session:
-        stored = await collect_news(session)
+        stored = await collect_news(session, since=since)
         print(f"Stored {stored} analyzed articles")
 
 

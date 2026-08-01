@@ -1,4 +1,6 @@
+import argparse
 import asyncio
+from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import select
 
@@ -6,15 +8,36 @@ from app.db.connection import SessionLocal, init_db
 from app.db.models import Security
 from app.market.prices import sync_security_prices
 from app.strategy.engine import generate_strategy
-from scripts.collect_news import collect_news
+from scripts.collect_news import _parse_since, collect_news
 
 PRICE_LOOKBACK_DAYS = 5
 
 
 async def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Daily pipeline: news, prices, strategies"
+    )
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=0,
+        help="collect news published in the last N days (0 = no limit)",
+    )
+    parser.add_argument(
+        "--from",
+        dest="from_date",
+        default="",
+        help="collect news published since YYYY-MM-DD (overrides --days)",
+    )
+    args = parser.parse_args()
+
+    since = _parse_since(args)
+    if since is not None:
+        print(f"Collecting news published since {since.isoformat()}")
+
     await init_db()
     async with SessionLocal() as session:
-        stored = await collect_news(session)
+        stored = await collect_news(session, since=since)
         print(f"news: {stored} stored")
 
         tickers = [

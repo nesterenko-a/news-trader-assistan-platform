@@ -1,6 +1,6 @@
 # 17. Быстрый старт для новичка
 
-**Статус:** утверждено v1.0  
+**Статус:** утверждено v1.1  
 **Система:** NewsTrader Assistant
 
 Пошаговое руководство, как впервые развернуть программу, какие скрипты запускать, какими командами и как часто это делать. Рассчитано на новичка, который впервые видит проект.
@@ -83,6 +83,26 @@ docker compose -f docker/docker-compose.yml up migrations
 
 Если ключа `LLM_API_KEY` нет, конвейер на шаге новостей упадёт с ошибкой авторизации. В этом случае можно обновлять только цены (см. 2.3).
 
+### 2.2a. Бэкфилл прошлых новостей (для старта и бэктестов)
+
+Конвейер и `collect_news` умеют собирать новости за заданный период — полезно сразу наполнить базу историей для бэктестов:
+
+```
+.venv\Scripts\python.exe -m scripts.collect_news --days 14
+.venv\Scripts\python.exe -m scripts.collect_news --from 2026-01-01
+```
+
+- `--days N` — только новости за последние N дней.
+- `--from YYYY-MM-DD` — новости с указанной даты (приоритетнее `--days`).
+
+Те же флаги принимает `daily_pipeline`, если нужно «новости за период + цены + стратегии» одним запуском:
+
+```
+.venv\Scripts\python.exe -m scripts.daily_pipeline --days 7
+```
+
+⚠️ Глубина бэкфилла по RSS ограничена выдачей лент (обычно от нескольких дней до недель) — «старые» новости сверх этого в RSS недоступны. Глубокая история планируется через Telegram-каналы и архивы источников (см. `12-roadmap.md`).
+
 ### 2.3. Обновить только цены (по необходимости)
 
 Быстрый способ, не требует LLM-ключа:
@@ -116,6 +136,7 @@ docker compose -f docker/docker-compose.yml up migrations
 | Применить миграции | `docker compose -f docker/docker-compose.yml up migrations` | один раз + после появления новых миграций |
 | Наполнить справочники | `.venv\Scripts\python.exe -m scripts.seed_db` | один раз (идемпотентно) |
 | Полная история цен | `.venv\Scripts\python.exe -m scripts.update_prices --from 2012-01-01` | один раз при старте |
+| Бэкфилл новостей за период | `.venv\Scripts\python.exe -m scripts.collect_news --from YYYY-MM-DD` (или `--days N`) | один раз при старте (глубина ограничена выдачей RSS) |
 | Ежедневный конвейер | `.venv\Scripts\python.exe -m scripts.daily_pipeline` | **ежедневно** в 09:00 (вручную или планировщик) |
 | Обновить цены | `.venv\Scripts\python.exe -m scripts.update_prices --days 5` | ежедневно, если конвейер не запускается (например, нет LLM-ключа) |
 | Запуск приложения | `.venv\Scripts\python.exe -m scripts.run_app` | постоянно (веб + бот) |
@@ -124,7 +145,7 @@ docker compose -f docker/docker-compose.yml up migrations
 | Смоук-проверка | `.venv\Scripts\python.exe -m scripts.smoke` | после изменений в API/веб-интерфейсе |
 
 **Минимальный рабочий цикл новичка:**
-1. Один раз: 1.1–1.4 + `update_prices --from 2012-01-01`.
+1. Один раз: 1.1–1.4 + `update_prices --from 2012-01-01` + `collect_news --from YYYY-MM-DD` (бэкфилл новостей).
 2. Каждое утро (или по расписанию): `daily_pipeline`.
 3. Держать запущенным: `run_app`.
 

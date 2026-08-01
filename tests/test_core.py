@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest_asyncio
 from sqlalchemy import select
@@ -6,6 +7,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db.connection import Base
 from app.db.models import Article, ArticleEntity, Source, Strategy
+from scripts.collect_news import _parse_since, _within_since
 from app.graph.service import (
     find_influence_paths,
     resolve_entity_id,
@@ -134,3 +136,19 @@ async def test_generate_strategy_without_persist(session, monkeypatch):
 
     strategies = (await session.scalars(select(Strategy))).all()
     assert strategies == []
+
+
+async def test_collect_news_date_filter(session):
+    since = _parse_since(SimpleNamespace(from_date="2026-01-01", days=0))
+    assert since == datetime(2026, 1, 1, tzinfo=timezone.utc)
+    assert _within_since(datetime(2026, 2, 1, tzinfo=timezone.utc), since)
+    assert not _within_since(datetime(2025, 12, 31, tzinfo=timezone.utc), since)
+    assert _within_since(None, since)
+    assert _within_since(datetime(2025, 1, 1, tzinfo=timezone.utc), None)
+
+    by_days = _parse_since(SimpleNamespace(from_date="", days=5))
+    assert by_days is not None
+    assert by_days > datetime(2025, 1, 1, tzinfo=timezone.utc)
+
+    no_filter = _parse_since(SimpleNamespace(from_date="", days=0))
+    assert no_filter is None
