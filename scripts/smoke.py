@@ -167,6 +167,21 @@ try:
             "Сработало" in history_page.text,
         )
 
+        close_pf = client.post(
+            "/api-portfolio-remove",
+            data={"ticker": "SBER", "rating": "neutral"},
+            headers=headers,
+        )
+        print("portfolio close with rating:", close_pf.status_code)
+        fb_stats2 = client.get("/v1/strategies/feedback/stats", headers=headers)
+        print("feedback stats after close:", fb_stats2.status_code, fb_stats2.json())
+        pf_after = client.get("/v1/portfolio", headers=headers)
+        print(
+            "portfolio after close:",
+            pf_after.status_code,
+            any(p["ticker"] == "SBER" for p in pf_after.json()),
+        )
+
         macro = client.get("/v1/macro/calendar")
         print("macro calendar:", macro.status_code)
         macro_page = client.get("/macro")

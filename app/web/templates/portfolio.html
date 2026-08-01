@@ -43,10 +43,7 @@
         <td class="{{ 'pos' if p.pnl_percent and p.pnl_percent >= 0 else 'neg' }}">{{ "%.2f"|format(p.pnl_percent) if p.pnl_percent is not none else "—" }}%</td>
         <td>{{ p.verdict or "—" }}</td>
         <td>
-          <form method="post" action="/api-portfolio-remove">
-            <input type="hidden" name="ticker" value="{{ p.ticker }}">
-            <button class="btn-link" type="submit">Закрыть</button>
-          </form>
+          <button class="btn-link" type="button" onclick="openCloseModal('{{ p.ticker }}')">Закрыть</button>
         </td>
       </tr>
       {% endfor %}
@@ -66,4 +63,30 @@
   <p class="muted">Позиций нет. Добавьте первую позицию.</p>
   {% endif %}
 </section>
+
+<div class="modal" id="close-modal" hidden>
+  <div class="modal-backdrop" onclick="closeCloseModal()"></div>
+  <div class="modal-card">
+    <h2>Закрыть позицию <span id="close-ticker"></span></h2>
+    <p class="muted">Как сработала стратегия по этой бумаге?</p>
+    <form class="modal-actions" method="post" action="/api-portfolio-remove">
+      <input type="hidden" name="ticker" id="close-ticker-input">
+      {% for value, label in [('worked', 'Сработало'), ('neutral', 'Нейтрально'), ('failed', 'Не сработало')] %}
+      <button class="btn" type="submit" name="rating" value="{{ value }}">{{ label }}</button>
+      {% endfor %}
+      <button class="btn" type="button" onclick="closeCloseModal()">Отмена</button>
+    </form>
+  </div>
+</div>
+
+<script>
+function openCloseModal(ticker) {
+  document.getElementById("close-ticker").textContent = ticker;
+  document.getElementById("close-ticker-input").value = ticker;
+  document.getElementById("close-modal").hidden = false;
+}
+function closeCloseModal() {
+  document.getElementById("close-modal").hidden = true;
+}
+</script>
 {% endblock %}

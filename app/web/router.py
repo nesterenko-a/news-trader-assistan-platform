@@ -17,7 +17,13 @@ from app.auth import (
 )
 from app.bot.linking import consume_link_code, set_user_chat, unlink_telegram
 from app.bot.push import get_bot_username
-from app.feedback.service import get_rating, ratings_map, set_feedback, user_stats
+from app.feedback.service import (
+    get_rating,
+    ratings_map,
+    record_feedback_for_security,
+    set_feedback,
+    user_stats,
+)
 from app.db.connection import get_session
 from app.db.models import (
     MarketCandle,
@@ -725,6 +731,7 @@ async def portfolio_remove(
         return RedirectResponse(url="/login", status_code=303)
     form = await request.form()
     ticker = str(form.get("ticker") or "").strip().upper()
+    rating = str(form.get("rating") or "").strip()
     if ticker:
         security = await session.scalar(select(Security).where(Security.ticker == ticker))
         if security is not None:
@@ -734,5 +741,14 @@ async def portfolio_remove(
                     PortfolioPosition.security_id == security.id,
                 )
             )
-            await session.commit()
+            recorded = False
+            if rating:
+                try:
+                    recorded = await record_feedback_for_security(
+                        session, security.id, user.id, rating
+                    )
+                except ValueError:
+                    recorded = False
+            if not recorded:
+                await session.commit()
     return RedirectResponse(url="/portfolio", status_code=303)

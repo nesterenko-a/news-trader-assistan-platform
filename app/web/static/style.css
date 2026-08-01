@@ -248,3 +248,20 @@ main { padding: 24px 16px 40px; }
 tfoot td { border-bottom: 0; border-top: 1px solid var(--border); font-weight: 600; }
 tr.unread td { background: rgba(79, 140, 255, 0.06); }
 tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+
+.modal { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; }
+.modal[hidden] { display: none; }
+.modal-backdrop { position: absolute; inset: 0; background: rgba(6, 9, 16, 0.7); }
+.modal-card {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 440px;
+  width: 100%;
+  margin: 0 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+.modal-card h2 { margin: 0 0 6px; font-size: 18px; }
+.modal-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }

@@ -48,7 +48,13 @@ from app.bot.linking import (
     unlink_telegram,
 )
 from app.alerts.delivery import deliver_telegram
-from app.feedback.service import get_rating, ratings_map, set_feedback, user_stats
+from app.feedback.service import (
+    get_rating,
+    ratings_map,
+    record_feedback_for_security,
+    set_feedback,
+    user_stats,
+)
 from scripts.collect_news import _mention_check, _parse_since, _within_since
 from app.graph.service import (
     find_influence_paths,
@@ -593,3 +599,33 @@ async def test_feedback_flow(session):
     assert stats["failed"] == 1
     assert stats["total"] == 1
     assert stats["worked_percent"] == 0.0
+
+
+async def test_feedback_neutral_and_security_record(session):
+    await seed_graph(session)
+    sber = await session.scalar(select(Security).where(Security.ticker == "SBER"))
+    user = User(username="closer", password_hash="x")
+    session.add(user)
+    await session.commit()
+
+    strategy = Strategy(security_id=sber.id, verdict="BUY", horizon="short")
+    session.add(strategy)
+    await session.commit()
+
+    feedback = await set_feedback(session, strategy.id, user.id, "neutral")
+    assert feedback.rating == "neutral"
+
+    stats = await user_stats(session, user.id)
+    assert stats["neutral"] == 1
+    assert stats["total"] == 1
+
+    assert await record_feedback_for_security(session, sber.id, user.id, "worked") is True
+    assert await get_rating(session, strategy.id, user.id) == "worked"
+
+    no_strategy = await session.scalar(
+        select(Security).where(Security.ticker == "OZON")
+    )
+    assert (
+        await record_feedback_for_security(session, no_strategy.id, user.id, "worked")
+        is False
+    )

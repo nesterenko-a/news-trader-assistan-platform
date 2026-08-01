@@ -172,6 +172,7 @@ class FeedbackOut(BaseModel):
 class FeedbackStats(BaseModel):
     worked: int
     partial: int
+    neutral: int
     failed: int
     total: int
     worked_percent: float | None = None
