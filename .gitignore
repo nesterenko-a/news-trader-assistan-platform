@@ -14,6 +14,10 @@ logs/
 # Env
 .env
 
+# Telethon sessions (содержат ключи авторизации)
+*.session
+*.session-journal
+
 # IDE
 .vscode/
 .idea/

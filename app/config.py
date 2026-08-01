@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_api_id: str = ""
     telegram_api_hash: str = ""
+    telegram_channels: str = ""
+    telegram_session_name: str = "telethon_session"
     app_url: str = "http://localhost:8000"
     mvp_tickers: str = "AFLT,LKOH,GAZP,SBER"
     auto_create_schema: bool = True
@@ -22,6 +24,12 @@ class Settings(BaseSettings):
     @property
     def ticker_list(self) -> list[str]:
         return [t.strip().upper() for t in self.mvp_tickers.split(",") if t.strip()]
+
+    @property
+    def telegram_channel_list(self) -> list[str]:
+        return [
+            c.strip().lstrip("@") for c in self.telegram_channels.split(",") if c.strip()
+        ]
 
 
 @lru_cache

@@ -11,3 +11,4 @@ python-dotenv==1.1.1
 jinja2==3.1.6
 python-telegram-bot==22.8
 python-multipart==0.0.32
+telethon==1.44.0

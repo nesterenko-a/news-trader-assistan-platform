@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest_asyncio
 from sqlalchemy import select
@@ -55,7 +56,16 @@ from app.feedback.service import (
     set_feedback,
     user_stats,
 )
-from scripts.collect_news import _mention_check, _parse_since, _within_since
+from scripts.collect_news import _parse_since, collect_telegram_news
+from app.news.ingest import (
+    ensure_sources,
+    filter_candidates,
+    ingest_candidates,
+    mention_check as _mention_check,
+    within_since as _within_since,
+)
+from app.collectors.rss import RawArticle
+from app.collectors.telegram import _make_title
 from app.graph.service import (
     find_influence_paths,
     resolve_entity_id,
@@ -629,3 +639,91 @@ async def test_feedback_neutral_and_security_record(session):
         await record_feedback_for_security(session, no_strategy.id, user.id, "worked")
         is False
     )
+
+
+def test_telegram_title_helper():
+    assert _make_title("Первое предложение. Второе.") == "Первое предложение."
+    long = "Текст" * 40
+    assert len(_make_title(long)) == 80
+
+
+async def test_ingest_telegram_article(session):
+    await seed_graph(session)
+    sources = [
+        {
+            "name": "Маркет-канал",
+            "kind": "telegram",
+            "reputation": 0.6,
+            "config": {"channel": "market_channel"},
+        }
+    ]
+    source_ids, reputation = await ensure_sources(session, sources)
+    assert "Маркет-канал" in source_ids
+
+    entity = SimpleNamespace(
+        name="Аэрофлот",
+        sentiment="positive",
+        impact=0.8,
+        snippet="фрагмент",
+        role="primary",
+    )
+    analyzer = SimpleNamespace(
+        analyze=AsyncMock(
+            return_value=SimpleNamespace(
+                is_reliable=True, topic="company", entities=[entity]
+            )
+        )
+    )
+    raw = RawArticle(
+        title="Аэрофлот отчитался",
+        text="Аэрофлот увеличил пассажиропоток",
+        url="https://t.me/market_channel/12",
+        source_name="Маркет-канал",
+        published_at=datetime.now(timezone.utc),
+    )
+    stored = await ingest_candidates(
+        session, [raw], source_ids, reputation, analyzer, "llm:test"
+    )
+    assert stored == 1
+
+    article = await session.scalar(
+        select(Article).where(Article.url == "https://t.me/market_channel/12")
+    )
+    assert article is not None
+    assert article.source_id == source_ids["Маркет-канал"]
+
+    stored_again = await ingest_candidates(
+        session, [raw], source_ids, reputation, analyzer, "llm:test"
+    )
+    assert stored_again == 0
+
+
+async def test_filter_candidates_mentions(session):
+    await seed_graph(session)
+    known = {"https://t.me/market_channel/1"}
+    raw = [
+        RawArticle(
+            title="Аэрофлот отчитался",
+            text="Аэрофлот увеличил прибыль",
+            url="https://t.me/market_channel/2",
+            source_name="chan",
+            published_at=datetime.now(timezone.utc),
+        ),
+        RawArticle(
+            title="Ни о чём",
+            text="Ничего важного",
+            url="https://t.me/market_channel/3",
+            source_name="chan",
+            published_at=datetime.now(timezone.utc),
+        ),
+    ]
+    candidates = await filter_candidates(session, raw, None, {"Аэрофлот"}, known)
+    assert [c.url for c in candidates] == ["https://t.me/market_channel/2"]
+
+
+async def test_collect_telegram_disabled(session, monkeypatch):
+    fake = SimpleNamespace(
+        telegram_api_id="", telegram_api_hash="", telegram_channel_list=[]
+    )
+    monkeypatch.setattr("scripts.collect_news.get_settings", lambda: fake)
+    assert await collect_telegram_news(session) == 0

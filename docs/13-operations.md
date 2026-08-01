@@ -1,6 +1,6 @@
 # 13. Инфраструктура и эксплуатация
 
-**Статус:** утверждено v1.12  
+**Статус:** утверждено v1.13  
 **Система:** NewsTrader Assistant
 
 Практическое руководство: как запускается система, как управлять схемой БД, как работает планировщик сбора новостей и какие утилиты доступны.
@@ -56,9 +56,11 @@ docker compose -f docker/docker-compose.yml run --rm migrations rollback --count
 - Лог: `logs/daily_pipeline.log`.
 
 **Ежедневный конвейер (`scripts/daily_pipeline.py`) выполняет три шага:**
-1. Сбор и анализ новостей (RSS + LLM).
+1. Сбор и анализ новостей (RSS + LLM; при `--telegram` — дополнительно из Telegram-каналов).
 2. Синхронизация дневных свечей по всем бумагам (MOEX ISS).
 3. Генерация и сохранение стратегий по всем бумагам (накапливается история вердиктов для бэктеста).
+
+**Telegram-источник:** чтение каналов через Telethon (Telegram API). Требуется `TELEGRAM_API_ID`/`TELEGRAM_API_HASH`/`TELEGRAM_CHANNELS` в `.env` и одноразовый вход: `python -m scripts.telegram_login` (запрашивает номер телефона и код). После этого сообщения из указанных каналов попадают в конвейер как источник `telegram` (репутация 0.6), дедупликация по ссылке `t.me/<канал>/<id>`. Включение в сборе: `--telegram`.
 
 В лог конвейера по каждой бумаге выводится результат генерации стратегии:
 - `strategy <TICKER>: STORED verdict=... confidence=... net_score=...` — стратегия записана;
@@ -95,7 +97,7 @@ schtasks /Delete /TN "NewsTraderBot\CollectNews" /F # удалить
 | Скрипт | Назначение |
 |---|---|
 | `scripts/seed_db.py` | Создаёт/дополняет справочники: бумаги, сущности, связи графа |
-| `scripts/collect_news.py` | Собирает RSS, фильтрует релевантное, анализирует через LLM, сохраняет в БД (шаг конвейера). Окно сбора: `--days N` / `--from YYYY-MM-DD`; точечный сбор по сущностям: `--entity <имя>` (повторяемый) |
+| `scripts/collect_news.py` | Собирает RSS, фильтрует релевантное, анализирует через LLM, сохраняет в БД (шаг конвейера). Окно сбора: `--days N` / `--from YYYY-MM-DD`; точечный сбор по сущностям: `--entity <имя>` (повторяемый); Telegram-каналы: `--telegram` |
 | `scripts/update_prices.py` | Синхронизирует дневные свечи из MOEX ISS; `--days N` — обновление за N дней; `--from YYYY-MM-DD` — полный бэкфилл истории |
 | `scripts/daily_pipeline.py` | Ежедневный конвейер: новости → цены → генерация стратегий. Окно сбора новостей: `--days N` / `--from YYYY-MM-DD` |
 | `scripts/run_app.py` | Единый запуск: веб-интерфейс (uvicorn) + Telegram-бот |
@@ -106,6 +108,7 @@ schtasks /Delete /TN "NewsTraderBot\CollectNews" /F # удалить
 | `scripts/create_user.py` | Создание пользователя: `python -m scripts.create_user <username> <password>` (аналог регистрации через веб) |
 | `scripts/process_alerts.py` | Генерирует алерты по значимым новостям из watchlist всех пользователей; `--days N` — окно новостей (по умолчанию 7) |
 | `scripts/seed_macro.py` | Наполняет макрокалендарь на 6 месяцев вперёд: заседания ЦБ, CPI/PMI/ВВП, сезоны отчётностей и корпоративные события по тикерам (идемпотентен) |
+| `scripts/telegram_login.py` | Первый вход Telethon для чтения Telegram-каналов (интерактивный: телефон + код), создаёт файл сессии |
 
 Запуск: `.venv\Scripts\python.exe -m scripts.<имя>` из корня проекта.
 
@@ -124,7 +127,9 @@ schtasks /Delete /TN "NewsTraderBot\CollectNews" /F # удалить
 | `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | Провайдер NLP (DeepSeek, OpenAI-совместимый) |
 | `MOEX_BASE_URL` | Базовый URL MOEX ISS |
 | `TELEGRAM_BOT_TOKEN` | Токен Telegram-бота (канал доступа) |
-| `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` | Для чтения Telegram-каналов как источника (этап 1, Telethon) |
+| `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` | Данные Telegram API для чтения каналов как источника новостей (Telethon) |
+| `TELEGRAM_CHANNELS` | Список каналов-источников через запятую (без `@`) |
+| `TELEGRAM_SESSION_NAME` | Имя файла сессии Telethon (по умолчанию `telethon_session`) |
 | `APP_URL` | Публичный адрес веб-интерфейса (ссылки в ответах бота) |
 | `MVP_TICKERS` | Список отслеживаемых тикеров |
 
