@@ -54,7 +54,10 @@ def _horizon_for_score(net_score: float) -> str:
 
 
 async def generate_strategy(
-    session: AsyncSession, ticker: str, as_of: datetime | None = None
+    session: AsyncSession,
+    ticker: str,
+    as_of: datetime | None = None,
+    persist: bool = True,
 ) -> dict:
     now = as_of or datetime.now(timezone.utc)
     security = await session.scalar(select(Security).where(Security.ticker == ticker))
@@ -218,34 +221,35 @@ async def generate_strategy(
         indicator_note=indicator_note,
     )
 
-    strategy = Strategy(
-        security_id=security.id,
-        verdict=verdict,
-        horizon=horizon,
-        confidence=_confidence_label(confidence),
-        entry_price=result["strategy"]["levels"]["entry"],
-        take_profit=result["strategy"]["levels"]["take_profit"],
-        stop_loss=result["strategy"]["levels"]["stop_loss"],
-        model_version="mvp-0.1",
-        rationale_summary=result["rationale_summary"],
-    )
-    session.add(strategy)
-    await session.flush()
-
-    for s in signals[:10]:
-        session.add(
-            EvidenceItem(
-                strategy_id=strategy.id,
-                kind="news_fact" if s["kind"] == "direct" else "graph_path",
-                quote=s["snippet"],
-                url=s["url"],
-                graph_path=s["path"] if s["kind"] == "indirect" else [],
-                weight=round(s["weight"], 4),
-            )
+    if persist:
+        strategy = Strategy(
+            security_id=security.id,
+            verdict=verdict,
+            horizon=horizon,
+            confidence=_confidence_label(confidence),
+            entry_price=result["strategy"]["levels"]["entry"],
+            take_profit=result["strategy"]["levels"]["take_profit"],
+            stop_loss=result["strategy"]["levels"]["stop_loss"],
+            model_version="mvp-0.1",
+            rationale_summary=result["rationale_summary"],
         )
+        session.add(strategy)
+        await session.flush()
 
-    await session.commit()
-    result["strategy_id"] = strategy.id
+        for s in signals[:10]:
+            session.add(
+                EvidenceItem(
+                    strategy_id=strategy.id,
+                    kind="news_fact" if s["kind"] == "direct" else "graph_path",
+                    quote=s["snippet"],
+                    url=s["url"],
+                    graph_path=s["path"] if s["kind"] == "indirect" else [],
+                    weight=round(s["weight"], 4),
+                )
+            )
+
+        await session.commit()
+        result["strategy_id"] = strategy.id
     return result
 
 

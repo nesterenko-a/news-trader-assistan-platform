@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest_asyncio
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db.connection import Base
-from app.db.models import Article, ArticleEntity, Source
+from app.db.models import Article, ArticleEntity, Source, Strategy
 from app.graph.service import (
     find_influence_paths,
     resolve_entity_id,
@@ -118,3 +119,18 @@ async def test_insufficient_data(session, monkeypatch):
 
     result = await generate_strategy(session, "SBER")
     assert result["strategy"]["verdict"] == "INSUFFICIENT_DATA"
+
+
+async def test_generate_strategy_without_persist(session, monkeypatch):
+    monkeypatch.setattr("app.market.moex.MOEXClient", lambda: FakeMOEX())
+    await seed_graph(session)
+
+    await _store_news(session, "http://test.ru/oil3", "Нефть", "positive")
+    await session.commit()
+
+    result = await generate_strategy(session, "AFLT", persist=False)
+    assert result["strategy"]["verdict"] == "SELL"
+    assert "strategy_id" not in result
+
+    strategies = (await session.scalars(select(Strategy))).all()
+    assert strategies == []

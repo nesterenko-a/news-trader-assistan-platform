@@ -17,7 +17,7 @@ async def main() -> None:
 
         rows = []
         for security in securities:
-            result = await generate_strategy(session, security.ticker)
+            result = await generate_strategy(session, security.ticker, persist=False)
             strategy = result["strategy"]
             rows.append(
                 {
