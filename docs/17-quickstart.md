@@ -1,6 +1,6 @@
 # 17. Быстрый старт для новичка
 
-**Статус:** утверждено v1.3  
+**Статус:** утверждено v1.4  
 **Система:** NewsTrader Assistant
 
 Пошаговое руководство, как впервые развернуть программу, какие скрипты запускать, какими командами и как часто это делать. Рассчитано на новичка, который впервые видит проект.
@@ -103,7 +103,7 @@ docker compose -f docker/docker-compose.yml up migrations
 
 ⚠️ Глубина бэкфилла по RSS ограничена выдачей лент (обычно от нескольких дней до недель) — «старые» новости сверх этого в RSS недоступны. Глубокая история доступна через Telegram-каналы и архивы источников (см. `12-roadmap.md`).
 
-**Telegram-каналы как источник** — если настроены `TELEGRAM_API_ID`/`TELEGRAM_API_HASH`/`TELEGRAM_CHANNELS` (см. `13-operations.md`): сначала одноразовый вход `python -m scripts.telegram_login` (телефон + код), затем добавьте флаг `--telegram` к `collect_news` или `daily_pipeline`.
+**Telegram-каналы как источник** — если настроены `TELEGRAM_API_ID`/`TELEGRAM_API_HASH`/`TELEGRAM_CHANNELS` (как получить `api_id`/`api_hash` — см. `13-operations.md` §6.1, [my.telegram.org](https://my.telegram.org/)): сначала одноразовый вход `python -m scripts.telegram_login` (телефон + код), затем добавьте флаг `--telegram` к `collect_news` или `daily_pipeline`.
 
 **Точечный сбор по бумаге/сущности** — когда нужны новости по конкретной компании, не дожидаясь общего конвейера (полезно после чистки данных):
 
