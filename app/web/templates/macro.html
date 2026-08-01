@@ -96,7 +96,6 @@
     if (!scope) return true;
     if (scope === "market") return row.dataset.marketwide === "1";
     const set = scope === "watchlist" ? watchlist : portfolio;
-    if (row.dataset.marketwide === "1") return true;
     return tickersOf(row).some(function (t) { return set.has(t); });
   }
 

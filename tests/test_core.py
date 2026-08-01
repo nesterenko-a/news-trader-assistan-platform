@@ -38,6 +38,7 @@ from app.db.models import (
     macro_event_security,
 )
 from app.macro.service import event_tickers, list_events, list_security_events
+from app.web.router import macro_page
 from scripts.collect_news import _mention_check, _parse_since, _within_since
 from app.graph.service import (
     find_influence_paths,
@@ -364,3 +365,84 @@ async def test_macro_service(session):
     assert "CPI РФ" in titles
 
     assert await event_tickers(session, bound.id) == ["SBER"]
+
+
+async def test_macro_page_per_user_filters(session):
+    await seed_graph(session)
+    sber = await session.scalar(select(Security).where(Security.ticker == "SBER"))
+    gazp = await session.scalar(select(Security).where(Security.ticker == "GAZP"))
+
+    user = User(username="alexkwest", password_hash="x")
+    session.add(user)
+    await session.flush()
+    token = await create_session(session, user)
+    session.add(WatchlistItem(user_id=user.id, security_id=sber.id))
+    session.add(
+        PortfolioPosition(user_id=user.id, security_id=gazp.id, quantity=10, avg_price=150.0)
+    )
+
+    wide = MacroEvent(
+        event_type="cpi",
+        title="CPI РФ",
+        event_time=datetime.now(timezone.utc) + timedelta(days=1),
+        region="RU",
+        expected_impact="high",
+        market_wide=True,
+        description="",
+    )
+    session.add(wide)
+    await session.flush()
+
+    bound = MacroEvent(
+        event_type="earnings_season",
+        title="Отчётность Сбербанка",
+        event_time=datetime.now(timezone.utc) + timedelta(days=2),
+        region="RU",
+        expected_impact="high",
+        market_wide=False,
+        description="",
+    )
+    session.add(bound)
+    await session.flush()
+    await session.execute(
+        macro_event_security.insert().values(event_id=bound.id, security_id=sber.id)
+    )
+    await session.commit()
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/macro",
+            "headers": [(b"cookie", f"nt_token={token}".encode())],
+            "server": ("test", 80),
+            "query_string": b"",
+            "client": ("test", 80),
+            "scheme": "http",
+        }
+    )
+    response = await macro_page(request, session)
+    html = response.body.decode()
+
+    assert 'new Set(["SBER"])' in html
+    assert 'new Set(["GAZP"])' in html
+    assert 'data-marketwide="1"' in html
+    assert 'data-tickers="SBER"' in html
+    assert 'data-tickers="GAZP"' not in html
+
+    anonymous = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/macro",
+            "headers": [],
+            "server": ("test", 80),
+            "query_string": b"",
+            "client": ("test", 80),
+            "scheme": "http",
+        }
+    )
+    anon_html = (await macro_page(anonymous, session)).body.decode()
+    assert "Бумаги из: Watchlist" not in anon_html
+    assert "Бумаги из: Портфель" not in anon_html
+    assert 'new Set([])' in anon_html
