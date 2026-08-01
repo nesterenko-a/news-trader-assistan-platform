@@ -1,6 +1,6 @@
 # 07. Модель данных
 
-**Статус:** утверждено v1.2  
+**Статус:** утверждено v1.3  
 **Система:** NewsTrader Assistant
 
 Описание сущностей системы и их взаимосвязей. Модель представлена концептуально, без привязки к конкретной СУБД (см. [06-architecture.md](./06-architecture.md)).
@@ -238,9 +238,43 @@
 | Поле | Тип | Описание |
 |---|---|---|
 | id | PK | Идентификатор |
-| email / login | string | Учётные данные |
-| role | enum | user / admin |
-| preferences | json | Язык, валюта, каналы алертов, пороги |
+| username | string | Уникальное имя пользователя |
+| password_hash | string | Хэш пароля (PBKDF2-SHA256) |
+| created_at | datetime | Время регистрации |
+
+### 2.13. Session (сессия авторизации)
+
+| Поле | Тип | Описание |
+|---|---|---|
+| id | PK | Идентификатор |
+| user_id | FK | Пользователь |
+| token | string | Уникальный токен (Bearer / cookie `nt_token`) |
+| created_at | datetime | Время создания |
+| expires_at | datetime | Время истечения (30 дней) |
+
+### 2.14. WatchlistItem (элемент watchlist)
+
+| Поле | Тип | Описание |
+|---|---|---|
+| id | PK | Идентификатор |
+| user_id | FK | Пользователь |
+| security_id | FK | Бумага |
+| created_at | datetime | Время добавления |
+
+Уникально: пара (user_id, security_id).
+
+### 2.15. PortfolioPosition (позиция портфеля)
+
+| Поле | Тип | Описание |
+|---|---|---|
+| id | PK | Идентификатор |
+| user_id | FK | Пользователь |
+| security_id | FK | Бумага |
+| quantity | float | Количество |
+| avg_price | float | Средняя цена входа |
+| opened_at | datetime | Время открытия позиции |
+
+Уникально: пара (user_id, security_id).
 
 ## 3. Ключевые связи
 
@@ -251,6 +285,9 @@
 | Security → Entity | Бумага отображается на сущность графа (напр., компания/отрасль) |
 | Strategy → EvidenceItem | Каждый элемент обоснования привязан к стратегии |
 | Strategy → UserFeedback | Вердикты оцениваются пользователями |
+| User → WatchlistItem → Security | Пользователь отслеживает бумаги |
+| User → PortfolioPosition → Security | Позиции пользователя по бумагам |
+| User → Session | Сессии авторизации пользователя |
 | Security → TimeSeries/Indicator | Рыночные данные по бумаге |
 | MacroEvent → Entity | Макрособытие затрагивает сущности |
 
@@ -259,6 +296,9 @@
 - Связь Influence уникальна для пары (from_entity_id, to_entity_id, created_by).
 - ArticleEntity не дублируется для пары (article_id, entity_id).
 - MarketCandle уникальна для пары (security_id, trading_date).
+- WatchlistItem уникальна для пары (user_id, security_id).
+- PortfolioPosition уникальна для пары (user_id, security_id).
+- Session.token уникален.
 - Дедупликация: Article с одинаковым cluster_id считается перепечаткой; каноническим считается первый загруженный.
 - Изменение модели анализа создаёт новую версию; старые вердикты не перезаписываются (историчность).
 

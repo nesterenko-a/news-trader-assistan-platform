@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Watchlist — NewsTrader Assistant{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h1>Watchlist</h1>
+  <p class="muted">Отслеживаемые бумаги и их последние вердикты.</p>
+
+  <form class="inline-add" method="post" action="/api-watchlist-add">
+    <input type="text" name="ticker" placeholder="Тикер, например AFLT" required>
+    <button type="submit">Добавить</button>
+  </form>
+
+  {% if items %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Тикер</th>
+        <th>Название</th>
+        <th>Сектор</th>
+        <th>Вердикт</th>
+        <th>Уверенность</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td><a href="/securities/{{ item.ticker }}">{{ item.ticker }}</a></td>
+        <td>{{ item.name }}</td>
+        <td>{{ item.sector }}</td>
+        <td>{{ item.verdict or "—" }}</td>
+        <td>{{ item.confidence or "—" }}</td>
+        <td>
+          <form method="post" action="/api-watchlist-remove">
+            <input type="hidden" name="ticker" value="{{ item.ticker }}">
+            <button class="btn-link" type="submit">Удалить</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Список пуст. Добавьте бумаги по тикеру.</p>
+  {% endif %}
+</section>
+{% endblock %}

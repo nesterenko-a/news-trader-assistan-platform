@@ -2,6 +2,8 @@ import asyncio
 import os
 
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./smoke.db"
+if os.path.exists("./smoke.db"):
+    os.remove("./smoke.db")
 
 from fastapi.testclient import TestClient
 
@@ -72,5 +74,40 @@ try:
             "Сделать скриншот" in page.text,
             "app.js" in page.text,
         )
+
+        register = client.post(
+            "/v1/auth/register", json={"username": "smoke", "password": "secret123"}
+        )
+        print("auth register:", register.status_code)
+        token = register.json().get("token", "")
+        headers = {"Authorization": f"Bearer {token}"}
+
+        wl_add = client.post("/v1/watchlist", json={"ticker": "AFLT"}, headers=headers)
+        print("watchlist add:", wl_add.status_code)
+        wl_list = client.get("/v1/watchlist", headers=headers)
+        print(
+            "watchlist list:",
+            wl_list.status_code,
+            any(i["ticker"] == "AFLT" for i in wl_list.json()),
+        )
+
+        pf_add = client.post(
+            "/v1/portfolio",
+            json={"ticker": "SBER", "quantity": 10, "avg_price": 100},
+            headers=headers,
+        )
+        print("portfolio add:", pf_add.status_code)
+        pf_list = client.get("/v1/portfolio", headers=headers)
+        print(
+            "portfolio list:",
+            pf_list.status_code,
+            any(p["ticker"] == "SBER" for p in pf_list.json()),
+        )
+        print("unauthorized portfolio:", client.get("/v1/portfolio").status_code)
+
+        web_login = client.get("/login")
+        print("web login page:", web_login.status_code, "Вход" in web_login.text)
+        wl_page = client.get("/watchlist", follow_redirects=False)
+        print("web watchlist unauth redirect:", wl_page.status_code)
 finally:
     asyncio.run(engine.dispose())

@@ -193,3 +193,51 @@ main { padding: 24px 16px 40px; }
 
 .crumb { color: var(--muted); font-size: 14px; }
 .footer { color: var(--muted); font-size: 12px; padding: 20px 16px; border-top: 1px solid var(--border); }
+
+.card.narrow { max-width: 420px; }
+.card.narrow form { display: grid; gap: 12px; }
+.card.narrow label { display: grid; gap: 4px; font-size: 14px; color: var(--muted); }
+.card.narrow input {
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 15px;
+}
+.card.narrow button {
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+}
+.error { color: var(--red); font-weight: 600; }
+.inline-add { display: flex; gap: 8px; margin: 12px 0 16px; flex-wrap: wrap; }
+.inline-add input {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+}
+.inline-add button {
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+.btn-link {
+  background: none;
+  border: 0;
+  color: var(--red);
+  cursor: pointer;
+  padding: 0;
+  font-size: 13px;
+}
+.topbar nav .user { color: var(--muted); margin-left: 16px; font-size: 14px; }
+tfoot td { border-bottom: 0; border-top: 1px solid var(--border); font-weight: 600; }

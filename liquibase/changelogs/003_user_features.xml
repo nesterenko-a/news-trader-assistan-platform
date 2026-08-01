@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+
+    <changeSet id="025-users" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="users"/>
+            </not>
+        </preConditions>
+        <createTable tableName="users">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="username" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="password_hash" type="varchar(300)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamptz" defaultValueComputed="now()"/>
+        </createTable>
+        <addUniqueConstraint tableName="users" columnNames="username" constraintName="ix_users_username"/>
+    </changeSet>
+
+    <changeSet id="026-sessions" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="sessions"/>
+            </not>
+        </preConditions>
+        <createTable tableName="sessions">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="bigint">
+                <constraints foreignKeyName="fk_sessions_user_id" references="users(id)" nullable="false"/>
+            </column>
+            <column name="token" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamptz" defaultValueComputed="now()"/>
+            <column name="expires_at" type="timestamptz"/>
+        </createTable>
+        <addUniqueConstraint tableName="sessions" columnNames="token" constraintName="ix_sessions_token"/>
+        <createIndex indexName="ix_sessions_user_id" tableName="sessions">
+            <column name="user_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="027-watchlist" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="watchlist"/>
+            </not>
+        </preConditions>
+        <createTable tableName="watchlist">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="bigint">
+                <constraints foreignKeyName="fk_watchlist_user_id" references="users(id)" nullable="false"/>
+            </column>
+            <column name="security_id" type="bigint">
+                <constraints foreignKeyName="fk_watchlist_security_id" references="securities(id)" nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamptz" defaultValueComputed="now()"/>
+        </createTable>
+        <addUniqueConstraint tableName="watchlist" columnNames="user_id, security_id" constraintName="ix_watchlist_user_security"/>
+    </changeSet>
+
+    <changeSet id="028-portfolio-positions" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="portfolio_positions"/>
+            </not>
+        </preConditions>
+        <createTable tableName="portfolio_positions">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="bigint">
+                <constraints foreignKeyName="fk_portfolio_user_id" references="users(id)" nullable="false"/>
+            </column>
+            <column name="security_id" type="bigint">
+                <constraints foreignKeyName="fk_portfolio_security_id" references="securities(id)" nullable="false"/>
+            </column>
+            <column name="quantity" type="double precision">
+                <constraints nullable="false"/>
+            </column>
+            <column name="avg_price" type="double precision">
+                <constraints nullable="false"/>
+            </column>
+            <column name="opened_at" type="timestamptz" defaultValueComputed="now()"/>
+        </createTable>
+        <addUniqueConstraint tableName="portfolio_positions" columnNames="user_id, security_id" constraintName="ix_portfolio_user_security"/>
+    </changeSet>
+
+</databaseChangeLog>

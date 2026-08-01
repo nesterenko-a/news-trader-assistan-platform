@@ -54,3 +54,72 @@ class NewsItemOut(BaseModel):
     source_name: str
     summary: str
     entities: list[dict]
+
+
+class RegisterIn(BaseModel):
+    username: str
+    password: str
+
+
+class LoginIn(BaseModel):
+    username: str
+    password: str
+
+
+class AuthOut(BaseModel):
+    token: str
+    username: str
+
+
+class UserOut(BaseModel):
+    id: int
+    username: str
+
+
+class WatchlistItemOut(BaseModel):
+    ticker: str
+    name: str
+    sector: str
+    market: str
+    verdict: str | None = None
+    confidence: str | None = None
+
+
+class WatchlistAddIn(BaseModel):
+    ticker: str
+
+
+class PositionIn(BaseModel):
+    ticker: str
+    quantity: float
+    avg_price: float
+
+
+class PositionUpdateIn(BaseModel):
+    quantity: float | None = None
+    avg_price: float | None = None
+
+
+class PositionOut(BaseModel):
+    ticker: str
+    name: str
+    sector: str
+    quantity: float
+    avg_price: float
+    current_price: float | None = None
+    market_value: float | None = None
+    cost_basis: float
+    pnl: float | None = None
+    pnl_percent: float | None = None
+    verdict: str | None = None
+
+
+class StrategyHistoryItem(BaseModel):
+    id: int
+    ticker: str
+    name: str
+    verdict: str
+    horizon: str
+    confidence: str
+    generated_at: datetime
+    model_version: str

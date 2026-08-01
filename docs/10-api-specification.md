@@ -1,6 +1,6 @@
 # 10. Спецификация API
 
-**Статус:** утверждено v1.0  
+**Статус:** утверждено v1.1  
 **Система:** NewsTrader Assistant
 
 Программный интерфейс системы. Спецификация концептуальная; точные схемы запросов/ответов фиксируются на этапе разработки (например, в формате OpenAPI) и должны соответствовать этому документу.
@@ -132,21 +132,31 @@
 #### `GET /graph/entity/{entity_id}`
 Карточка сущности графа: связи, сила, обоснование рёбер.
 
-### 3.3. Пользовательские данные
+### 3.3. Авторизация и пользовательские данные
+
+Аутентификация — токен сессии в заголовке `Authorization: Bearer <token>` (или cookie `nt_token` для веб-интерфейса). Токен выдаётся при регистрации/входе.
+
+#### Аутентификация
+- `POST /auth/register` — `{ "username": "...", "password": "..." }` → `{ "token", "username" }` (201).
+- `POST /auth/login` — `{ "username": "...", "password": "..." }` → `{ "token", "username" }`.
+- `POST /auth/logout` — завершает сессию (токен из заголовка/cookie).
+- `GET /auth/me` — `{ "id", "username" }` (требует авторизации).
 
 #### Watchlist
-- `GET /users/me/watchlist` — список.
-- `POST /users/me/watchlist` — добавить `{ "ticker": "AFLT" }`.
-- `DELETE /users/me/watchlist/{security_id}` — удалить.
+- `GET /watchlist` — список с последним вердиктом по каждой бумаге.
+- `POST /watchlist` — добавить `{ "ticker": "AFLT" }` (201; 409 если уже есть).
+- `DELETE /watchlist/{ticker}` — удалить.
 
 #### Портфель
-- `GET /users/me/portfolio` — позиции.
-- `POST /users/me/portfolio` — добавить `{ "ticker": "AFLT", "quantity": 100, "avg_price": 1100.0 }`.
-- `PUT /users/me/portfolio/{entry_id}` — изменить.
-- `DELETE /users/me/portfolio/{entry_id}` — удалить.
+- `GET /portfolio` — позиции с переоценкой по текущим ценам MOEX: `quantity`, `avg_price`, `current_price`, `market_value`, `cost_basis`, `pnl`, `pnl_percent`, `verdict`.
+- `POST /portfolio` — добавить `{ "ticker": "AFLT", "quantity": 100, "avg_price": 1100.0 }` (201; 409 если уже есть).
+- `PATCH /portfolio/{ticker}` — изменить `{ "quantity"?: ..., "avg_price"?: ... }`.
+- `DELETE /portfolio/{ticker}` — закрыть позицию.
 
-#### История и обратная связь
-- `GET /users/me/strategies` — история выданных стратегий.
+#### История стратегий
+- `GET /strategies/history?limit=N` — последние сохранённые стратегии (тикер, вердикт, горизонт, уверенность, дата, версия модели).
+
+#### Обратная связь и детали (этап 1, планируется)
 - `GET /strategies/{strategy_id}` — детали стратегии с обоснованием.
 - `POST /strategies/{strategy_id}/feedback` — `{ "rating": "worked", "comment": "..." }`.
 

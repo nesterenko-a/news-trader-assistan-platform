@@ -7,5 +7,6 @@
 
     <include file="changelogs/001_initial_schema.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/002_market_candles.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/003_user_features.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

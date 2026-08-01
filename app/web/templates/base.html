@@ -12,7 +12,14 @@
       <a class="brand" href="/">NewsTrader <span>Assistant</span></a>
       <nav>
         <a href="/">Аналитика</a>
+        <a href="/watchlist">Watchlist</a>
+        <a href="/portfolio">Портфель</a>
         <a href="/docs">API</a>
+        {% if user %}
+        <span class="user">{{ user.username }} · <a href="/logout">Выйти</a></span>
+        {% else %}
+        <a href="/login">Войти</a>
+        {% endif %}
       </nav>
     </div>
   </header>

@@ -4,10 +4,28 @@ from types import SimpleNamespace
 import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from starlette.requests import Request
 
+from app.auth import (
+    create_session,
+    delete_session,
+    get_current_user,
+    hash_password,
+    verify_password,
+)
 from app.db.connection import Base
 from app.collectors.rss import _parse_date
-from app.db.models import Article, ArticleEntity, Source, Strategy
+from app.db.models import (
+    Article,
+    ArticleEntity,
+    PortfolioPosition,
+    Security,
+    Session,
+    Source,
+    Strategy,
+    User,
+    WatchlistItem,
+)
 from scripts.collect_news import _mention_check, _parse_since, _within_since
 from app.graph.service import (
     find_influence_paths,
@@ -177,3 +195,58 @@ async def test_mention_check_restricted_entities(session):
     assert await _mention_check(session, "Нефть подорожала", None)
     assert await _mention_check(session, "Магнит увеличил выручку", {"Магнит"})
     assert not await _mention_check(session, "Землетрясение магнитудой 7,1", {"Магнит"})
+
+
+async def test_password_hashing():
+    hashed = hash_password("secret123")
+    assert hashed.startswith("pbkdf2_sha256$")
+    assert verify_password("secret123", hashed)
+    assert not verify_password("wrong", hashed)
+
+
+async def test_auth_session_flow(session):
+    user = User(username="alice", password_hash=hash_password("secret123"))
+    session.add(user)
+    await session.flush()
+
+    token = await create_session(session, user)
+    record = await session.scalar(select(Session).where(Session.token == token))
+    assert record is not None
+
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/",
+        "query_string": b"",
+        "headers": [(b"authorization", f"Bearer {token}".encode())],
+        "scheme": "http",
+        "server": ("test", 80),
+        "client": ("test", 1),
+    }
+    current = await get_current_user(Request(scope), session)
+    assert current.username == "alice"
+
+    await delete_session(session, token)
+    record = await session.scalar(select(Session).where(Session.token == token))
+    assert record is None
+
+
+async def test_watchlist_and_position_models(session):
+    await seed_graph(session)
+    user = User(username="bob", password_hash="x")
+    session.add(user)
+    await session.flush()
+    security = await session.scalar(select(Security).where(Security.ticker == "AFLT"))
+    session.add(WatchlistItem(user_id=user.id, security_id=security.id))
+    session.add(
+        PortfolioPosition(
+            user_id=user.id, security_id=security.id, quantity=100, avg_price=50.0
+        )
+    )
+    await session.commit()
+
+    wl = (await session.scalars(select(WatchlistItem))).all()
+    assert len(wl) == 1
+    positions = (await session.scalars(select(PortfolioPosition))).all()
+    assert positions[0].quantity == 100
+    assert positions[0].avg_price == 50.0
