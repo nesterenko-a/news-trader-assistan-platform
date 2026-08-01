@@ -30,17 +30,25 @@ def _within_since(published_at: datetime | None, since: datetime | None) -> bool
     return published_at >= since
 
 
-async def _mention_check(session, text: str) -> bool:
+async def _mention_check(
+    session, text: str, entity_names: set[str] | None = None
+) -> bool:
     entities = await session.scalars(select(Entity))
     lowered = text.lower()
     for entity in entities:
+        if entity_names is not None and entity.name not in entity_names:
+            continue
         for alias in [entity.name, *(entity.aliases or [])]:
             if str(alias).lower() in lowered:
                 return True
     return False
 
 
-async def collect_news(session, since: datetime | None = None) -> int:
+async def collect_news(
+    session,
+    since: datetime | None = None,
+    entity_names: set[str] | None = None,
+) -> int:
     client = LLMClient.from_settings()
     analyzer = ArticleAnalyzer(client)
 
@@ -62,15 +70,20 @@ async def collect_news(session, since: datetime | None = None) -> int:
     await session.commit()
 
     raw_articles = RSSCollector(DEFAULT_FEEDS).fetch()
+    known_urls = set((await session.scalars(select(Article.url))).all())
     candidates = []
     seen_urls = set()
     for article in raw_articles:
         if article.url in seen_urls:
             continue
         seen_urls.add(article.url)
+        if article.url in known_urls:
+            continue
         if not _within_since(article.published_at, since):
             continue
-        if await _mention_check(session, f"{article.title}\n{article.text}"):
+        if await _mention_check(
+            session, f"{article.title}\n{article.text}", entity_names
+        ):
             candidates.append(article)
         if len(candidates) >= MAX_PER_FEED:
             break
@@ -137,15 +150,25 @@ async def main() -> None:
         default="",
         help="start date YYYY-MM-DD (overrides --days)",
     )
+    parser.add_argument(
+        "--entity",
+        action="append",
+        default=[],
+        help="collect only items mentioning the given graph entity "
+        "(repeatable; empty = all entities)",
+    )
     args = parser.parse_args()
 
     since = _parse_since(args)
+    entity_names = set(args.entity) or None
     if since is not None:
         print(f"Collecting news published since {since.isoformat()}")
+    if entity_names:
+        print(f"Target entities: {', '.join(sorted(entity_names))}")
 
     await init_db()
     async with SessionLocal() as session:
-        stored = await collect_news(session, since=since)
+        stored = await collect_news(session, since=since, entity_names=entity_names)
         print(f"Stored {stored} analyzed articles")
 
 

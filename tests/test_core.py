@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.db.connection import Base
 from app.collectors.rss import _parse_date
 from app.db.models import Article, ArticleEntity, Source, Strategy
-from scripts.collect_news import _parse_since, _within_since
+from scripts.collect_news import _mention_check, _parse_since, _within_since
 from app.graph.service import (
     find_influence_paths,
     resolve_entity_id,
@@ -167,3 +167,11 @@ async def test_rss_date_parsing():
     )
     assert _parse_date("") is None
     assert _parse_date("garbage") is None
+
+
+async def test_mention_check_restricted_entities(session):
+    await seed_graph(session)
+
+    assert await _mention_check(session, "Аэрофлот увеличил пассажиропоток", {"Аэрофлот"})
+    assert not await _mention_check(session, "Нефть подорожала", {"Аэрофлот"})
+    assert await _mention_check(session, "Нефть подорожала", None)
