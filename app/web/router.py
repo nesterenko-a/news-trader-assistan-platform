@@ -473,13 +473,45 @@ async def macro_page(
             "date_str": event.event_time.strftime("%d.%m.%Y %H:%M"),
             "region": event.region,
             "impact": event.expected_impact,
+            "market_wide": event.market_wide,
             "description": event.description,
+            "tickers": (
+                await event_tickers(session, event.id) if not event.market_wide else []
+            ),
         }
-        if not event.market_wide:
-            item["tickers"] = await event_tickers(session, event.id)
         items.append(item)
+    watchlist_tickers: list[str] = []
+    portfolio_tickers: list[str] = []
+    if user is not None:
+        watchlist_tickers = list(
+            (
+                await session.scalars(
+                    select(Security.ticker)
+                    .join(WatchlistItem, WatchlistItem.security_id == Security.id)
+                    .where(WatchlistItem.user_id == user.id)
+                    .order_by(Security.ticker)
+                )
+            ).all()
+        )
+        portfolio_tickers = list(
+            (
+                await session.scalars(
+                    select(Security.ticker)
+                    .join(PortfolioPosition, PortfolioPosition.security_id == Security.id)
+                    .where(PortfolioPosition.user_id == user.id)
+                    .order_by(Security.ticker)
+                )
+            ).all()
+        )
     context = _base_context(user)
-    context.update({"items": items})
+    context.update(
+        {
+            "items": items,
+            "regions": sorted({event.region for event in events}),
+            "watchlist_tickers": watchlist_tickers,
+            "portfolio_tickers": portfolio_tickers,
+        }
+    )
     return templates.TemplateResponse(request, "macro.html", context)
 
 

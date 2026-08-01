@@ -75,6 +75,9 @@ main { padding: 24px 16px 40px; }
   max-width: 180px;
 }
 
+.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.sort-arrow { font-size: 10px; margin-left: 4px; }
+
 .chart-card .chart-head {
   display: flex;
   justify-content: space-between;

@@ -8,19 +8,47 @@
   <p class="muted">Заседания ЦБ, публикации CPI/PMI/ВВП и сезоны отчётностей. События с пометкой «рыночные» влияют на весь рынок; по конкретным эмитентам — указаны тикеры.</p>
 
   {% if items %}
-  <table class="table">
+  <table class="table" id="macro-table">
     <thead>
       <tr>
-        <th>Дата</th>
+        <th class="sortable" data-sort="time">Дата<span class="sort-arrow"></span></th>
         <th>Событие</th>
-        <th>Регион</th>
-        <th>Значимость</th>
-        <th>Бумаги</th>
+        <th>
+          Регион
+          <select class="th-filter" data-filter="region">
+            <option value="">Все</option>
+            {% for r in regions %}
+            <option value="{{ r }}">{{ r }}</option>
+            {% endfor %}
+          </select>
+        </th>
+        <th>
+          Значимость
+          <select class="th-filter" data-filter="impact">
+            <option value="">Любая</option>
+            <option value="high">высокая</option>
+            <option value="medium">средняя</option>
+            <option value="low">низкая</option>
+          </select>
+        </th>
+        <th>
+          Бумаги
+          <select class="th-filter" data-filter="scope">
+            <option value="">Все</option>
+            <option value="market">Весь рынок</option>
+            {% if watchlist_tickers %}<option value="watchlist">Бумаги из: Watchlist</option>{% endif %}
+            {% if portfolio_tickers %}<option value="portfolio">Бумаги из: Портфель</option>{% endif %}
+          </select>
+        </th>
       </tr>
     </thead>
     <tbody>
       {% for e in items %}
-      <tr>
+      <tr data-time="{{ e.event_time.isoformat() }}"
+          data-region="{{ e.region }}"
+          data-impact="{{ e.impact }}"
+          data-marketwide="{% if e.market_wide %}1{% else %}0{% endif %}"
+          data-tickers="{{ e.tickers|join(' ') }}">
         <td>{{ e.date_str }}</td>
         <td>
           {{ e.title }}
@@ -47,4 +75,62 @@
   <p class="muted">Событий нет.</p>
   {% endif %}
 </section>
+
+<script>
+(function () {
+  const table = document.getElementById("macro-table");
+  if (!table) return;
+  const tbody = table.querySelector("tbody");
+  const rows = Array.from(tbody.querySelectorAll("tr"));
+  const watchlist = new Set({{ watchlist_tickers|tojson }});
+  const portfolio = new Set({{ portfolio_tickers|tojson }});
+  const filters = { region: "", impact: "", scope: "" };
+  let sortDir = 1;
+
+  function tickersOf(row) {
+    const raw = row.dataset.tickers || "";
+    return raw ? raw.split(" ") : [];
+  }
+
+  function matchScope(row, scope) {
+    if (!scope) return true;
+    if (scope === "market") return row.dataset.marketwide === "1";
+    const set = scope === "watchlist" ? watchlist : portfolio;
+    if (row.dataset.marketwide === "1") return true;
+    return tickersOf(row).some(function (t) { return set.has(t); });
+  }
+
+  function apply() {
+    rows.forEach(function (row) {
+      const show =
+        (!filters.region || row.dataset.region === filters.region) &&
+        (!filters.impact || row.dataset.impact === filters.impact) &&
+        matchScope(row, filters.scope);
+      row.style.display = show ? "" : "none";
+    });
+  }
+
+  function renderSort() {
+    table.querySelector(".sort-arrow").textContent = sortDir === 1 ? "▲" : "▼";
+    rows.sort(function (a, b) {
+      return (new Date(a.dataset.time).getTime() - new Date(b.dataset.time).getTime()) * sortDir;
+    });
+    rows.forEach(function (row) { tbody.appendChild(row); });
+    apply();
+  }
+
+  table.querySelectorAll("select[data-filter]").forEach(function (sel) {
+    sel.addEventListener("change", function () {
+      filters[sel.dataset.filter] = sel.value;
+      apply();
+    });
+  });
+  table.querySelector("th[data-sort]").addEventListener("click", function () {
+    sortDir = -sortDir;
+    renderSort();
+  });
+
+  renderSort();
+})();
+</script>
 {% endblock %}
