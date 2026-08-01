@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -29,6 +29,7 @@ from app.db.models import (
     ArticleEntity,
     Entity,
     MacroEvent,
+    MarketCandle,
     PortfolioPosition,
     Security,
     Session,
@@ -66,6 +67,7 @@ from app.news.ingest import (
 )
 from app.collectors.rss import RawArticle
 from app.collectors.telegram import _make_title
+from scripts.backtest_asof import backtest_ticker, build_report, evaluate
 from app.graph.service import (
     find_influence_paths,
     resolve_entity_id,
@@ -727,3 +729,134 @@ async def test_collect_telegram_disabled(session, monkeypatch):
     )
     monkeypatch.setattr("scripts.collect_news.get_settings", lambda: fake)
     assert await collect_telegram_news(session) == 0
+
+
+async def test_generate_strategy_no_lookahead(session):
+    await seed_graph(session)
+    aero_id = await resolve_entity_id(session, "Аэрофлот")
+    source = Source(name="Тест-агентство", kind="rss", reputation_score=0.8)
+    session.add(source)
+    await session.flush()
+
+    as_of = datetime(2026, 5, 10, 18, 0, tzinfo=timezone.utc)
+
+    future = Article(
+        title="Аэрофлот после T",
+        text="Аэрофлот растёт",
+        url="https://t.me/future/1",
+        source_id=source.id,
+        source_reputation=0.8,
+        published_at=as_of + timedelta(days=1),
+        language="ru",
+    )
+    session.add(future)
+    await session.flush()
+    session.add(
+        ArticleEntity(
+            article_id=future.id,
+            entity_id=aero_id,
+            sentiment="positive",
+            impact=1.0,
+            snippet="",
+            entity_role="primary",
+        )
+    )
+    await session.commit()
+
+    result = await generate_strategy(
+        session, "AFLT", as_of=as_of, persist=False, use_live_market=False
+    )
+    assert result["strategy"]["verdict"] == "INSUFFICIENT_DATA"
+
+    past = Article(
+        title="Аэрофлот до T",
+        text="Аэрофлот укрепляет позиции",
+        url="https://t.me/past/1",
+        source_id=source.id,
+        source_reputation=0.8,
+        published_at=as_of - timedelta(hours=2),
+        language="ru",
+    )
+    session.add(past)
+    await session.flush()
+    session.add(
+        ArticleEntity(
+            article_id=past.id,
+            entity_id=aero_id,
+            sentiment="positive",
+            impact=1.0,
+            snippet="",
+            entity_role="primary",
+        )
+    )
+    await session.commit()
+
+    result2 = await generate_strategy(
+        session, "AFLT", as_of=as_of, persist=False, use_live_market=False
+    )
+    assert result2["strategy"]["verdict"] == "BUY"
+
+
+def test_backtest_evaluate():
+    ret, correct = evaluate("BUY", 100.0, 105.0)
+    assert abs(ret - 0.05) < 1e-9 and correct is True
+    ret, correct = evaluate("BUY", 100.0, 95.0)
+    assert abs(ret + 0.05) < 1e-9 and correct is False
+    ret, correct = evaluate("SELL", 100.0, 95.0)
+    assert abs(ret + 0.05) < 1e-9 and correct is True
+    ret, correct = evaluate("HOLD", 100.0, 105.0)
+    assert abs(ret - 0.05) < 1e-9 and correct is None
+    assert evaluate("BUY", None, 105.0) == (None, None)
+
+
+async def test_backtest_asof_ticker(session):
+    await seed_graph(session)
+    aflt = await session.scalar(select(Security).where(Security.ticker == "AFLT"))
+    source = Source(name="Тест-агентство", kind="rss", reputation_score=0.8)
+    session.add(source)
+    await session.flush()
+    aero_id = await resolve_entity_id(session, "Аэрофлот")
+    article = Article(
+        title="Аэрофлот позитив",
+        text="Аэрофлот увеличивает перевозки",
+        url="https://t.me/bt/1",
+        source_id=source.id,
+        source_reputation=0.8,
+        published_at=datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc),
+        language="ru",
+    )
+    session.add(article)
+    await session.flush()
+    session.add(
+        ArticleEntity(
+            article_id=article.id,
+            entity_id=aero_id,
+            sentiment="positive",
+            impact=5.0,
+            snippet="",
+            entity_role="primary",
+        )
+    )
+    for i in range(12):
+        session.add(
+            MarketCandle(
+                security_id=aflt.id,
+                trading_date=date(2026, 1, 3 + i),
+                close=100.0 + i,
+            )
+        )
+    await session.commit()
+
+    results = await backtest_ticker(
+        session, "AFLT", date(2026, 1, 3), date(2026, 1, 10), horizon=2, step_days=1
+    )
+    assert results
+    assert all(r.verdict == "BUY" for r in results)
+    assert all(r.correct is True for r in results)
+    assert all(r.forward_return is not None and r.forward_return > 0 for r in results)
+
+    report = build_report(results, 2)
+    joined = "\n".join(report)
+    assert "Оценено:" in joined
+    assert "По вердиктам:" in joined
+    assert "По периодам (месяц):" in joined

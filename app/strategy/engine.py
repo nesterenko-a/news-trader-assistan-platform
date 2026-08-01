@@ -58,8 +58,11 @@ async def generate_strategy(
     ticker: str,
     as_of: datetime | None = None,
     persist: bool = True,
+    use_live_market: bool = True,
 ) -> dict:
     now = as_of or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
     security = await session.scalar(select(Security).where(Security.ticker == ticker))
     if security is None:
         raise ValueError(f"Бумага {ticker} не найдена")
@@ -80,7 +83,10 @@ async def generate_strategy(
     recent_articles = (
         await session.scalars(
             select(Article)
-            .where(Article.published_at >= since)
+            .where(
+                Article.published_at >= since,
+                Article.published_at <= now,
+            )
             .order_by(Article.published_at.desc())
         )
     ).all()
@@ -186,22 +192,26 @@ async def generate_strategy(
     total = positive + negative
     agreement = abs(positive - negative) / total if total else 0.0
 
-    from app.market.moex import MOEXClient
-    quotes = await MOEXClient().fetch_quote(ticker)
-    closes = await MOEXClient().fetch_daily_closes(ticker)
-
     indicator_note = None
-    if quotes and closes:
-        rsi_value = rsi(closes)
-        ma20 = sma(closes, 20)
-        if rsi_value is not None and rsi_value > 70 and net_score > 0:
-            net_score *= 0.5
-            indicator_note = f"RSI={rsi_value:.0f} — зона перекупленности, сигнал ослаблен"
-        elif rsi_value is not None and rsi_value < 30 and net_score < 0:
-            net_score *= 0.5
-            indicator_note = f"RSI={rsi_value:.0f} — зона перепроданности, сигнал ослаблен"
-        elif ma20 is not None and quotes["price"] < ma20:
-            net_score *= 0.9
+    if use_live_market:
+        from app.market.moex import MOEXClient
+
+        quotes = await MOEXClient().fetch_quote(ticker)
+        closes = await MOEXClient().fetch_daily_closes(ticker)
+
+        if quotes and closes:
+            rsi_value = rsi(closes)
+            ma20 = sma(closes, 20)
+            if rsi_value is not None and rsi_value > 70 and net_score > 0:
+                net_score *= 0.5
+                indicator_note = f"RSI={rsi_value:.0f} — зона перекупленности, сигнал ослаблен"
+            elif rsi_value is not None and rsi_value < 30 and net_score < 0:
+                net_score *= 0.5
+                indicator_note = f"RSI={rsi_value:.0f} — зона перепроданности, сигнал ослаблен"
+            elif ma20 is not None and quotes["price"] < ma20:
+                net_score *= 0.9
+    else:
+        quotes = None
 
     coverage = min(len(signals) / 5.0, 1.0)
     confidence = max(0.0, min(0.95, agreement * 0.5 + coverage * 0.3 + 0.2))
