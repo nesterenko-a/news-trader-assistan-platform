@@ -70,7 +70,7 @@ from app.collectors.rss import RawArticle
 from app.collectors.telegram import _make_title
 from scripts.backtest_asof import backtest_ticker, build_report, evaluate
 from app.admin.roles import promote_admin_users
-from app.admin.runner import build_argv, get_script
+from app.admin.runner import build_argv, get_script, mark_stale_runs
 from app.web.router import admin_page as admin_page_route
 from app.graph.service import (
     find_influence_paths,
@@ -913,6 +913,29 @@ def test_script_run_timezone_columns():
         col = table.c[name]
         assert isinstance(col.type, DateTime), f"{name} must be DateTime"
         assert col.type.timezone is True, f"{name} must be timezone-aware"
+
+
+async def test_mark_stale_runs(session):
+    run = ScriptRun(script_name="backtest_asof", params={}, user_id=None, status="running")
+    done = ScriptRun(
+        script_name="seed_db", params={}, user_id=None, status="success",
+        exit_code=0, output="ok",
+    )
+    session.add_all([run, done])
+    await session.commit()
+
+    fixed = await mark_stale_runs(session)
+    assert fixed == 1
+
+    run = await session.get(ScriptRun, run.id)
+    assert run.status == "failed"
+    assert run.exit_code == -1
+    assert run.finished_at is not None
+    assert "прервано" in run.output
+
+    done = await session.get(ScriptRun, done.id)
+    assert done.status == "success"
+    assert done.exit_code == 0
 
 
 async def test_admin_page_access(session):

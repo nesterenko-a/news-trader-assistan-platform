@@ -13,14 +13,15 @@
 
 <section class="card">
   <h2>Скрипты</h2>
-  <div class="grid">
+  <div class="grid admin-scripts">
     {% for s in scripts %}
     <div class="mini">
       <form method="post" action="/admin/scripts/run">
         <input type="hidden" name="script" value="{{ s.key }}">
         <span class="label">{{ s.title }}</span>
-        <p class="muted small" style="margin:4px 0 0">{{ s.description }}</p>
+        <p class="muted small" style="margin:6px 0 0">{{ s.description }}</p>
         {% if s.param %}
+        <label class="muted small" style="display:block;margin-top:8px">{{ s.param[1] }}</label>
         <input type="number" name="param" min="1" value="{{ s.param[2] }}">
         {% endif %}
         <button class="btn" type="submit" {% if busy %}disabled{% endif %} style="margin-top:8px">Запустить</button>
