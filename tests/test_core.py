@@ -35,6 +35,7 @@ from app.db.models import (
     Session,
     Source,
     Strategy,
+    ScriptRun,
     TelegramLinkCode,
     User,
     UserFeedback,
@@ -902,6 +903,16 @@ def test_runner_build_argv():
         raise AssertionError("non-positive param must raise ValueError")
 
     assert get_script("backtest_asof") is not None
+
+
+def test_script_run_timezone_columns():
+    from sqlalchemy import DateTime
+
+    table = ScriptRun.__table__
+    for name in ("started_at", "finished_at"):
+        col = table.c[name]
+        assert isinstance(col.type, DateTime), f"{name} must be DateTime"
+        assert col.type.timezone is True, f"{name} must be timezone-aware"
 
 
 async def test_admin_page_access(session):
