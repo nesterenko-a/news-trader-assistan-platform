@@ -29,11 +29,34 @@ async def main() -> None:
             synced += await sync_security_prices(session, ticker, PRICE_LOOKBACK_DAYS)
         print(f"prices: {synced} candles synced")
 
-        generated = 0
+        stored_strategies = []
+        rejected_strategies = []
         for ticker in tickers:
-            await generate_strategy(session, ticker)
-            generated += 1
-        print(f"strategies: {generated} generated")
+            result = await generate_strategy(session, ticker)
+            verdict = result["strategy"]["verdict"]
+            if verdict == "INSUFFICIENT_DATA":
+                rejected_strategies.append(ticker)
+                print(
+                    f"strategy {ticker}: REJECTED (insufficient data)",
+                    flush=True,
+                )
+            else:
+                stored_strategies.append(ticker)
+                print(
+                    f"strategy {ticker}: STORED "
+                    f"verdict={verdict} "
+                    f"confidence={result['strategy']['confidence']} "
+                    f"net_score={result['strategy']['net_score']}",
+                    flush=True,
+                )
+        print(
+            f"strategies stored: {len(stored_strategies)} "
+            f"({', '.join(stored_strategies) or '-'})"
+        )
+        print(
+            f"strategies rejected (insufficient data): {len(rejected_strategies)} "
+            f"({', '.join(rejected_strategies) or '-'})"
+        )
 
 
 if __name__ == "__main__":
