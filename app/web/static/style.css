@@ -241,3 +241,5 @@ main { padding: 24px 16px 40px; }
 }
 .topbar nav .user { color: var(--muted); margin-left: 16px; font-size: 14px; }
 tfoot td { border-bottom: 0; border-top: 1px solid var(--border); font-weight: 600; }
+tr.unread td { background: rgba(79, 140, 255, 0.06); }
+tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }

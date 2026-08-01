@@ -123,3 +123,24 @@ class StrategyHistoryItem(BaseModel):
     confidence: str
     generated_at: datetime
     model_version: str
+
+
+class AlertOut(BaseModel):
+    id: int
+    ticker: str
+    headline: str
+    url: str
+    impact: float
+    is_ambiguous: bool
+    is_read: bool
+    created_at: datetime
+
+
+class AlertSettingsOut(BaseModel):
+    min_impact: float
+    channels: list[str]
+
+
+class AlertSettingsIn(BaseModel):
+    min_impact: float | None = None
+    channels: list[str] | None = None

@@ -75,6 +75,31 @@ class PortfolioPosition(Base):
     )
 
 
+class Alert(Base):
+    __tablename__ = "alerts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    security_id: Mapped[int] = mapped_column(ForeignKey("securities.id"), index=True)
+    article_id: Mapped[int] = mapped_column(ForeignKey("articles.id"))
+    headline: Mapped[str] = mapped_column(String(500), default="")
+    url: Mapped[str] = mapped_column(String(1000), default="")
+    impact: Mapped[float] = mapped_column(Float, default=0.0)
+    is_ambiguous: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class AlertSettings(Base):
+    __tablename__ = "alert_settings"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    min_impact: Mapped[float] = mapped_column(Float, default=0.7)
+    channels: Mapped[list] = mapped_column(JSON, default=list)
+
+
 class Source(Base):
     __tablename__ = "sources"
 

@@ -4,6 +4,7 @@ from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import select
 
+from app.alerts.service import ALERT_LOOKBACK_DAYS, process_alerts
 from app.db.connection import SessionLocal, init_db
 from app.db.models import Security
 from app.market.prices import sync_security_prices
@@ -80,6 +81,12 @@ async def main() -> None:
             f"strategies rejected (insufficient data): {len(rejected_strategies)} "
             f"({', '.join(rejected_strategies) or '-'})"
         )
+
+        alerts_created = await process_alerts(
+            session,
+            since=datetime.now(timezone.utc) - timedelta(days=ALERT_LOOKBACK_DAYS),
+        )
+        print(f"alerts: {alerts_created} created")
 
 
 if __name__ == "__main__":

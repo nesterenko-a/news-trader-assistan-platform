@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+
+    <changeSet id="029-alerts" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="alerts"/>
+            </not>
+        </preConditions>
+        <createTable tableName="alerts">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="bigint">
+                <constraints foreignKeyName="fk_alerts_user_id" references="users(id)" nullable="false"/>
+            </column>
+            <column name="security_id" type="bigint">
+                <constraints foreignKeyName="fk_alerts_security_id" references="securities(id)" nullable="false"/>
+            </column>
+            <column name="article_id" type="bigint">
+                <constraints foreignKeyName="fk_alerts_article_id" references="articles(id)" nullable="false"/>
+            </column>
+            <column name="headline" type="varchar(500)"/>
+            <column name="url" type="varchar(1000)"/>
+            <column name="impact" type="double precision" defaultValueNumeric="0"/>
+            <column name="is_ambiguous" type="boolean" defaultValueBoolean="false"/>
+            <column name="is_read" type="boolean" defaultValueBoolean="false"/>
+            <column name="created_at" type="timestamptz" defaultValueComputed="now()"/>
+        </createTable>
+        <addUniqueConstraint tableName="alerts" columnNames="user_id, article_id, security_id" constraintName="ix_alerts_user_article_security"/>
+        <createIndex indexName="ix_alerts_user_id" tableName="alerts">
+            <column name="user_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="030-alert-settings" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="alert_settings"/>
+            </not>
+        </preConditions>
+        <createTable tableName="alert_settings">
+            <column name="user_id" type="bigint">
+                <constraints foreignKeyName="fk_alert_settings_user_id" references="users(id)" primaryKey="true" nullable="false"/>
+            </column>
+            <column name="min_impact" type="double precision" defaultValueNumeric="0.7"/>
+            <column name="channels" type="json" defaultValue="[]"/>
+        </createTable>
+    </changeSet>
+
+</databaseChangeLog>

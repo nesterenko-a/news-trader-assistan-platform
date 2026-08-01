@@ -1,6 +1,6 @@
 # 07. Модель данных
 
-**Статус:** утверждено v1.3  
+**Статус:** утверждено v1.4  
 **Система:** NewsTrader Assistant
 
 Описание сущностей системы и их взаимосвязей. Модель представлена концептуально, без привязки к конкретной СУБД (см. [06-architecture.md](./06-architecture.md)).
@@ -276,6 +276,31 @@
 
 Уникально: пара (user_id, security_id).
 
+### 2.16. Alert (алерт по значимой новости)
+
+| Поле | Тип | Описание |
+|---|---|---|
+| id | PK | Идентификатор |
+| user_id | FK | Пользователь |
+| security_id | FK | Бумага |
+| article_id | FK | Статья |
+| headline | string | Заголовок новости |
+| url | string | Ссылка на статью |
+| impact | float | Значимость упоминания (0..1) |
+| is_ambiguous | bool | Пометка «требует ручной проверки» (нейтральная тональность) |
+| is_read | bool | Прочитан ли |
+| created_at | datetime | Время создания |
+
+Уникально: пара (user_id, article_id, security_id).
+
+### 2.17. AlertSettings (настройки алертов)
+
+| Поле | Тип | Описание |
+|---|---|---|
+| user_id | PK/FK | Пользователь |
+| min_impact | float | Порог значимости (по умолчанию 0.7) |
+| channels | string[] | Каналы доставки: app / telegram |
+
 ## 3. Ключевые связи
 
 | Связь | Смысл |
@@ -287,6 +312,7 @@
 | Strategy → UserFeedback | Вердикты оцениваются пользователями |
 | User → WatchlistItem → Security | Пользователь отслеживает бумаги |
 | User → PortfolioPosition → Security | Позиции пользователя по бумагам |
+| User → Alert → Security/Article | Алерты по значимым новостям отслеживаемых бумаг |
 | User → Session | Сессии авторизации пользователя |
 | Security → TimeSeries/Indicator | Рыночные данные по бумаге |
 | MacroEvent → Entity | Макрособытие затрагивает сущности |
@@ -298,6 +324,7 @@
 - MarketCandle уникальна для пары (security_id, trading_date).
 - WatchlistItem уникальна для пары (user_id, security_id).
 - PortfolioPosition уникальна для пары (user_id, security_id).
+- Alert уникальна для тройки (user_id, article_id, security_id).
 - Session.token уникален.
 - Дедупликация: Article с одинаковым cluster_id считается перепечаткой; каноническим считается первый загруженный.
 - Изменение модели анализа создаёт новую версию; старые вердикты не перезаписываются (историчность).

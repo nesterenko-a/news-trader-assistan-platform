@@ -7,6 +7,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.alerts.service import get_settings, load_alerts, mark_all_read, mark_read, update_settings
 from app.auth import (
     create_session,
     delete_session,
@@ -352,6 +353,94 @@ async def portfolio_page(
         }
     )
     return templates.TemplateResponse(request, "portfolio.html", context)
+
+
+@router.get("/alerts")
+async def alerts_page(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    alerts = await load_alerts(session, user.id)
+    tickers = {}
+    if alerts:
+        rows = await session.scalars(
+            select(Security).where(Security.id.in_({a.security_id for a in alerts}))
+        )
+        tickers = {s.id: s.ticker for s in rows.all()}
+    settings = await get_settings(session, user.id)
+    items = [
+        {
+            "id": a.id,
+            "ticker": tickers.get(a.security_id, ""),
+            "headline": a.headline,
+            "url": a.url,
+            "impact": a.impact,
+            "is_ambiguous": a.is_ambiguous,
+            "is_read": a.is_read,
+            "created_at": a.created_at,
+        }
+        for a in alerts
+    ]
+    context = _base_context(user)
+    context.update(
+        {"items": items, "settings": settings, "unread": sum(1 for i in items if not i["is_read"])}
+    )
+    return templates.TemplateResponse(request, "alerts.html", context)
+
+
+@router.post("/api-alerts-read")
+async def alerts_read_one(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    try:
+        alert_id = int(str(form.get("alert_id") or "0"))
+    except ValueError:
+        alert_id = 0
+    if alert_id:
+        await mark_read(session, user.id, alert_id)
+    return RedirectResponse(url="/alerts", status_code=303)
+
+
+@router.post("/api-alerts-read-all")
+async def alerts_read_all(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    await mark_all_read(session, user.id)
+    return RedirectResponse(url="/alerts", status_code=303)
+
+
+@router.post("/api-alerts-settings")
+async def alerts_settings_post(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    try:
+        min_impact = float(str(form.get("min_impact") or "0.7"))
+    except ValueError:
+        min_impact = 0.7
+    channels = []
+    if form.get("channel_app") == "on":
+        channels.append("app")
+    if form.get("channel_telegram") == "on":
+        channels.append("telegram")
+    await update_settings(session, user.id, min_impact=min_impact, channels=channels)
+    return RedirectResponse(url="/alerts", status_code=303)
 
 
 @router.post("/api-watchlist-add")

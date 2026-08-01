@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Алерты — NewsTrader Assistant{% endblock %}
+
+{% block content %}
+<section class="card">
+  <div class="security-head">
+    <h1>Алерты</h1>
+    {% if unread %}
+    <form method="post" action="/api-alerts-read-all">
+      <button class="btn" type="submit">Прочитать все ({{ unread }})</button>
+    </form>
+    {% endif %}
+  </div>
+
+  {% if items %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Тикер</th>
+        <th>Новость</th>
+        <th>Значимость</th>
+        <th>Дата</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in items %}
+      <tr class="{{ '' if a.is_read else 'unread' }}">
+        <td><a href="/securities/{{ a.ticker }}">{{ a.ticker }}</a></td>
+        <td>
+          <a href="{{ a.url }}" target="_blank" rel="noopener">{{ a.headline }}</a>
+          {% if a.is_ambiguous %}<span class="tag tag-neutral">требует проверки</span>{% endif %}
+          {% if not a.is_read %}<span class="tag tag-negative">новое</span>{% endif %}
+        </td>
+        <td>{{ "%.2f"|format(a.impact) }}</td>
+        <td>{{ a.created_at.strftime("%d.%m.%Y %H:%M") }}</td>
+        <td>
+          {% if not a.is_read %}
+          <form method="post" action="/api-alerts-read">
+            <input type="hidden" name="alert_id" value="{{ a.id }}">
+            <button class="btn-link" type="submit">Прочитано</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Алертов пока нет. Они появятся, когда по бумагам из watchlist будут новости со значимостью выше порога.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Настройки алертов</h2>
+  <form class="inline-add" method="post" action="/api-alerts-settings">
+    <label class="muted">Порог значимости (0–1)
+      <input type="number" name="min_impact" min="0" max="1" step="0.05" value="{{ settings.min_impact }}">
+    </label>
+    <label class="muted"><input type="checkbox" name="channel_app" {% if 'app' in settings.channels %}checked{% endif %}> Веб-интерфейс</label>
+    <label class="muted"><input type="checkbox" name="channel_telegram" {% if 'telegram' in settings.channels %}checked{% endif %}> Telegram (этап 1, планируется)</label>
+    <button type="submit">Сохранить</button>
+  </form>
+</section>
+{% endblock %}

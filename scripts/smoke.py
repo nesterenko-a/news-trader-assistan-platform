@@ -109,5 +109,14 @@ try:
         print("web login page:", web_login.status_code, "Вход" in web_login.text)
         wl_page = client.get("/watchlist", follow_redirects=False)
         print("web watchlist unauth redirect:", wl_page.status_code)
+
+        alerts = client.get("/v1/alerts", headers=headers)
+        print("alerts list:", alerts.status_code)
+        alert_settings = client.put(
+            "/v1/alerts/settings", json={"min_impact": 0.5}, headers=headers
+        )
+        print("alerts settings:", alert_settings.status_code)
+        alerts_page = client.get("/alerts")
+        print("web alerts page:", alerts_page.status_code, "Алерты" in alerts_page.text)
 finally:
     asyncio.run(engine.dispose())

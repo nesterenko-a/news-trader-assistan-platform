@@ -6,6 +6,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from starlette.requests import Request
 
+from app.alerts.service import (
+    get_settings,
+    load_alerts,
+    mark_read,
+    process_alerts,
+    update_settings,
+)
 from app.auth import (
     create_session,
     delete_session,
@@ -16,8 +23,10 @@ from app.auth import (
 from app.db.connection import Base
 from app.collectors.rss import _parse_date
 from app.db.models import (
+    Alert,
     Article,
     ArticleEntity,
+    Entity,
     PortfolioPosition,
     Security,
     Session,
@@ -250,3 +259,61 @@ async def test_watchlist_and_position_models(session):
     positions = (await session.scalars(select(PortfolioPosition))).all()
     assert positions[0].quantity == 100
     assert positions[0].avg_price == 50.0
+
+
+async def test_alerts_service(session):
+    await seed_graph(session)
+    user = User(username="alerttest", password_hash="x")
+    session.add(user)
+    await session.flush()
+
+    security = await session.scalar(select(Security).where(Security.ticker == "AFLT"))
+    session.add(WatchlistItem(user_id=user.id, security_id=security.id))
+
+    entity = await session.scalar(select(Entity).where(Entity.name == "Аэрофлот"))
+    source = Source(name="Тест-источник", kind="rss", reputation_score=0.8)
+    session.add(source)
+    await session.flush()
+    article = Article(
+        title="Аэрофлот объявил о доплатах",
+        text="текст",
+        url="http://test.ru/aero-alert",
+        source_id=source.id,
+        source_reputation=0.8,
+        published_at=datetime.now(timezone.utc),
+        language="ru",
+    )
+    session.add(article)
+    await session.flush()
+    session.add(
+        ArticleEntity(
+            article_id=article.id,
+            entity_id=entity.id,
+            sentiment="positive",
+            impact=0.9,
+            snippet="фрагмент",
+        )
+    )
+    await session.commit()
+
+    created = await process_alerts(session, since=None)
+    assert created == 1
+
+    alerts = await load_alerts(session, user.id)
+    assert len(alerts) == 1
+    assert alerts[0].impact == 0.9
+    assert alerts[0].is_ambiguous is False
+
+    assert await mark_read(session, user.id, alerts[0].id) is True
+    assert await load_alerts(session, user.id, unread_only=True) == []
+
+    settings = await get_settings(session, user.id)
+    assert settings.min_impact == 0.7
+    updated = await update_settings(
+        session, user.id, min_impact=0.5, channels=["telegram"]
+    )
+    assert updated.min_impact == 0.5
+    assert updated.channels == ["telegram"]
+
+    await process_alerts(session, since=None)
+    assert len(await load_alerts(session, user.id)) == 1
