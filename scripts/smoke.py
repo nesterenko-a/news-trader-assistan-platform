@@ -205,6 +205,7 @@ try:
             admin_page.status_code,
             "Администрирование" in admin_page.text,
             "Ежедневный конвейер" in admin_page.text,
+            "Калибровка весов факторов" in admin_page.text,
         )
         admin_anon = client.get("/admin", follow_redirects=False)
         print("web admin unauth:", admin_anon.status_code)
