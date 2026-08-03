@@ -16,10 +16,9 @@
         <a href="/docs">API</a>
         {% if user %}
         <div class="menu">
-          <button class="menu-btn" type="button" onclick="toggleMenu(event)">
-            {{ user.username }} <span class="menu-hamburger">&#9776;</span>
-          </button>
+          <a class="menu-toggle" href="#" onclick="toggleMenu(event)" aria-label="Меню пользователя">&#9776;</a>
           <div class="menu-dropdown" id="user-menu">
+            <span class="menu-user">{{ user.username }}</span>
             <a href="/watchlist">Watchlist</a>
             <a href="/portfolio">Портфель</a>
             <a href="/paper">Виртуальный портфель</a>
@@ -43,6 +42,7 @@
   </footer>
   <script>
     function toggleMenu(event) {
+      event.preventDefault();
       event.stopPropagation();
       var menu = document.getElementById("user-menu");
       if (menu) menu.classList.toggle("open");

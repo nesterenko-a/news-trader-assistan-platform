@@ -246,21 +246,16 @@ main { padding: 24px 16px 40px; }
 }
 .topbar nav .user { color: var(--muted); margin-left: 16px; font-size: 14px; }
 
-.menu { position: relative; display: inline-block; }
-.menu-btn {
-  background: none;
-  border: none;
+.menu { position: relative; display: inline-block; margin-left: 16px; }
+.menu-toggle {
   color: var(--muted);
-  cursor: pointer;
-  font-size: 14px;
-  margin-left: 16px;
-  padding: 4px 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  font-size: 18px;
+  line-height: 1;
+  text-decoration: none;
+  padding: 2px 6px;
+  display: inline-block;
 }
-.menu-btn:hover { color: var(--text); }
-.menu-hamburger { font-size: 16px; line-height: 1; }
+.menu-toggle:hover { color: var(--text); text-decoration: none; }
 .menu-dropdown {
   position: absolute;
   right: 0;
@@ -282,6 +277,15 @@ main { padding: 24px 16px 40px; }
   font-size: 14px;
 }
 .menu-dropdown a:hover { color: var(--text); background: var(--panel-2); text-decoration: none; }
+.menu-user {
+  display: block;
+  padding: 6px 16px 8px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
 tfoot td { border-bottom: 0; border-top: 1px solid var(--border); font-weight: 600; }
 tr.unread td { background: rgba(79, 140, 255, 0.06); }
 tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
