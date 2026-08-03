@@ -886,7 +886,12 @@ def test_runner_build_argv():
     argv = build_argv("collect_news", 3)
     assert argv[-2:] == ["--days", "3"]
 
-    assert build_argv("seed_db", None) == [__import__("sys").executable, "-m", "scripts.seed_db"]
+    assert build_argv("seed_db", None) == [
+        __import__("sys").executable,
+        "-u",
+        "-m",
+        "scripts.seed_db",
+    ]
 
     try:
         build_argv("nope", None)

@@ -1,5 +1,6 @@
 import asyncio
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -10,6 +11,8 @@ from app.db.models import ScriptRun
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_TIMEOUT_SECONDS = 1800
+LOG_FLUSH_INTERVAL = 1.5
+LOG_FLUSH_LINES = 25
 
 SCRIPTS: list[dict] = [
     {
@@ -127,7 +130,7 @@ def build_argv(script_key: str, param_value: int | None) -> list[str]:
     script = get_script(script_key)
     if script is None:
         raise ValueError(f"Неизвестный скрипт: {script_key}")
-    argv = [sys.executable, "-m", script["module"]]
+    argv = [sys.executable, "-u", "-m", script["module"]]
     param = script["param"]
     if param is not None:
         flag = param[0]
@@ -167,7 +170,14 @@ async def _execute(run_id: int, script_key: str, param_value: int | None) -> tup
     )
     all_parts: list[str] = []
     pending: list[str] = []
+    last_flush = time.monotonic()
     exit_code = -1
+
+    def _flush_due() -> bool:
+        return (len(pending) >= LOG_FLUSH_LINES) or (
+            bool(pending) and time.monotonic() - last_flush >= LOG_FLUSH_INTERVAL
+        )
+
     try:
         async with asyncio.timeout(SCRIPT_TIMEOUT_SECONDS):
             assert proc.stdout is not None
@@ -178,9 +188,10 @@ async def _execute(run_id: int, script_key: str, param_value: int | None) -> tup
                 decoded = chunk.decode("utf-8", errors="replace")
                 all_parts.append(decoded)
                 pending.append(decoded)
-                if len(pending) >= 25:
+                if _flush_due():
                     await _append_output(run_id, "".join(pending))
                     pending = []
+                    last_flush = time.monotonic()
             exit_code = proc.returncode or 0
     except (asyncio.TimeoutError, TimeoutError):
         proc.kill()

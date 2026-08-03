@@ -51,6 +51,7 @@ async def collect_news(
     analyzer = ArticleAnalyzer(client)
     source_ids, reputation = await ensure_sources(session, _rss_sources())
 
+    print("Загрузка лент RSS...", flush=True)
     raw_articles = RSSCollector(DEFAULT_FEEDS).fetch()
     candidates = await filter_candidates(
         session,
@@ -60,7 +61,8 @@ async def collect_news(
         await _known_urls(session),
         MAX_PER_FEED,
     )
-    print(f"Collected {len(raw_articles)} raw, {len(candidates)} relevant to graph")
+    print(f"Загружено {len(raw_articles)} сообщений, "
+          f"релевантных графу: {len(candidates)}", flush=True)
 
     stored = await ingest_candidates(
         session,
@@ -104,6 +106,7 @@ async def collect_telegram_news(
     collector = TelegramCollector(
         settings.telegram_api_id, settings.telegram_api_hash, settings.telegram_session_name
     )
+    print(f"Загрузка сообщений из Telegram-каналов: {', '.join(channels)}...", flush=True)
     raw_articles = await collector.fetch(channels, since=since)
     candidates = await filter_candidates(
         session,
@@ -114,7 +117,9 @@ async def collect_telegram_news(
         max_candidates,
     )
     print(
-        f"Telegram: {len(raw_articles)} raw, {len(candidates)} relevant to graph"
+        f"Telegram: загружено {len(raw_articles)} сообщений, "
+        f"релевантных графу: {len(candidates)}",
+        flush=True,
     )
 
     stored = await ingest_candidates(

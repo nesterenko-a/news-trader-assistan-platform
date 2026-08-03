@@ -160,12 +160,14 @@ async def main() -> None:
         end = date.fromisoformat(args.end) if args.end else date.today()
         start = date.fromisoformat(args.start) if args.start else end - timedelta(days=DEFAULT_PERIOD_DAYS)
 
-        print(f"Бэктест «на момент T»: {', '.join(tickers)} · {start} .. {end} · горизонт {args.horizon} торговых дней")
+        print(f"Бэктест «на момент T»: {', '.join(tickers)} · {start} .. {end} · горизонт {args.horizon} торговых дней", flush=True)
         all_results: list[VerdictResult] = []
-        for ticker in tickers:
+        for i, ticker in enumerate(tickers, 1):
+            print(f"  [{i}/{len(tickers)}] {ticker}: реконструкция вердиктов...", flush=True)
             results = await backtest_ticker(
                 session, ticker, start, end, horizon=args.horizon, step_days=args.step
             )
+            print(f"    {ticker}: оценено {len([r for r in results if r.correct is not None])}", flush=True)
             all_results.extend(results)
 
         lines = build_report(all_results, args.horizon)

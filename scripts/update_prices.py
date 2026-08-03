@@ -30,15 +30,16 @@ async def main() -> None:
                 await session.scalars(select(Security).order_by(Security.ticker))
             ).all()
         ]
+        print(f"Синхронизация свечей MOEX ({len(tickers)} бумаг)...", flush=True)
         total = 0
-        for ticker in tickers:
+        for i, ticker in enumerate(tickers, 1):
             if since is not None:
                 inserted = await sync_security_prices(session, ticker, since=since)
             else:
                 inserted = await sync_security_prices(session, ticker, days=args.days)
             total += inserted
-            print(f"{ticker}: +{inserted}")
-        print(f"total synced: {total} candles")
+            print(f"  [{i}/{len(tickers)}] {ticker}: +{inserted} свечей", flush=True)
+        print(f"Итого обновлено: {total} свечей")
 
 
 if __name__ == "__main__":

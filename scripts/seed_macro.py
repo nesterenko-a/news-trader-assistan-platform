@@ -153,9 +153,10 @@ async def main() -> None:
     async with SessionLocal() as session:
         count = await session.scalar(select(func.count()).select_from(MacroEvent))
         if count:
-            print(f"Macro events already seeded ({count}); skipping")
+            print(f"Макрокалендарь уже наполнен ({count} событий); пропуск", flush=True)
             return
 
+        print("Наполнение макрокалендаря на 6 месяцев...", flush=True)
         securities = {
             s.ticker: s.id for s in (await session.scalars(select(Security))).all()
         }
@@ -178,7 +179,7 @@ async def main() -> None:
                 )
             created += 1
         await session.commit()
-        print(f"Macro events seeded: {created}")
+        print(f"Макрокалендарь наполнен: {created} событий", flush=True)
 
 
 if __name__ == "__main__":

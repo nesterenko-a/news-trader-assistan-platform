@@ -44,12 +44,15 @@ async def main() -> None:
 
     await init_db()
     async with SessionLocal() as session:
+        print("Ежедневный конвейер запущен", flush=True)
+        print("Фаза 1/4: сбор и анализ новостей...", flush=True)
         stored = await collect_news(session, since=since)
-        print(f"news: {stored} stored")
+        print(f"Новости: {stored} сохранено", flush=True)
 
         if args.telegram:
+            print("Фаза 1b/4: Telegram-каналы...", flush=True)
             tg_stored = await collect_telegram_news(session, since=since)
-            print(f"telegram news: {tg_stored} stored")
+            print(f"Telegram-новости: {tg_stored} сохранено", flush=True)
 
         tickers = [
             s.ticker
@@ -58,26 +61,30 @@ async def main() -> None:
             ).all()
         ]
 
+        print(f"Фаза 2/4: синхронизация свечей MOEX ({len(tickers)} бумаг)...", flush=True)
         synced = 0
-        for ticker in tickers:
+        for i, ticker in enumerate(tickers, 1):
             synced += await sync_security_prices(session, ticker, PRICE_LOOKBACK_DAYS)
-        print(f"prices: {synced} candles synced")
+            print(f"  [{i}/{len(tickers)}] {ticker}: свечи синхронизированы", flush=True)
+        print(f"Цены: {synced} свечей обновлено", flush=True)
 
+        print("Фаза 3/4: генерация стратегий...", flush=True)
         stored_strategies = []
         rejected_strategies = []
-        for ticker in tickers:
+        for i, ticker in enumerate(tickers, 1):
+            print(f"  [{i}/{len(tickers)}] {ticker}: анализ...", flush=True)
             result = await generate_strategy(session, ticker)
             verdict = result["strategy"]["verdict"]
             if verdict == "INSUFFICIENT_DATA":
                 rejected_strategies.append(ticker)
                 print(
-                    f"strategy {ticker}: REJECTED (insufficient data)",
+                    f"    {ticker}: REJECTED (insufficient data)",
                     flush=True,
                 )
             else:
                 stored_strategies.append(ticker)
                 print(
-                    f"strategy {ticker}: STORED "
+                    f"    {ticker}: STORED "
                     f"verdict={verdict} "
                     f"confidence={result['strategy']['confidence']} "
                     f"net_score={result['strategy']['net_score']}",
@@ -92,13 +99,15 @@ async def main() -> None:
             f"({', '.join(rejected_strategies) or '-'})"
         )
 
+        print("Фаза 4/4: генерация алертов...", flush=True)
         created_alerts = await process_alerts(
             session,
             since=datetime.now(timezone.utc) - timedelta(days=ALERT_LOOKBACK_DAYS),
         )
-        print(f"alerts: {len(created_alerts)} created")
+        print(f"Алерты: {len(created_alerts)} создано", flush=True)
         telegram_sent = await deliver_telegram(session, created_alerts)
-        print(f"telegram: {telegram_sent} alerts pushed")
+        print(f"Telegram: отправлено {telegram_sent} алертов", flush=True)
+        print("Конвейер завершён", flush=True)
 
 
 if __name__ == "__main__":

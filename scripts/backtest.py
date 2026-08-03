@@ -53,13 +53,14 @@ async def main() -> None:
                 .order_by(Strategy.generated_at)
             )
         ).all()
+        print(f"Бэктест сохранённых вердиктов: {len(strategies)} стратегий...", flush=True)
 
         evaluated = 0
         correct = 0
         summary = []
         by_verdict = {"BUY": [0, 0], "SELL": [0, 0]}
 
-        for strategy in strategies:
+        for i, strategy in enumerate(strategies, 1):
             bars = await _load_bars(session, strategy.security_id)
             if not bars:
                 continue
@@ -81,6 +82,8 @@ async def main() -> None:
                 f"ret_{FORWARD_TRADING_DAYS}d={forward_return:+.2%} "
                 f"{'OK' if is_correct else 'MISS'}"
             )
+            if i % 20 == 0 or i == len(strategies):
+                print(f"  обработано стратегий: {i}/{len(strategies)}", flush=True)
 
         if summary:
             print("\n".join(summary))

@@ -23,10 +23,11 @@ async def main() -> None:
 
         since = datetime.now(timezone.utc) - timedelta(days=args.days)
     async with SessionLocal() as session:
+        print("Генерация алертов по watchlist всех пользователей...", flush=True)
         created = await process_alerts(session, since=since)
-        print(f"alerts created: {len(created)}")
+        print(f"Алертов создано: {len(created)}", flush=True)
         telegram_sent = await deliver_telegram(session, created)
-        print(f"telegram: {telegram_sent} alerts pushed")
+        print(f"Telegram: отправлено {telegram_sent} алертов", flush=True)
 
 
 if __name__ == "__main__":

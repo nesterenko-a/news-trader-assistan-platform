@@ -15,8 +15,10 @@ async def main() -> None:
             await session.scalars(select(Security).order_by(Security.ticker))
         ).all()
 
+        print(f"Калибровка: анализ {len(securities)} бумаг (без сохранения)...", flush=True)
         rows = []
-        for security in securities:
+        for i, security in enumerate(securities, 1):
+            print(f"  [{i}/{len(securities)}] {security.ticker}: скоринг...", flush=True)
             result = await generate_strategy(session, security.ticker, persist=False)
             strategy = result["strategy"]
             rows.append(
@@ -29,10 +31,11 @@ async def main() -> None:
                 }
             )
             print(
-                f"{security.ticker:5s} {strategy['verdict']:18s} "
+                f"    {security.ticker:5s} {strategy['verdict']:18s} "
                 f"score={strategy['net_score']:+.3f} "
                 f"conf={strategy['confidence']:.2f} "
-                f"signals={len(result['signals'])}"
+                f"signals={len(result['signals'])}",
+                flush=True,
             )
 
         scored = [r for r in rows if r["verdict"] != "INSUFFICIENT_DATA"]

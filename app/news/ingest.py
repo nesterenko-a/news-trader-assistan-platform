@@ -90,12 +90,15 @@ async def ingest_candidates(
 ) -> int:
     stored = 0
     for article in candidates:
+        print(f"ИИ-анализ: {article.title[:70]}...", flush=True)
         exists = await session.scalar(select(Article).where(Article.url == article.url))
         if exists is not None:
+            print("  уже сохранено, пропуск", flush=True)
             continue
 
         analysis = await analyzer.analyze(article.title, article.text)
         if not analysis.is_reliable:
+            print("  недостаточно надёжно, пропуск", flush=True)
             continue
 
         record = Article(
@@ -111,6 +114,7 @@ async def ingest_candidates(
         session.add(record)
         await session.flush()
 
+        linked = 0
         for ent in analysis.entities:
             entity_id = await resolve_entity_id(session, ent.name)
             if entity_id is None:
@@ -126,7 +130,9 @@ async def ingest_candidates(
                     topic=analysis.topic,
                 )
             )
+            linked += 1
         stored += 1
+        print(f"  сохранено, сущностей: {linked}", flush=True)
 
     await session.commit()
     return stored

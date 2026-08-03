@@ -7,8 +7,9 @@ from app.graph.service import seed_graph
 async def main() -> None:
     await init_db()
     async with SessionLocal() as session:
+        print("Наполнение справочников: бумаги, сущности, связи графа...", flush=True)
         await seed_graph(session)
-    print("DB seeded: securities, entities, influences")
+    print("Справочники наполнены", flush=True)
 
 
 if __name__ == "__main__":
