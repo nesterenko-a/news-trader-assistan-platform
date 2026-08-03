@@ -137,6 +137,7 @@ try:
             user_page.status_code,
             'class="menu-toggle"' in user_page.text,
             'aria-controls="user-menu"' in user_page.text,
+            "&#8942;" in user_page.text,
             "userMenu.classList.toggle(\"open\")" in user_page.text,
             "Watchlist" in user_page.text,
             "Виртуальный портфель" in user_page.text,
