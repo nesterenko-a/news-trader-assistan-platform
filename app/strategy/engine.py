@@ -11,6 +11,7 @@ from app.db.models import (
     Security,
     Strategy,
 )
+from app.strategy.weights import get_latest
 from app.graph.service import (
     DIRECTION_SIGN,
     STRENGTH_WEIGHT,
@@ -230,6 +231,15 @@ async def generate_strategy(
             quotes=None,
         )
 
+    weights_version, factors = await get_latest(session)
+    news_factor = factors.get("news", 1.0)
+    graph_factor = factors.get("graph", 1.0)
+    for s in signals:
+        if s["kind"] == "direct":
+            s["weight"] *= news_factor
+        elif s["kind"] == "indirect":
+            s["weight"] *= graph_factor
+
     net_score = sum(s["weight"] for s in signals)
     positive = sum(s["weight"] for s in signals if s["weight"] > 0)
     negative = abs(sum(s["weight"] for s in signals if s["weight"] < 0))
@@ -272,7 +282,8 @@ async def generate_strategy(
             abs(ca["weight"]) for ca in counterarguments if ca["weight"]
         )
         if abs(net_score) > 0 and counter_weight >= 0.3 * abs(net_score):
-            confidence = max(0.0, min(0.95, confidence * 0.85))
+            penalty = 0.85 * factors.get("counter_penalty", 1.0)
+            confidence = max(0.0, min(0.95, confidence * penalty))
 
     result = _build_result(
         security=security,
@@ -286,8 +297,12 @@ async def generate_strategy(
         counterarguments=counterarguments,
         risks=risks,
     )
+    result["weights_version"] = weights_version
 
     if persist:
+        model_version = (
+            f"mvp-0.1-w{weights_version}" if weights_version else "mvp-0.1"
+        )
         strategy = Strategy(
             security_id=security.id,
             verdict=verdict,
@@ -296,7 +311,7 @@ async def generate_strategy(
             entry_price=result["strategy"]["levels"]["entry"],
             take_profit=result["strategy"]["levels"]["take_profit"],
             stop_loss=result["strategy"]["levels"]["stop_loss"],
-            model_version="mvp-0.1",
+            model_version=model_version,
             rationale_summary=result["rationale_summary"],
         )
         session.add(strategy)

@@ -25,6 +25,7 @@ Python 3.13 · FastAPI · SQLAlchemy 2 (async) · PostgreSQL 13.3 (Docker) · Li
 | Ежедневный конвейер | `.venv\Scripts\python.exe -m scripts.daily_pipeline` |
 | Обновить цены | `.venv\Scripts\python.exe -m scripts.update_prices --days N` (или `--from YYYY-MM-DD`) |
 | Калибровка порогов | `.venv\Scripts\python.exe -m scripts.calibrate` |
+| Калибровка весов факторов | `.venv\Scripts\python.exe -m scripts.calibrate_weights` |
 | Бэктест | `.venv\Scripts\python.exe -m scripts.backtest` |
 | Бэктест «на момент T» | `.venv\Scripts\python.exe -m scripts.backtest_asof` (опции `--tickers --start --end --horizon --step`) |
 

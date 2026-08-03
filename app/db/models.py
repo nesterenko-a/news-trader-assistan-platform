@@ -342,3 +342,15 @@ class PaperTrade(Base):
     ts: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class FactorWeight(Base):
+    __tablename__ = "factor_weights"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    version: Mapped[str] = mapped_column(String(50), unique=True)
+    factors: Mapped[dict] = mapped_column(JSON)
+    description: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

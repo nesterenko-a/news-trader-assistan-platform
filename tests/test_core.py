@@ -79,6 +79,7 @@ from app.paper.service import (
     process_signals,
     reset_account,
 )
+from app.strategy.weights import calibrate, create_version, get_latest
 from app.graph.service import (
     find_influence_paths,
     resolve_entity_id,
@@ -1159,3 +1160,82 @@ async def test_paper_signals_no_fill_before_signal(session):
     assert result == {"opened": 0, "closed": 0}
     view = await account_view(session, account)
     assert view["positions"] == []
+
+
+async def test_weights_apply_to_engine(session):
+    await seed_graph(session)
+    aero_id = await resolve_entity_id(session, "Аэрофлот")
+    source = Source(name="Тест-агентство", kind="rss", reputation_score=0.8)
+    session.add(source)
+    await session.flush()
+    as_of = datetime(2026, 5, 10, 18, 0, tzinfo=timezone.utc)
+    article = Article(
+        title="Аэрофлот растёт",
+        text="Аэрофлот увеличивает перевозки",
+        url="https://t.me/w/1",
+        source_id=source.id,
+        source_reputation=0.8,
+        published_at=as_of - timedelta(hours=2),
+        language="ru",
+    )
+    session.add(article)
+    await session.flush()
+    session.add(
+        ArticleEntity(
+            article_id=article.id, entity_id=aero_id, sentiment="positive",
+            impact=1.0, snippet="", entity_role="primary",
+        )
+    )
+    await session.commit()
+
+    version, factors = await get_latest(session)
+    assert version is None
+    assert factors == {"news": 1.0, "graph": 1.0, "counter_penalty": 1.0}
+
+    result = await generate_strategy(
+        session, "AFLT", as_of=as_of, persist=False, use_live_market=False
+    )
+    assert result["strategy"]["verdict"] == "BUY"
+    assert result["weights_version"] is None
+
+    await create_version(session, {"news": 0.1, "graph": 1.0, "counter_penalty": 1.0})
+    result2 = await generate_strategy(
+        session, "AFLT", as_of=as_of, persist=False, use_live_market=False
+    )
+    assert result2["weights_version"] == "w1"
+    assert result2["strategy"]["verdict"] == "HOLD"
+
+
+async def test_calibrate_weights_from_feedback(session):
+    await seed_graph(session)
+    sber = await session.scalar(select(Security).where(Security.ticker == "SBER"))
+    user = User(username="wuser", password_hash="x")
+    session.add(user)
+    await session.commit()
+
+    worked = Strategy(security_id=sber.id, verdict="BUY", model_version="mvp-0.1")
+    failed = Strategy(security_id=sber.id, verdict="SELL", model_version="mvp-0.1")
+    session.add_all([worked, failed])
+    await session.flush()
+    session.add_all(
+        [
+            EvidenceItem(strategy_id=worked.id, kind="news_fact", quote="n", weight=1.0),
+            EvidenceItem(strategy_id=worked.id, kind="graph_path", quote="g", weight=0.1),
+            EvidenceItem(strategy_id=failed.id, kind="news_fact", quote="n", weight=0.1),
+            EvidenceItem(strategy_id=failed.id, kind="graph_path", quote="g", weight=1.0),
+            UserFeedback(strategy_id=worked.id, user_id=user.id, rating="worked"),
+            UserFeedback(strategy_id=failed.id, user_id=user.id, rating="failed"),
+        ]
+    )
+    await session.commit()
+
+    report = await calibrate(session)
+    assert report["version"] == "w1"
+    assert report["worked_count"] == 1
+    assert report["failed_count"] == 1
+    assert report["changes"]
+    assert report["factors"]["graph"] < 1.0
+    assert report["factors"]["news"] > 1.0
+
+    version, factors = await get_latest(session)
+    assert version == "w1"

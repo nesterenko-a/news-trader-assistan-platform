@@ -14,5 +14,6 @@
     <include file="changelogs/007_user_feedback.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/008_roles_script_runs.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/009_paper_trading.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/010_factor_weights.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>
