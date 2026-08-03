@@ -1,4 +1,5 @@
 import asyncio
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -162,11 +163,13 @@ async def _append_output(run_id: int, text: str) -> None:
 
 async def _execute(run_id: int, script_key: str, param_value: int | None) -> tuple[int, str]:
     argv = build_argv(script_key, param_value)
+    env = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
     proc = await asyncio.create_subprocess_exec(
         *argv,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
         cwd=str(PROJECT_ROOT),
+        env=env,
     )
     all_parts: list[str] = []
     pending: list[str] = []
