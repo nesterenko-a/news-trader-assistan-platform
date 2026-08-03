@@ -249,17 +249,20 @@ main { padding: 24px 16px 40px; }
 .menu { position: relative; display: inline-block; margin-left: 16px; }
 .menu-toggle {
   color: var(--muted);
+  cursor: pointer;
   font-size: 18px;
   line-height: 1;
-  text-decoration: none;
   padding: 2px 6px;
   display: inline-block;
+  list-style: none;
+  user-select: none;
 }
+.menu-toggle::-webkit-details-marker { display: none; }
 .menu-toggle:hover { color: var(--text); text-decoration: none; }
 .menu-dropdown {
   position: absolute;
   right: 0;
-  top: 100%;
+  top: calc(100% + 6px);
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -269,7 +272,7 @@ main { padding: 24px 16px 40px; }
   display: none;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
-.menu-dropdown.open { display: block; }
+.menu[open] .menu-dropdown { display: block; }
 .menu-dropdown a {
   display: block;
   padding: 8px 16px;

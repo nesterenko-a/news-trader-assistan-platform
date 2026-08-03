@@ -15,8 +15,8 @@
         <a href="/macro">Календарь</a>
         <a href="/docs">API</a>
         {% if user %}
-        <div class="menu">
-          <a class="menu-toggle" href="#" onclick="toggleMenu(event)" aria-label="Меню пользователя">&#9776;</a>
+        <details class="menu">
+          <summary class="menu-toggle" aria-label="Меню пользователя" title="Меню пользователя">&#9776;</summary>
           <div class="menu-dropdown" id="user-menu">
             <span class="menu-user">{{ user.username }}</span>
             <a href="/watchlist">Watchlist</a>
@@ -27,7 +27,7 @@
             {% if is_admin %}<a href="/admin">Админ</a>{% endif %}
             <a href="/logout">Выйти</a>
           </div>
-        </div>
+        </details>
         {% else %}
         <a href="/login">Войти</a>
         {% endif %}
@@ -40,17 +40,5 @@
   <footer class="wrap footer">
     Материалы носят информационный характер и не являются инвестиционной рекомендацией.
   </footer>
-  <script>
-    function toggleMenu(event) {
-      event.preventDefault();
-      event.stopPropagation();
-      var menu = document.getElementById("user-menu");
-      if (menu) menu.classList.toggle("open");
-    }
-    document.addEventListener("click", function () {
-      var menu = document.getElementById("user-menu");
-      if (menu) menu.classList.remove("open");
-    });
-  </script>
 </body>
 </html>

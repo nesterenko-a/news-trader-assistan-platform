@@ -131,6 +131,17 @@ try:
 
         web_login = client.get("/login")
         print("web login page:", web_login.status_code, "Вход" in web_login.text)
+        user_page = client.get("/watchlist", headers=headers)
+        print(
+            "web user menu:",
+            user_page.status_code,
+            '<details class="menu">' in user_page.text,
+            '<summary class="menu-toggle"' in user_page.text,
+            "Watchlist" in user_page.text,
+            "Виртуальный портфель" in user_page.text,
+            "Алерты" in user_page.text,
+            "История" in user_page.text,
+        )
         wl_page = client.get("/watchlist", follow_redirects=False)
         print("web watchlist unauth redirect:", wl_page.status_code)
 
