@@ -245,6 +245,43 @@ main { padding: 24px 16px 40px; }
   font-size: 13px;
 }
 .topbar nav .user { color: var(--muted); margin-left: 16px; font-size: 14px; }
+
+.menu { position: relative; display: inline-block; }
+.menu-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  margin-left: 16px;
+  padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.menu-btn:hover { color: var(--text); }
+.menu-hamburger { font-size: 16px; line-height: 1; }
+.menu-dropdown {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 0;
+  min-width: 220px;
+  z-index: 100;
+  display: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.menu-dropdown.open { display: block; }
+.menu-dropdown a {
+  display: block;
+  padding: 8px 16px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.menu-dropdown a:hover { color: var(--text); background: var(--panel-2); text-decoration: none; }
 tfoot td { border-bottom: 0; border-top: 1px solid var(--border); font-weight: 600; }
 tr.unread td { background: rgba(79, 140, 255, 0.06); }
 tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }

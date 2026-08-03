@@ -12,16 +12,23 @@
       <a class="brand" href="/">NewsTrader <span>Assistant</span></a>
       <nav>
         <a href="/">Аналитика</a>
-        <a href="/watchlist">Watchlist</a>
-        <a href="/portfolio">Портфель</a>
-        <a href="/paper">Paper</a>
-        <a href="/alerts">Алерты</a>
-        <a href="/history">История</a>
         <a href="/macro">Календарь</a>
-        {% if is_admin %}<a href="/admin">Админ</a>{% endif %}
         <a href="/docs">API</a>
         {% if user %}
-        <span class="user">{{ user.username }} · <a href="/logout">Выйти</a></span>
+        <div class="menu">
+          <button class="menu-btn" type="button" onclick="toggleMenu(event)">
+            {{ user.username }} <span class="menu-hamburger">&#9776;</span>
+          </button>
+          <div class="menu-dropdown" id="user-menu">
+            <a href="/watchlist">Watchlist</a>
+            <a href="/portfolio">Портфель</a>
+            <a href="/paper">Виртуальный портфель</a>
+            <a href="/alerts">Алерты</a>
+            <a href="/history">История</a>
+            {% if is_admin %}<a href="/admin">Админ</a>{% endif %}
+            <a href="/logout">Выйти</a>
+          </div>
+        </div>
         {% else %}
         <a href="/login">Войти</a>
         {% endif %}
@@ -34,5 +41,16 @@
   <footer class="wrap footer">
     Материалы носят информационный характер и не являются инвестиционной рекомендацией.
   </footer>
+  <script>
+    function toggleMenu(event) {
+      event.stopPropagation();
+      var menu = document.getElementById("user-menu");
+      if (menu) menu.classList.toggle("open");
+    }
+    document.addEventListener("click", function () {
+      var menu = document.getElementById("user-menu");
+      if (menu) menu.classList.remove("open");
+    });
+  </script>
 </body>
 </html>
