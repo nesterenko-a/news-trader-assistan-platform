@@ -15,8 +15,14 @@
         <a href="/macro">Календарь</a>
         <a href="/docs">API</a>
         {% if user %}
-        <details class="menu">
-          <summary class="menu-toggle" aria-label="Меню пользователя" title="Меню пользователя">&#9776;</summary>
+        <div class="menu">
+          <button
+            class="menu-toggle"
+            type="button"
+            aria-label="Меню пользователя"
+            aria-controls="user-menu"
+            aria-expanded="false"
+          >&#9776;</button>
           <div class="menu-dropdown" id="user-menu">
             <span class="menu-user">{{ user.username }}</span>
             <a href="/watchlist">Watchlist</a>
@@ -27,7 +33,7 @@
             {% if is_admin %}<a href="/admin">Админ</a>{% endif %}
             <a href="/logout">Выйти</a>
           </div>
-        </details>
+        </div>
         {% else %}
         <a href="/login">Войти</a>
         {% endif %}
@@ -40,5 +46,31 @@
   <footer class="wrap footer">
     Материалы носят информационный характер и не являются инвестиционной рекомендацией.
   </footer>
+  <script>
+    const menuToggle = document.querySelector(".menu-toggle");
+    const userMenu = document.getElementById("user-menu");
+
+    if (menuToggle && userMenu) {
+      menuToggle.addEventListener("click", () => {
+        const isOpen = userMenu.classList.toggle("open");
+        menuToggle.setAttribute("aria-expanded", String(isOpen));
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!event.target.closest(".menu")) {
+          userMenu.classList.remove("open");
+          menuToggle.setAttribute("aria-expanded", "false");
+        }
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          userMenu.classList.remove("open");
+          menuToggle.setAttribute("aria-expanded", "false");
+          menuToggle.focus();
+        }
+      });
+    }
+  </script>
 </body>
 </html>

@@ -135,8 +135,9 @@ try:
         print(
             "web user menu:",
             user_page.status_code,
-            '<details class="menu">' in user_page.text,
-            '<summary class="menu-toggle"' in user_page.text,
+            'class="menu-toggle"' in user_page.text,
+            'aria-controls="user-menu"' in user_page.text,
+            "userMenu.classList.toggle(\"open\")" in user_page.text,
             "Watchlist" in user_page.text,
             "Виртуальный портфель" in user_page.text,
             "Алерты" in user_page.text,
