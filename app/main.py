@@ -29,7 +29,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title="NewsTrader Assistant",
-    version="0.15.6",
+    version="0.15.7",
     lifespan=lifespan,
 )
 

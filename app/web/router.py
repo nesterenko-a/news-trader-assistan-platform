@@ -7,7 +7,14 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.alerts.service import get_settings, load_alerts, mark_all_read, mark_read, update_settings
+from app.alerts.service import (
+    get_settings,
+    load_alerts,
+    mark_all_read,
+    mark_read,
+    unread_count,
+    update_settings,
+)
 from app.auth import (
     create_session,
     delete_session,
@@ -68,8 +75,13 @@ async def _optional_user(
         return None
 
 
-def _base_context(user: User | None) -> dict:
-    return {"user": user, "is_admin": bool(user is not None and user.role == "admin")}
+async def _base_context(session: AsyncSession, user: User | None) -> dict:
+    unread_alerts = await unread_count(session, user.id) if user is not None else 0
+    return {
+        "user": user,
+        "is_admin": bool(user is not None and user.role == "admin"),
+        "unread_alerts": unread_alerts,
+    }
 
 
 def _build_chart(candles: list[MarketCandle], width: int = 900, height: int = 280) -> dict | None:
@@ -132,7 +144,7 @@ async def index(
         )
     ).all()
 
-    context = _base_context(user)
+    context = await _base_context(session, user)
     context.update(
         {
             "securities": securities,
@@ -332,7 +344,7 @@ async def watchlist_page(
                 "confidence": strategy.confidence if strategy else None,
             }
         )
-    context = _base_context(user)
+    context = await _base_context(session, user)
     context.update({"items": items})
     return templates.TemplateResponse(request, "watchlist.html", context)
 
@@ -388,7 +400,7 @@ async def portfolio_page(
             }
         )
     total_pnl = total_value - total_cost
-    context = _base_context(user)
+    context = await _base_context(session, user)
     context.update(
         {
             "positions": positions,
@@ -429,7 +441,7 @@ async def alerts_page(
         }
         for a in alerts
     ]
-    context = _base_context(user)
+    context = await _base_context(session, user)
     bot_username = await get_bot_username()
     context.update(
         {
@@ -558,7 +570,7 @@ async def history_page(
         for strategy, security in rows
     ]
     stats = await user_stats(session, user.id)
-    context = _base_context(user)
+    context = await _base_context(session, user)
     context.update({"items": items, "stats": stats})
     return templates.TemplateResponse(request, "history.html", context)
 
@@ -618,7 +630,7 @@ async def admin_page(
         }
         for run in runs
     ]
-    context = _base_context(user)
+    context = await _base_context(session, user)
     context.update(
         {
             "scripts": SCRIPTS,
@@ -680,7 +692,7 @@ async def admin_run_detail(
     run = await session.get(ScriptRun, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Запуск не найден")
-    context = _base_context(user)
+    context = await _base_context(session, user)
     context.update(
         {
             "run": run,
@@ -701,7 +713,7 @@ async def paper_page(
         return RedirectResponse(url="/login", status_code=303)
     account = await get_or_create_account(session, user.id)
     view = await account_view(session, account)
-    context = _base_context(user)
+    context = await _base_context(session, user)
     context.update({"view": view})
     return templates.TemplateResponse(request, "paper.html", context)
 
@@ -787,7 +799,7 @@ async def macro_page(
                 )
             ).all()
         )
-    context = _base_context(user)
+    context = await _base_context(session, user)
     context.update(
         {
             "items": items,

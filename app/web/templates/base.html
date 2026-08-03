@@ -15,6 +15,10 @@
         <a href="/macro">Календарь</a>
         <a href="/docs">API</a>
         {% if user %}
+        <a class="alert-link" href="/alerts" aria-label="Алерты{% if unread_alerts %}: {{ unread_alerts }} непрочитанных{% endif %}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
+          {% if unread_alerts %}<span class="alert-badge">{{ unread_alerts if unread_alerts < 100 else "99+" }}</span>{% endif %}
+        </a>
         <div class="menu">
           <button
             class="menu-toggle"
@@ -28,7 +32,6 @@
             <a href="/watchlist">Watchlist</a>
             <a href="/portfolio">Портфель</a>
             <a href="/paper">Виртуальный портфель</a>
-            <a href="/alerts">Алерты</a>
             <a href="/history">История</a>
             {% if is_admin %}<a href="/admin">Админ</a>{% endif %}
             <a href="/logout">Выйти</a>

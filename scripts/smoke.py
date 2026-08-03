@@ -135,6 +135,7 @@ try:
         print(
             "web user menu:",
             user_page.status_code,
+            'class="alert-link" href="/alerts"' in user_page.text,
             'class="menu-toggle"' in user_page.text,
             'aria-controls="user-menu"' in user_page.text,
             "&#8942;" in user_page.text,

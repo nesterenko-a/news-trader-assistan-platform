@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
@@ -106,6 +106,17 @@ async def load_alerts(
         statement = statement.where(Alert.is_read == False)  # noqa: E712
     statement = statement.order_by(Alert.created_at.desc())
     return list((await session.scalars(statement)).all())
+
+
+async def unread_count(session: AsyncSession, user_id: int) -> int:
+    return int(
+        await session.scalar(
+            select(func.count(Alert.id)).where(
+                Alert.user_id == user_id, Alert.is_read == False  # noqa: E712
+            )
+        )
+        or 0
+    )
 
 
 async def mark_read(session: AsyncSession, user_id: int, alert_id: int) -> bool:

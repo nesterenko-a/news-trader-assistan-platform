@@ -12,6 +12,7 @@ from app.alerts.service import (
     load_alerts,
     mark_read,
     process_alerts,
+    unread_count,
     update_settings,
 )
 from app.auth import (
@@ -347,9 +348,11 @@ async def test_alerts_service(session):
     assert len(alerts) == 1
     assert alerts[0].impact == 0.9
     assert alerts[0].is_ambiguous is False
+    assert await unread_count(session, user.id) == 1
 
     assert await mark_read(session, user.id, alerts[0].id) is True
     assert await load_alerts(session, user.id, unread_only=True) == []
+    assert await unread_count(session, user.id) == 0
 
     settings = await get_settings(session, user.id)
     assert settings.min_impact == 0.7

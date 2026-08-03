@@ -246,6 +246,41 @@ main { padding: 24px 16px 40px; }
 }
 .topbar nav .user { color: var(--muted); margin-left: 16px; font-size: 14px; }
 
+.topbar nav .alert-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 16px;
+  color: var(--muted);
+  vertical-align: middle;
+}
+.alert-link svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+.alert-link:hover { color: var(--text); text-decoration: none; }
+.alert-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.alert-badge {
+  position: absolute;
+  top: -8px;
+  right: -10px;
+  min-width: 16px;
+  padding: 1px 4px;
+  border: 2px solid var(--panel);
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
 .menu { position: relative; display: inline-block; margin-left: 16px; }
 .menu-toggle {
   appearance: none;
