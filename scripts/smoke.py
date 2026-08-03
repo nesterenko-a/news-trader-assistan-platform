@@ -56,7 +56,8 @@ try:
 
         strategy = client.post("/v1/securities/AFLT/strategy")
         body = strategy.json()
-        print("strategy AFLT:", strategy.status_code, body["strategy"]["verdict"])
+        print("strategy AFLT:", strategy.status_code, body["strategy"]["verdict"],
+              "counterarguments" in body, "risks" in body)
 
         unknown = client.post("/v1/securities/XXXX/strategy")
         print("strategy unknown:", unknown.status_code)

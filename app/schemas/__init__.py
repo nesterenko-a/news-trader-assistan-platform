@@ -43,6 +43,8 @@ class StrategyResponse(BaseModel):
     signals: list[SignalOut]
     quotes: dict | None
     rationale_summary: str
+    counterarguments: list[dict] = []
+    risks: list[str] = []
     strategy_id: int | None = None
 
 

@@ -28,6 +28,7 @@ from app.db.models import (
     Article,
     ArticleEntity,
     Entity,
+    EvidenceItem,
     MacroEvent,
     MarketCandle,
     PortfolioPosition,
@@ -805,6 +806,74 @@ async def test_generate_strategy_no_lookahead(session):
         session, "AFLT", as_of=as_of, persist=False, use_live_market=False
     )
     assert result2["strategy"]["verdict"] == "BUY"
+
+
+async def test_generate_strategy_counterarguments(session):
+    await seed_graph(session)
+    aero_id = await resolve_entity_id(session, "Аэрофлот")
+    source = Source(name="Тест-агентство", kind="rss", reputation_score=0.8)
+    session.add(source)
+    await session.flush()
+    as_of = datetime(2026, 5, 10, 18, 0, tzinfo=timezone.utc)
+
+    pos = Article(
+        title="Аэрофлот растёт",
+        text="Аэрофлот увеличивает перевозки",
+        url="https://t.me/pos/1",
+        source_id=source.id,
+        source_reputation=0.8,
+        published_at=as_of - timedelta(hours=2),
+        language="ru",
+    )
+    neg = Article(
+        title="Аэрофлот под давлением",
+        text="Аэрофлот теряет долю рынка",
+        url="https://t.me/neg/1",
+        source_id=source.id,
+        source_reputation=0.8,
+        published_at=as_of - timedelta(hours=1),
+        language="ru",
+    )
+    session.add_all([pos, neg])
+    await session.flush()
+    session.add(
+        ArticleEntity(
+            article_id=pos.id, entity_id=aero_id, sentiment="positive",
+            impact=1.0, snippet="", entity_role="primary",
+        )
+    )
+    session.add(
+        ArticleEntity(
+            article_id=neg.id, entity_id=aero_id, sentiment="negative",
+            impact=0.5, snippet="", entity_role="primary",
+        )
+    )
+    await session.commit()
+
+    result = await generate_strategy(
+        session, "AFLT", as_of=as_of, persist=False, use_live_market=False
+    )
+    assert result["strategy"]["verdict"] == "BUY"
+    assert result["counterarguments"]
+    assert any(
+        "Аэрофлот" in ca["text"] and "ослабляет" in ca["text"]
+        for ca in result["counterarguments"]
+    )
+    assert result["risks"]
+    assert any("отраслевой" in r for r in result["risks"])
+
+    persisted = await generate_strategy(
+        session, "AFLT", as_of=as_of, persist=True, use_live_market=False
+    )
+    items = (
+        await session.scalars(
+            select(EvidenceItem).where(
+                EvidenceItem.strategy_id == persisted["strategy_id"],
+                EvidenceItem.kind == "counterargument",
+            )
+        )
+    ).all()
+    assert items
 
 
 def test_backtest_evaluate():

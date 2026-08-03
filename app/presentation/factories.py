@@ -21,6 +21,16 @@ class TelegramMessageFactory:
         if view.rationale:
             lines.append("")
             lines.append(f"Обоснование: {e(view.rationale)}")
+        if view.counterarguments:
+            lines.append("")
+            lines.append("Контраргументы:")
+            for item in view.counterarguments[:5]:
+                lines.append(f"• {e(item)}")
+        if view.risks:
+            lines.append("")
+            lines.append("Риски:")
+            for item in view.risks[:5]:
+                lines.append(f"• {e(item)}")
         if view.signals:
             lines.append("")
             lines.append("Сигналы:")

@@ -103,6 +103,23 @@
   {% endif %}
 
   <p class="rationale">{{ view.rationale }}</p>
+
+  {% if view.counterarguments or view.risks %}
+  <div style="margin-top:16px">
+    {% if view.counterarguments %}
+    <h3 style="margin:0 0 6px;font-size:15px">Контраргументы</h3>
+    <ul class="muted" style="margin:0 0 10px;padding-left:18px">
+      {% for c in view.counterarguments %}<li>{{ c }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% if view.risks %}
+    <h3 style="margin:0 0 6px;font-size:15px">Риски</h3>
+    <ul class="muted" style="margin:0;padding-left:18px">
+      {% for r in view.risks %}<li>{{ r }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+  {% endif %}
 </section>
 
 <section class="card">

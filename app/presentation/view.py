@@ -44,6 +44,8 @@ class StrategyView:
     rationale: str = ""
     signals: list[SignalView] = field(default_factory=list)
     news: list[NewsItemView] = field(default_factory=list)
+    counterarguments: list[str] = field(default_factory=list)
+    risks: list[str] = field(default_factory=list)
     web_url: str = ""
 
 
@@ -86,5 +88,7 @@ def build_strategy_view(
         rationale=result["rationale_summary"],
         signals=signals,
         news=news or [],
+        counterarguments=[ca["text"] for ca in result.get("counterarguments", [])],
+        risks=result.get("risks", []),
         web_url=web_url,
     )

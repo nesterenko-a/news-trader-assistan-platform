@@ -53,6 +53,50 @@ def _horizon_for_score(net_score: float) -> str:
     return "long"
 
 
+async def _build_counterarguments(
+    session: AsyncSession,
+    signals: list[dict],
+    verdict: str,
+    indicator_note: str | None,
+) -> tuple[list[dict], list[str]]:
+    counterarguments: list[dict] = []
+    risks: list[str] = []
+
+    if verdict in ("BUY", "SELL"):
+        if verdict == "BUY":
+            counter_signals = [s for s in signals if s["weight"] < 0]
+        else:
+            counter_signals = [s for s in signals if s["weight"] > 0]
+        for signal in counter_signals:
+            direction = "усиливает" if signal["weight"] > 0 else "ослабляет"
+            text = f"{signal['entity']}: {direction} ({signal['weight']:+.2f})"
+            counterarguments.append(
+                {"entity": signal["entity"], "text": text, "weight": signal["weight"]}
+            )
+            risks.append(f"отраслевой/корпоративный: {text}")
+        if indicator_note:
+            counterarguments.append(
+                {"entity": "индикаторы", "text": indicator_note, "weight": 0.0}
+            )
+            risks.append(f"рыночный: {indicator_note}")
+
+    from app.macro.service import list_events
+
+    now = datetime.now(timezone.utc)
+    until = now + timedelta(days=7)
+    events = await list_events(session, since=now, until=until)
+    for event in events:
+        if event.expected_impact != "high":
+            continue
+        text = f"ближайшее макрособытие: {event.title} ({event.event_time.strftime('%d.%m')})"
+        risks.append(f"событийный: {text}")
+        if verdict in ("BUY", "SELL"):
+            counterarguments.append(
+                {"entity": "макрособытия", "text": text, "weight": 0.0}
+            )
+    return counterarguments, risks
+
+
 async def generate_strategy(
     session: AsyncSession,
     ticker: str,
@@ -220,6 +264,16 @@ async def generate_strategy(
         verdict = "HOLD"
     horizon = _horizon_for_score(net_score)
 
+    counterarguments, risks = await _build_counterarguments(
+        session, signals, verdict, indicator_note
+    )
+    if counterarguments:
+        counter_weight = sum(
+            abs(ca["weight"]) for ca in counterarguments if ca["weight"]
+        )
+        if abs(net_score) > 0 and counter_weight >= 0.3 * abs(net_score):
+            confidence = max(0.0, min(0.95, confidence * 0.85))
+
     result = _build_result(
         security=security,
         verdict=verdict,
@@ -229,6 +283,8 @@ async def generate_strategy(
         signals=signals,
         quotes=quotes,
         indicator_note=indicator_note,
+        counterarguments=counterarguments,
+        risks=risks,
     )
 
     if persist:
@@ -258,6 +314,17 @@ async def generate_strategy(
                 )
             )
 
+        for ca in counterarguments:
+            if ca["text"]:
+                session.add(
+                    EvidenceItem(
+                        strategy_id=strategy.id,
+                        kind="counterargument",
+                        quote=ca["text"],
+                        weight=round(ca["weight"], 4),
+                    )
+                )
+
         await session.commit()
         result["strategy_id"] = strategy.id
     return result
@@ -280,6 +347,8 @@ def _build_result(
     signals: list[dict],
     quotes: dict | None,
     indicator_note: str | None = None,
+    counterarguments: list[dict] | None = None,
+    risks: list[str] | None = None,
 ) -> dict:
     entry = quotes["price"] if quotes else None
     if verdict == "BUY" and entry:
@@ -322,5 +391,7 @@ def _build_result(
         },
         "signals": signals,
         "quotes": quotes,
+        "counterarguments": counterarguments or [],
+        "risks": risks or [],
         "rationale_summary": "; ".join(reasons) or "Нет данных",
     }
