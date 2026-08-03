@@ -25,6 +25,13 @@ from app.feedback.service import (
     set_feedback,
     user_stats,
 )
+from app.paper.service import (
+    account_view,
+    close_position,
+    get_or_create_account,
+    latest_closes,
+    reset_account,
+)
 from app.db.connection import get_session
 from app.db.models import (
     MarketCandle,
@@ -682,6 +689,55 @@ async def admin_run_detail(
         }
     )
     return templates.TemplateResponse(request, "admin_run.html", context)
+
+
+@router.get("/paper")
+async def paper_page(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    account = await get_or_create_account(session, user.id)
+    view = await account_view(session, account)
+    context = _base_context(user)
+    context.update({"view": view})
+    return templates.TemplateResponse(request, "paper.html", context)
+
+
+@router.post("/api-paper-close")
+async def paper_close_form(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    ticker = str(form.get("ticker") or "").strip().upper()
+    if ticker:
+        account = await get_or_create_account(session, user.id)
+        security = await session.scalar(select(Security).where(Security.ticker == ticker))
+        if security is not None:
+            closes = await latest_closes(session, [security.id])
+            price = closes.get(security.id)
+            if price is not None:
+                await close_position(session, account, security.id, price[1])
+    return RedirectResponse(url="/paper", status_code=303)
+
+
+@router.post("/api-paper-reset")
+async def paper_reset_form(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    account = await get_or_create_account(session, user.id)
+    await reset_account(session, account)
+    return RedirectResponse(url="/paper", status_code=303)
 
 
 @router.get("/macro")

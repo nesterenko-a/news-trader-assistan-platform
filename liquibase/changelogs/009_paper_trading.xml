@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+
+    <changeSet id="038-paper-accounts" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="paper_accounts"/>
+            </not>
+        </preConditions>
+        <createTable tableName="paper_accounts">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="bigint">
+                <constraints foreignKeyName="fk_pa_user" references="users(id)" nullable="false" unique="true"/>
+            </column>
+            <column name="initial_capital" type="float" defaultValue="1000000">
+                <constraints nullable="false"/>
+            </column>
+            <column name="currency" type="varchar(10)" defaultValue="RUB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamptz" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="039-paper-positions" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="paper_positions"/>
+            </not>
+        </preConditions>
+        <createTable tableName="paper_positions">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="account_id" type="bigint">
+                <constraints foreignKeyName="fk_pp_account" references="paper_accounts(id)" nullable="false"/>
+            </column>
+            <column name="security_id" type="bigint">
+                <constraints foreignKeyName="fk_pp_security" references="securities(id)" nullable="false"/>
+            </column>
+            <column name="quantity" type="float">
+                <constraints nullable="false"/>
+            </column>
+            <column name="entry_price" type="float">
+                <constraints nullable="false"/>
+            </column>
+            <column name="entry_strategy_id" type="bigint">
+                <constraints foreignKeyName="fk_pp_strategy" references="strategies(id)" nullable="true"/>
+            </column>
+            <column name="opened_at" type="timestamptz" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="varchar(10)" defaultValue="open">
+                <constraints nullable="false"/>
+            </column>
+            <column name="closed_at" type="timestamptz"/>
+            <column name="exit_price" type="float"/>
+            <column name="realized_pnl" type="float"/>
+        </createTable>
+        <createIndex indexName="ix_pp_account" tableName="paper_positions">
+            <column name="account_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="040-paper-trades" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="paper_trades"/>
+            </not>
+        </preConditions>
+        <createTable tableName="paper_trades">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="account_id" type="bigint">
+                <constraints foreignKeyName="fk_pt_account" references="paper_accounts(id)" nullable="false"/>
+            </column>
+            <column name="security_id" type="bigint">
+                <constraints foreignKeyName="fk_pt_security" references="securities(id)" nullable="false"/>
+            </column>
+            <column name="side" type="varchar(10)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="quantity" type="float">
+                <constraints nullable="false"/>
+            </column>
+            <column name="price" type="float">
+                <constraints nullable="false"/>
+            </column>
+            <column name="strategy_id" type="bigint">
+                <constraints foreignKeyName="fk_pt_strategy" references="strategies(id)" nullable="true"/>
+            </column>
+            <column name="ts" type="timestamptz" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex indexName="ix_pt_account" tableName="paper_trades">
+            <column name="account_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

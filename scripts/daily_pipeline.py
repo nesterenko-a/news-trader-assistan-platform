@@ -9,6 +9,7 @@ from app.alerts.delivery import deliver_telegram
 from app.db.connection import SessionLocal, init_db
 from app.db.models import Security
 from app.market.prices import sync_security_prices
+from app.paper.service import process_all_accounts
 from app.strategy.engine import generate_strategy
 from scripts.collect_news import _parse_since, collect_news, collect_telegram_news
 
@@ -45,12 +46,12 @@ async def main() -> None:
     await init_db()
     async with SessionLocal() as session:
         print("Ежедневный конвейер запущен", flush=True)
-        print("Фаза 1/4: сбор и анализ новостей...", flush=True)
+        print("Фаза 1/5: сбор и анализ новостей...", flush=True)
         stored = await collect_news(session, since=since)
         print(f"Новости: {stored} сохранено", flush=True)
 
         if args.telegram:
-            print("Фаза 1b/4: Telegram-каналы...", flush=True)
+            print("Фаза 1b/5: Telegram-каналы...", flush=True)
             tg_stored = await collect_telegram_news(session, since=since)
             print(f"Telegram-новости: {tg_stored} сохранено", flush=True)
 
@@ -61,14 +62,14 @@ async def main() -> None:
             ).all()
         ]
 
-        print(f"Фаза 2/4: синхронизация свечей MOEX ({len(tickers)} бумаг)...", flush=True)
+        print(f"Фаза 2/5: синхронизация свечей MOEX ({len(tickers)} бумаг)...", flush=True)
         synced = 0
         for i, ticker in enumerate(tickers, 1):
             synced += await sync_security_prices(session, ticker, PRICE_LOOKBACK_DAYS)
             print(f"  [{i}/{len(tickers)}] {ticker}: свечи синхронизированы", flush=True)
         print(f"Цены: {synced} свечей обновлено", flush=True)
 
-        print("Фаза 3/4: генерация стратегий...", flush=True)
+        print("Фаза 3/5: генерация стратегий...", flush=True)
         stored_strategies = []
         rejected_strategies = []
         for i, ticker in enumerate(tickers, 1):
@@ -99,7 +100,7 @@ async def main() -> None:
             f"({', '.join(rejected_strategies) or '-'})"
         )
 
-        print("Фаза 4/4: генерация алертов...", flush=True)
+        print("Фаза 4/5: генерация алертов...", flush=True)
         created_alerts = await process_alerts(
             session,
             since=datetime.now(timezone.utc) - timedelta(days=ALERT_LOOKBACK_DAYS),
@@ -107,6 +108,13 @@ async def main() -> None:
         print(f"Алерты: {len(created_alerts)} создано", flush=True)
         telegram_sent = await deliver_telegram(session, created_alerts)
         print(f"Telegram: отправлено {telegram_sent} алертов", flush=True)
+
+        print("Фаза 5/5: виртуальный портфель (paper trading)...", flush=True)
+        paper_result = await process_all_accounts(session)
+        print(
+            f"Paper: открыто {paper_result['opened']}, закрыто {paper_result['closed']}",
+            flush=True,
+        )
         print("Конвейер завершён", flush=True)
 
 

@@ -208,6 +208,14 @@ try:
         admin_anon = client.get("/admin", follow_redirects=False)
         print("web admin unauth:", admin_anon.status_code)
 
+        paper = client.get("/v1/paper", headers=headers)
+        paper_ok = paper.status_code == 200 and "positions" in paper.json() and "metrics" in paper.json()
+        print("paper api:", paper.status_code, paper_ok)
+        paper_page = client.get("/paper", headers=headers)
+        print("web paper page:", paper_page.status_code, "Виртуальный портфель" in paper_page.text)
+        paper_reset = client.post("/v1/paper/reset", headers=headers)
+        print("paper reset:", paper_reset.status_code)
+
         macro = client.get("/v1/macro/calendar")
         print("macro calendar:", macro.status_code)
         macro_page = client.get("/macro")

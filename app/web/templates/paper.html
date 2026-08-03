@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Виртуальный портфель — NewsTrader Assistant{% endblock %}
+
+{% block content %}
+<section class="card">
+  <div class="security-head">
+    <h1>Виртуальный портфель</h1>
+    <form method="post" action="/api-paper-reset">
+      <button class="btn" type="submit">Сбросить портфель</button>
+    </form>
+  </div>
+  <p class="muted">Имитация торговли по вердиктам системы на виртуальный капитал. Позиции открываются по BUY и закрываются по SELL в ежедневном конвейере; вход — по цене закрытия дня вердикта.</p>
+
+  <div class="grid">
+    <div class="mini">
+      <span class="label">Стартовый капитал</span>
+      <span class="value">{{ "%.0f"|format(view.metrics.initial_capital) }} ₽</span>
+    </div>
+    <div class="mini">
+      <span class="label">Текущая стоимость</span>
+      <span class="value">{{ "%.2f"|format(view.metrics.equity) }} ₽</span>
+    </div>
+    <div class="mini">
+      <span class="label">P&L</span>
+      <span class="value {{ 'pos' if view.metrics.total_pnl >= 0 else 'neg' }}">{{ "%.2f"|format(view.metrics.total_pnl) }} ₽</span>
+    </div>
+    <div class="mini">
+      <span class="label">Доходность</span>
+      <span class="value {{ 'pos' if view.metrics.return_percent is not none and view.metrics.return_percent >= 0 else 'neg' }}">{{ "%.2f"|format(view.metrics.return_percent) if view.metrics.return_percent is not none else "—" }}%</span>
+    </div>
+    <div class="mini">
+      <span class="label">Бенчмарк (купил всё и держишь)</span>
+      <span class="value">{{ "%.2f"|format(view.metrics.benchmark_return) if view.metrics.benchmark_return is not none else "—" }}%</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="mini">
+      <span class="label">Сделок закрыто</span>
+      <span class="value">{{ view.metrics.total_closed }} · выигрышных {{ view.metrics.wins }}</span>
+    </div>
+    <div class="mini">
+      <span class="label">% прибыльных</span>
+      <span class="value">{{ "%.1f"|format(view.metrics.win_rate) if view.metrics.win_rate is not none else "—" }}%</span>
+    </div>
+    <div class="mini">
+      <span class="label">Средний результат сделки</span>
+      <span class="value">{{ "%.2f"|format(view.metrics.avg_result) if view.metrics.avg_result is not none else "—" }} ₽</span>
+    </div>
+    <div class="mini">
+      <span class="label">Макс. просадка</span>
+      <span class="value neg">{{ "%.2f"|format(view.metrics.max_drawdown) if view.metrics.max_drawdown is not none else "—" }} ₽</span>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Открытые позиции</h2>
+  {% if view.positions %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Тикер</th>
+        <th>Кол-во</th>
+        <th>Цена входа</th>
+        <th>Текущая</th>
+        <th>Стоимость</th>
+        <th>P&L</th>
+        <th>P&L %</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in view.positions %}
+      <tr>
+        <td><a href="/securities/{{ p.ticker }}">{{ p.ticker }}</a></td>
+        <td>{{ "%.2f"|format(p.quantity) }}</td>
+        <td>{{ "%.2f"|format(p.entry_price) }}</td>
+        <td>{{ "%.2f"|format(p.current_price) if p.current_price else "—" }}</td>
+        <td>{{ "%.2f"|format(p.market_value) if p.market_value else "—" }}</td>
+        <td class="{{ 'pos' if p.pnl and p.pnl >= 0 else 'neg' }}">{{ "%.2f"|format(p.pnl) if p.pnl is not none else "—" }}</td>
+        <td class="{{ 'pos' if p.pnl_percent and p.pnl_percent >= 0 else 'neg' }}">{{ "%.2f"|format(p.pnl_percent) if p.pnl_percent is not none else "—" }}%</td>
+        <td>
+          <form method="post" action="/api-paper-close">
+            <input type="hidden" name="ticker" value="{{ p.ticker }}">
+            <button class="btn-link" type="submit">Закрыть</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Открытых позиций нет. Позиции откроются автоматически после генерации вердиктов BUY в ежедневном конвейере.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>История сделок</h2>
+  {% if view.trades %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Дата</th>
+        <th>Тикер</th>
+        <th>Сторона</th>
+        <th>Кол-во</th>
+        <th>Цена</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in view.trades %}
+      <tr>
+        <td>{{ t.ts.strftime("%d.%m.%Y %H:%M") }}</td>
+        <td><a href="/securities/{{ t.ticker }}">{{ t.ticker }}</a></td>
+        <td>{{ {'open': 'покупка', 'close': 'продажа'}[t.side] }}</td>
+        <td>{{ "%.2f"|format(t.quantity) }}</td>
+        <td>{{ "%.2f"|format(t.price) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Сделок пока нет.</p>
+  {% endif %}
+</section>
+{% endblock %}

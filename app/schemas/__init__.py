@@ -179,6 +179,52 @@ class FeedbackStats(BaseModel):
     worked_percent: float | None = None
 
 
+class PaperPositionOut(BaseModel):
+    id: int
+    ticker: str
+    name: str
+    quantity: float
+    entry_price: float
+    current_price: float | None = None
+    market_value: float | None = None
+    pnl: float | None = None
+    pnl_percent: float | None = None
+    opened_at: datetime
+
+
+class PaperTradeOut(BaseModel):
+    id: int
+    ticker: str
+    side: str
+    quantity: float
+    price: float
+    strategy_id: int | None = None
+    ts: datetime
+
+
+class PaperMetrics(BaseModel):
+    initial_capital: float
+    equity: float
+    total_pnl: float
+    return_percent: float | None = None
+    realized: float
+    unrealized: float
+    wins: int
+    total_closed: int
+    win_rate: float | None = None
+    avg_result: float | None = None
+    max_drawdown: float | None = None
+    benchmark_return: float | None = None
+
+
+class PaperOut(BaseModel):
+    account_id: int
+    currency: str
+    metrics: PaperMetrics
+    positions: list[PaperPositionOut]
+    trades: list[PaperTradeOut]
+
+
 class MacroEventOut(BaseModel):
     id: int
     event_type: str

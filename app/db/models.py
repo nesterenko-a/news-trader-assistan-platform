@@ -295,3 +295,50 @@ class MarketCandle(Base):
     low: Mapped[float | None] = mapped_column(nullable=True)
     close: Mapped[float | None] = mapped_column(nullable=True)
     volume: Mapped[int] = mapped_column(BigInteger, default=0)
+
+
+class PaperAccount(Base):
+    __tablename__ = "paper_accounts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True)
+    initial_capital: Mapped[float] = mapped_column(Float, default=1_000_000.0)
+    currency: Mapped[str] = mapped_column(String(10), default="RUB")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class PaperPosition(Base):
+    __tablename__ = "paper_positions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("paper_accounts.id"), index=True)
+    security_id: Mapped[int] = mapped_column(ForeignKey("securities.id"))
+    quantity: Mapped[float] = mapped_column(Float)
+    entry_price: Mapped[float] = mapped_column(Float)
+    entry_strategy_id: Mapped[int | None] = mapped_column(ForeignKey("strategies.id"), nullable=True)
+    opened_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    status: Mapped[str] = mapped_column(String(10), default="open")
+    closed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    exit_price: Mapped[float | None] = mapped_column(nullable=True)
+    realized_pnl: Mapped[float | None] = mapped_column(nullable=True)
+
+
+class PaperTrade(Base):
+    __tablename__ = "paper_trades"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("paper_accounts.id"), index=True)
+    security_id: Mapped[int] = mapped_column(ForeignKey("securities.id"))
+    side: Mapped[str] = mapped_column(String(10))
+    quantity: Mapped[float] = mapped_column(Float)
+    price: Mapped[float] = mapped_column(Float)
+    strategy_id: Mapped[int | None] = mapped_column(ForeignKey("strategies.id"), nullable=True)
+    ts: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

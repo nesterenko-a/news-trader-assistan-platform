@@ -72,6 +72,12 @@ from scripts.backtest_asof import backtest_ticker, build_report, evaluate
 from app.admin.roles import promote_admin_users
 from app.admin.runner import build_argv, get_script, mark_stale_runs
 from app.web.router import admin_page as admin_page_route
+from app.paper.service import (
+    account_view,
+    get_or_create_account,
+    process_signals,
+    reset_account,
+)
 from app.graph.service import (
     find_influence_paths,
     resolve_entity_id,
@@ -978,3 +984,109 @@ async def test_admin_page_access(session):
 
     anon_response = await admin_page_route(make_request(None), session)
     assert anon_response.status_code == 303
+
+
+async def test_paper_signals_open_and_close(session):
+    await seed_graph(session)
+    aflt = await session.scalar(select(Security).where(Security.ticker == "AFLT"))
+    user = User(username="papertrader", password_hash="x")
+    session.add(user)
+    await session.commit()
+
+    for i in range(10):
+        session.add(
+            MarketCandle(
+                security_id=aflt.id,
+                trading_date=date(2026, 1, 1 + i),
+                close=100.0 + i,
+            )
+        )
+    await session.commit()
+
+    account = await get_or_create_account(session, user.id)
+    assert account.initial_capital == 1_000_000.0
+    account.created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    await session.commit()
+
+    buy = Strategy(
+        security_id=aflt.id,
+        verdict="BUY",
+        generated_at=datetime(2026, 1, 5, 10, 0),
+        model_version="mvp-0.1",
+    )
+    session.add(buy)
+    await session.commit()
+
+    result = await process_signals(session, account)
+    assert result == {"opened": 1, "closed": 0}
+
+    view = await account_view(session, account)
+    assert len(view["positions"]) == 1
+    position = view["positions"][0]
+    assert position["ticker"] == "AFLT"
+    assert position["entry_price"] == 109.0
+
+    session.add(
+        MarketCandle(
+            security_id=aflt.id,
+            trading_date=date(2026, 1, 11),
+            close=130.0,
+        )
+    )
+    sell = Strategy(
+        security_id=aflt.id,
+        verdict="SELL",
+        generated_at=datetime(2026, 1, 8, 10, 0),
+        model_version="mvp-0.1",
+    )
+    session.add(sell)
+    await session.commit()
+
+    result2 = await process_signals(session, account)
+    assert result2 == {"opened": 0, "closed": 1}
+
+    view2 = await account_view(session, account)
+    assert view2["positions"] == []
+    assert view2["metrics"]["total_closed"] == 1
+    assert view2["metrics"]["wins"] == 1
+    assert view2["metrics"]["realized"] > 0
+    assert view2["metrics"]["benchmark_return"] is not None
+    assert any(t["side"] == "close" for t in view2["trades"])
+
+    await reset_account(session, account)
+    view3 = await account_view(session, account)
+    assert view3["positions"] == []
+    assert view3["trades"] == []
+    assert view3["metrics"]["total_closed"] == 0
+
+
+async def test_paper_signals_no_fill_before_signal(session):
+    await seed_graph(session)
+    aflt = await session.scalar(select(Security).where(Security.ticker == "AFLT"))
+    user = User(username="paper2", password_hash="x")
+    session.add(user)
+    await session.commit()
+
+    session.add(
+        MarketCandle(
+            security_id=aflt.id,
+            trading_date=date(2026, 2, 1),
+            close=100.0,
+        )
+    )
+    await session.commit()
+
+    account = await get_or_create_account(session, user.id)
+    future_strategy = Strategy(
+        security_id=aflt.id,
+        verdict="BUY",
+        generated_at=datetime(2026, 2, 5, 10, 0),
+        model_version="mvp-0.1",
+    )
+    session.add(future_strategy)
+    await session.commit()
+
+    result = await process_signals(session, account)
+    assert result == {"opened": 0, "closed": 0}
+    view = await account_view(session, account)
+    assert view["positions"] == []
