@@ -89,67 +89,75 @@
       if (event.key === "Escape") closeDropdowns();
     });
 
-    fetch("/api/notices")
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        var icon = document.getElementById("attention-icon");
-        if (icon) icon.className = "attention-icon attention-" + data.state;
-        var badge = document.getElementById("attention-badge");
-        if (badge) {
-          if (data.notices.length) {
-            badge.textContent = data.notices.length >= 100 ? "99+" : String(data.notices.length);
-            badge.className = "attention-badge attention-badge-" + data.state;
-            badge.hidden = false;
-          } else {
-            badge.hidden = true;
-          }
+    var NOTICE_ICONS = {
+      db: "🗄", db_outage: "🗄",
+      llm: "🤖",
+      telegram: "📡",
+      moex: "📈",
+      rss: "📰",
+      disk: "💾",
+      pipeline_stale: "⏰",
+      stale_daily_pipeline: "⏰",
+      stale_prices: "⏰",
+      stale_alerts: "⏰",
+      stale_macro: "⏰",
+      script_run: "⚙️"
+    };
+
+    function renderNotices(data) {
+      var icon = document.getElementById("attention-icon");
+      if (icon) icon.className = "attention-icon attention-" + data.state;
+      var badge = document.getElementById("attention-badge");
+      if (badge) {
+        if (data.notices.length) {
+          badge.textContent = data.notices.length >= 100 ? "99+" : String(data.notices.length);
+          badge.className = "attention-badge attention-badge-" + data.state;
+          badge.hidden = false;
+        } else {
+          badge.hidden = true;
         }
-        var list = document.getElementById("attention-list");
-        if (!list) return;
-        list.innerHTML = "";
-        var icons = {
-          db: "🗄", db_outage: "🗄",
-          llm: "🤖",
-          telegram: "📡",
-          moex: "📈",
-          rss: "📰",
-          disk: "💾",
-          pipeline_stale: "⏰",
-          stale_daily_pipeline: "⏰",
-          stale_prices: "⏰",
-          stale_alerts: "⏰",
-          stale_macro: "⏰",
-          script_run: "⚙️"
-        };
-        if (!data.notices.length) {
-          var empty = document.createElement("div");
-          empty.className = "muted small";
-          empty.textContent = "Ошибок нет";
-          list.appendChild(empty);
-          return;
-        }
-        data.notices.forEach(function (n) {
-          var item = document.createElement("div");
-          item.className = "attention-item attention-" + n.level;
-          var row = document.createElement("div");
-          row.className = "attention-row";
-          var ic = document.createElement("span");
-          ic.className = "attention-ic";
-          ic.textContent = icons[n.source] || "⚙️";
-          var text = document.createElement("span");
-          text.className = "attention-text";
-          text.textContent = n.text;
-          row.appendChild(ic);
-          row.appendChild(text);
-          var time = document.createElement("span");
-          time.className = "attention-time";
-          time.textContent = n.created_at;
-          item.appendChild(row);
-          item.appendChild(time);
-          list.appendChild(item);
-        });
-      })
-      .catch(function () {});
+      }
+      var list = document.getElementById("attention-list");
+      if (!list) return;
+      list.innerHTML = "";
+      if (!data.notices.length) {
+        var empty = document.createElement("div");
+        empty.className = "muted small";
+        empty.textContent = "Ошибок нет";
+        list.appendChild(empty);
+        return;
+      }
+      data.notices.forEach(function (n) {
+        var item = document.createElement("div");
+        item.className = "attention-item attention-" + n.level;
+        var row = document.createElement("div");
+        row.className = "attention-row";
+        var ic = document.createElement("span");
+        ic.className = "attention-ic";
+        ic.textContent = NOTICE_ICONS[n.source] || "⚙️";
+        var text = document.createElement("span");
+        text.className = "attention-text";
+        text.textContent = n.text;
+        row.appendChild(ic);
+        row.appendChild(text);
+        var time = document.createElement("span");
+        time.className = "attention-time";
+        time.textContent = n.created_at;
+        item.appendChild(row);
+        item.appendChild(time);
+        list.appendChild(item);
+      });
+    }
+
+    function loadNotices() {
+      fetch("/api/notices")
+        .then(function (r) { return r.json(); })
+        .then(renderNotices)
+        .catch(function () {});
+    }
+
+    loadNotices();
+    setInterval(loadNotices, 10000);
   </script>
 </body>
 </html>
