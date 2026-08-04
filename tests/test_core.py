@@ -1316,3 +1316,23 @@ async def test_notices_warning_and_critical(session):
     await set_source_notice(session, "llm", "critical", "Нет подключения к LLM", active=True)
     state = await notice_state(session)
     assert state["state"] == "critical"
+
+
+async def test_notice_state_worst_severity(session):
+    await set_source_notice(session, "telegram", "warning", "нет соединения", active=True)
+    assert (await notice_state(session))["state"] == "warning"
+
+    await set_source_notice(session, "stale_prices", "info", "устарело", active=True)
+    assert (await notice_state(session))["state"] == "warning"
+
+    await set_source_notice(session, "llm", "critical", "нет LLM", active=True)
+    assert (await notice_state(session))["state"] == "critical"
+
+    await set_source_notice(session, "llm", "critical", "", active=False)
+    assert (await notice_state(session))["state"] == "warning"
+
+    await set_source_notice(session, "telegram", "warning", "", active=False)
+    assert (await notice_state(session))["state"] == "info"
+
+    await set_source_notice(session, "stale_prices", "info", "", active=False)
+    assert (await notice_state(session))["state"] == "none"
