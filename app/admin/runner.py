@@ -247,6 +247,15 @@ async def run_script_task(run_id: int, script_key: str, param_value: int | None)
             )
         except Exception:
             pass
+        if status == "failed":
+            script = get_script(script_key)
+            title = script["title"] if script else script_key
+            try:
+                from app.notices.service import notify_script_failed
+
+                await notify_script_failed(title, exit_code)
+            except Exception:
+                pass
         global _active_run_id
         _active_run_id = None
 
@@ -275,6 +284,14 @@ async def mark_stale_runs(session) -> int:
             f"{run.output or ''}\n[прервано: сервис перезапущен до завершения]"
         ).strip()
         run.finished_at = now
+        from app.notices.service import add_notice
+
+        await add_notice(
+            session,
+            "critical",
+            f"Скрипт «{run.script_name}» был прерван перезапуском сервиса",
+            source="script_run",
+        )
     if stale:
         await session.commit()
     return len(stale)

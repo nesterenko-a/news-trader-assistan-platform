@@ -81,6 +81,7 @@ from app.paper.service import (
     reset_account,
 )
 from app.strategy.weights import calibrate, create_version, get_latest
+from app.notices.service import add_notice, notice_state
 from app.graph.service import (
     find_influence_paths,
     resolve_entity_id,
@@ -1242,3 +1243,20 @@ async def test_calibrate_weights_from_feedback(session):
 
     version, factors = await get_latest(session)
     assert version == "w1"
+
+
+async def test_notices_states(session):
+    state = await notice_state(session)
+    assert state["state"] == "none"
+    assert state["notices"] == []
+
+    await add_notice(session, "warning", "Данные устарели", source="test")
+    state = await notice_state(session)
+    assert state["state"] == "warning"
+    assert len(state["notices"]) == 1
+    assert state["notices"][0]["level"] == "warning"
+
+    await add_notice(session, "critical", "Скрипт упал", source="test")
+    state = await notice_state(session)
+    assert state["state"] == "critical"
+    assert state["notices"][0]["level"] == "critical"

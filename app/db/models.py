@@ -354,3 +354,16 @@ class FactorWeight(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class SystemNotice(Base):
+    __tablename__ = "system_notices"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    level: Mapped[str] = mapped_column(String(10))  # warning / critical
+    text: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(50), default="")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

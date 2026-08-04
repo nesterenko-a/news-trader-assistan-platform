@@ -39,6 +39,7 @@ from app.paper.service import (
     latest_closes,
     reset_account,
 )
+from app.notices.service import notice_state
 from app.db.connection import get_session
 from app.db.models import (
     MarketCandle,
@@ -750,6 +751,13 @@ async def paper_reset_form(
     account = await get_or_create_account(session, user.id)
     await reset_account(session, account)
     return RedirectResponse(url="/paper", status_code=303)
+
+
+@router.get("/api/notices")
+async def notices_api(
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    return await notice_state(session)
 
 
 @router.get("/macro")

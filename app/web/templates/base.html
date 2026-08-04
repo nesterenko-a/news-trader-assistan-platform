@@ -14,6 +14,15 @@
         <a href="/">Аналитика</a>
         <a href="/macro">Календарь</a>
         <a href="/docs">API</a>
+        <div class="menu">
+          <a class="attention-toggle" href="#" aria-label="Внимание" aria-expanded="false">
+            <span class="attention-icon attention-none" id="attention-icon">!</span>
+          </a>
+          <div class="menu-dropdown" id="attention-popup">
+            <span class="menu-user">Внимание</span>
+            <div id="attention-list" class="attention-list"></div>
+          </div>
+        </div>
         {% if user %}
         <a class="alert-link" href="/alerts" aria-label="Алерты{% if unread_alerts %}: {{ unread_alerts }} непрочитанных{% endif %}">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
@@ -50,30 +59,64 @@
     Материалы носят информационный характер и не являются инвестиционной рекомендацией.
   </footer>
   <script>
-    const menuToggle = document.querySelector(".menu-toggle");
-    const userMenu = document.getElementById("user-menu");
-
-    if (menuToggle && userMenu) {
-      menuToggle.addEventListener("click", () => {
-        const isOpen = userMenu.classList.toggle("open");
-        menuToggle.setAttribute("aria-expanded", String(isOpen));
+    function closeDropdowns() {
+      document.querySelectorAll(".menu-dropdown.open").forEach(function (m) {
+        m.classList.remove("open");
       });
-
-      document.addEventListener("click", (event) => {
-        if (!event.target.closest(".menu")) {
-          userMenu.classList.remove("open");
-          menuToggle.setAttribute("aria-expanded", "false");
-        }
-      });
-
-      document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") {
-          userMenu.classList.remove("open");
-          menuToggle.setAttribute("aria-expanded", "false");
-          menuToggle.focus();
-        }
+      document.querySelectorAll(".menu-toggle, .attention-toggle").forEach(function (t) {
+        t.setAttribute("aria-expanded", "false");
       });
     }
+
+    function bindToggle(selector, popupId) {
+      var toggle = document.querySelector(selector);
+      var popup = document.getElementById(popupId);
+      if (!toggle || !popup) return;
+      toggle.addEventListener("click", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        closeDropdowns();
+        var open = popup.classList.toggle("open");
+        toggle.setAttribute("aria-expanded", String(open));
+      });
+    }
+    bindToggle(".menu-toggle", "user-menu");
+    bindToggle(".attention-toggle", "attention-popup");
+
+    document.addEventListener("click", function () { closeDropdowns(); });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") closeDropdowns();
+    });
+
+    fetch("/api/notices")
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var icon = document.getElementById("attention-icon");
+        if (icon) icon.className = "attention-icon attention-" + data.state;
+        var list = document.getElementById("attention-list");
+        if (!list) return;
+        list.innerHTML = "";
+        if (!data.notices.length) {
+          var empty = document.createElement("div");
+          empty.className = "muted small";
+          empty.textContent = "Ошибок нет";
+          list.appendChild(empty);
+          return;
+        }
+        data.notices.forEach(function (n) {
+          var item = document.createElement("div");
+          item.className = "attention-item attention-" + n.level;
+          var text = document.createElement("div");
+          text.textContent = n.text;
+          var time = document.createElement("span");
+          time.className = "attention-time";
+          time.textContent = n.created_at;
+          item.appendChild(text);
+          item.appendChild(time);
+          list.appendChild(item);
+        });
+      })
+      .catch(function () {});
   </script>
 </body>
 </html>

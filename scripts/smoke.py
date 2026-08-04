@@ -232,6 +232,10 @@ try:
         paper_reset = client.post("/v1/paper/reset", headers=headers)
         print("paper reset:", paper_reset.status_code)
 
+        notices = client.get("/api/notices")
+        n_body = notices.json() if notices.status_code == 200 else {}
+        print("notices api:", notices.status_code, "state" in n_body, n_body.get("state"))
+
         macro = client.get("/v1/macro/calendar")
         print("macro calendar:", macro.status_code)
         macro_page = client.get("/macro")
