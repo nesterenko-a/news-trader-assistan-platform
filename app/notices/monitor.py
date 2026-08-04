@@ -32,7 +32,6 @@ DISK_MIN_FREE = 500 * 1024 * 1024
 MONITOR_INTERVAL_SECONDS = 60
 TIMEOUT_HTTP = 10
 
-_db_down_since: datetime | None = None
 _last_run: dict[str, float] = {}
 
 
@@ -236,29 +235,17 @@ async def set_source_notice(
 
 
 async def _apply_result(name: str, error: str | None, level: str) -> None:
-    global _db_down_since
     if error is None:
         try:
             async with SessionLocal() as session:
                 await set_source_notice(session, name, level, "", active=False)
+                if name == "db":
+                    await set_source_notice(session, "db_outage", "critical", "", active=False)
         except Exception:
             pass
-        if name == "db" and _db_down_since is not None:
-            text = (
-                "База данных была недоступна с "
-                f"{_db_down_since.strftime('%d.%m %H:%M')} (восстановлено)"
-            )
-            try:
-                async with SessionLocal() as session:
-                    await set_source_notice(session, "db_outage", "critical", text, active=True)
-            except Exception:
-                pass
-            _db_down_since = None
         return
 
     if name == "db":
-        if _db_down_since is None:
-            _db_down_since = datetime.now(timezone.utc)
         return
     try:
         async with SessionLocal() as session:
