@@ -1288,6 +1288,16 @@ def test_friendly_error():
     assert friendly_error(RuntimeError("boom"), "Компонент") == "Компонент: RuntimeError: boom"
 
 
+def test_is_db_error():
+    from sqlalchemy.exc import OperationalError
+
+    from app.web.middleware import is_db_error
+
+    assert is_db_error(ConnectionError("refused")) is True
+    assert is_db_error(OperationalError("SELECT 1", {}, Exception("connect"))) is True
+    assert is_db_error(ValueError("boom")) is False
+
+
 async def test_set_source_notice_lifecycle(session):
     await set_source_notice(
         session, "llm", "critical", "Нет подключения к ИИ-анализу (LLM): timeout", active=True
