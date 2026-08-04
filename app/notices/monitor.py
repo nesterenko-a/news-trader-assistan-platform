@@ -202,7 +202,7 @@ async def check_stale_macro() -> str | None:
 CHECKS: list[tuple[str, object, str, int]] = [
     ("db", check_db, "critical", 120),
     ("llm", check_llm, "critical", 120),
-    ("moex", check_moex, "critical", 300),
+    ("moex", check_moex, "critical", 120),
     ("telegram", check_telegram, "warning", 120),
     ("rss", check_rss, "warning", 3600),
     ("disk", check_disk, "warning", 600),
