@@ -350,6 +350,11 @@ main { padding: 24px 16px 40px; }
   border: 1px solid var(--muted);
   color: var(--muted);
 }
+.attention-icon.attention-info {
+  background: rgba(79, 140, 255, 0.18);
+  border-color: var(--accent);
+  color: var(--accent);
+}
 .attention-icon.attention-warning {
   background: rgba(245, 166, 35, 0.18);
   border-color: var(--amber);
@@ -371,8 +376,12 @@ main { padding: 24px 16px 40px; }
   font-size: 13px;
   color: var(--muted);
 }
-.attention-item.warning { border-left: 3px solid var(--amber); color: var(--amber); }
-.attention-item.critical { border-left: 3px solid var(--red); color: var(--red); }
+.attention-item.attention-info { border-left: 3px solid var(--accent); color: var(--accent); }
+.attention-item.attention-warning { border-left: 3px solid var(--amber); color: var(--amber); }
+.attention-item.attention-critical { border-left: 3px solid var(--red); color: var(--red); }
+.attention-row { display: flex; align-items: flex-start; gap: 8px; }
+.attention-ic { font-size: 15px; line-height: 1.2; }
+.attention-text { flex: 1; }
 .attention-time { display: block; font-size: 11px; opacity: 0.7; margin-top: 2px; }
 tfoot td { border-bottom: 0; border-top: 1px solid var(--border); font-weight: 600; }
 tr.unread td { background: rgba(79, 140, 255, 0.06); }

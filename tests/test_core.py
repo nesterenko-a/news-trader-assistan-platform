@@ -82,7 +82,7 @@ from app.paper.service import (
 )
 from app.strategy.weights import calibrate, create_version, get_latest
 from app.notices.service import add_notice, notice_state
-from app.notices.monitor import set_source_notice
+from app.notices.monitor import is_fresh, set_source_notice
 from app.graph.service import (
     find_influence_paths,
     resolve_entity_id,
@@ -1251,42 +1251,56 @@ async def test_notices_states(session):
     assert state["state"] == "none"
     assert state["notices"] == []
 
-    await add_notice(session, "warning", "Данные устарели", source="test")
+    await add_notice(session, "info", "Давно не запускался конвейер", source="stale_daily_pipeline")
+    state = await notice_state(session)
+    assert state["state"] == "info"
+    assert len(state["notices"]) == 1
+    assert state["notices"][0]["level"] == "info"
+    assert state["notices"][0]["source"] == "stale_daily_pipeline"
+
+    await add_notice(session, "warning", "Нет подключения к Telegram-боту", source="telegram")
     state = await notice_state(session)
     assert state["state"] == "warning"
-    assert len(state["notices"]) == 1
-    assert state["notices"][0]["level"] == "warning"
 
-    await add_notice(session, "critical", "Скрипт упал", source="test")
+    await add_notice(session, "critical", "Скрипт упал", source="script_run")
     state = await notice_state(session)
     assert state["state"] == "critical"
     assert state["notices"][0]["level"] == "critical"
 
 
+def test_is_fresh():
+    today = date(2026, 5, 20)
+    assert is_fresh(None, 3, today) is True
+    assert is_fresh(date(2026, 5, 18), 3, today) is True
+    assert is_fresh(date(2026, 5, 10), 3, today) is False
+    assert is_fresh(datetime(2026, 5, 18, 10, 0), 3, today) is True
+
+
 async def test_set_source_notice_lifecycle(session):
     await set_source_notice(
-        session, "llm_health", "critical", "Нет подключения к ИИ-анализу (LLM): timeout", active=True
+        session, "llm", "critical", "Нет подключения к ИИ-анализу (LLM): timeout", active=True
     )
     state = await notice_state(session)
     assert state["state"] == "critical"
     assert len(state["notices"]) == 1
+    assert state["notices"][0]["source"] == "llm"
 
-    await set_source_notice(session, "llm_health", "critical", "Обновлённое сообщение", active=True)
+    await set_source_notice(session, "llm", "critical", "Обновлённое сообщение", active=True)
     state = await notice_state(session)
     assert len(state["notices"]) == 1
     assert state["notices"][0]["text"] == "Обновлённое сообщение"
 
-    await set_source_notice(session, "llm_health", "critical", "", active=False)
+    await set_source_notice(session, "llm", "critical", "", active=False)
     state = await notice_state(session)
     assert state["state"] == "none"
     assert state["notices"] == []
 
 
 async def test_notices_warning_and_critical(session):
-    await set_source_notice(session, "telegram_health", "warning", "Нет подключения к Telegram-боту", active=True)
+    await set_source_notice(session, "telegram", "warning", "Нет подключения к Telegram-боту", active=True)
     state = await notice_state(session)
     assert state["state"] == "warning"
 
-    await set_source_notice(session, "llm_health", "critical", "Нет подключения к LLM", active=True)
+    await set_source_notice(session, "llm", "critical", "Нет подключения к LLM", active=True)
     state = await notice_state(session)
     assert state["state"] == "critical"

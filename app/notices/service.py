@@ -23,12 +23,22 @@ async def notice_state(session: AsyncSession, limit: int = 50) -> dict:
         )
     ).all()
     critical = sum(1 for n in notices if n.level == "critical")
-    state = "critical" if critical else ("warning" if notices else "none")
+    warning = sum(1 for n in notices if n.level == "warning")
+    info = sum(1 for n in notices if n.level == "info")
+    if critical:
+        state = "critical"
+    elif warning:
+        state = "warning"
+    elif info:
+        state = "info"
+    else:
+        state = "none"
     return {
         "state": state,
         "notices": [
             {
                 "level": notice.level,
+                "source": notice.source,
                 "text": notice.text,
                 "created_at": notice.created_at.strftime("%d.%m.%Y %H:%M")
                 if notice.created_at
@@ -53,6 +63,4 @@ async def notify_telegram_unavailable(error: str) -> None:
 
     text = f"Нет подключения к Telegram-боту: {error[:300]}"
     async with SessionLocal() as session:
-        await set_source_notice(
-            session, "telegram_health", "warning", text, active=True
-        )
+        await set_source_notice(session, "telegram", "warning", text, active=True)

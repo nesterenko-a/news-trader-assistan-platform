@@ -96,6 +96,20 @@
         var list = document.getElementById("attention-list");
         if (!list) return;
         list.innerHTML = "";
+        var icons = {
+          db: "🗄", db_outage: "🗄",
+          llm: "🤖",
+          telegram: "📡",
+          moex: "📈",
+          rss: "📰",
+          disk: "💾",
+          pipeline_stale: "⏰",
+          stale_daily_pipeline: "⏰",
+          stale_prices: "⏰",
+          stale_alerts: "⏰",
+          stale_macro: "⏰",
+          script_run: "⚙️"
+        };
         if (!data.notices.length) {
           var empty = document.createElement("div");
           empty.className = "muted small";
@@ -106,12 +120,20 @@
         data.notices.forEach(function (n) {
           var item = document.createElement("div");
           item.className = "attention-item attention-" + n.level;
-          var text = document.createElement("div");
+          var row = document.createElement("div");
+          row.className = "attention-row";
+          var ic = document.createElement("span");
+          ic.className = "attention-ic";
+          ic.textContent = icons[n.source] || "⚙️";
+          var text = document.createElement("span");
+          text.className = "attention-text";
           text.textContent = n.text;
+          row.appendChild(ic);
+          row.appendChild(text);
           var time = document.createElement("span");
           time.className = "attention-time";
           time.textContent = n.created_at;
-          item.appendChild(text);
+          item.appendChild(row);
           item.appendChild(time);
           list.appendChild(item);
         });
