@@ -45,3 +45,14 @@ async def notify_script_failed(title: str, exit_code: int) -> None:
     text = f"Скрипт «{title}» завершился с ошибкой (код {exit_code})"
     async with SessionLocal() as session:
         await add_notice(session, "critical", text, source="script_run")
+
+
+async def notify_telegram_unavailable(error: str) -> None:
+    from app.db.connection import SessionLocal
+    from app.notices.monitor import set_source_notice
+
+    text = f"Нет подключения к Telegram-боту: {error[:300]}"
+    async with SessionLocal() as session:
+        await set_source_notice(
+            session, "telegram_health", "warning", text, active=True
+        )

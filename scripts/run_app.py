@@ -16,6 +16,34 @@ HOST = "0.0.0.0"
 PORT = 8000
 
 
+async def _start_bot():
+    settings = get_settings()
+    if not settings.telegram_bot_token:
+        logger.warning("TELEGRAM_BOT_TOKEN is not set — Telegram bot skipped")
+        return None
+    bot = build_application()
+    try:
+        await bot.initialize()
+        await bot.start()
+        await bot.updater.start_polling()
+        await apply_menu(bot)
+    except Exception as exc:
+        logger.error("Telegram bot failed to start: %s", exc)
+        try:
+            await bot.shutdown()
+        except Exception:
+            pass
+        try:
+            from app.notices.service import notify_telegram_unavailable
+
+            await notify_telegram_unavailable(str(exc))
+        except Exception:
+            pass
+        return None
+    logger.info("Telegram bot started")
+    return bot
+
+
 async def main() -> None:
     settings = get_settings()
 
@@ -28,16 +56,7 @@ async def main() -> None:
         )
     )
 
-    bot = None
-    if settings.telegram_bot_token:
-        bot = build_application()
-        await bot.initialize()
-        await bot.start()
-        await bot.updater.start_polling()
-        await apply_menu(bot)
-        logger.info("Telegram bot started")
-    else:
-        logger.warning("TELEGRAM_BOT_TOKEN is not set — Telegram bot skipped")
+    bot = await _start_bot()
 
     try:
         await server.serve()
