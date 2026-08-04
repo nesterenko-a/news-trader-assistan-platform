@@ -82,7 +82,7 @@ from app.paper.service import (
 )
 from app.strategy.weights import calibrate, create_version, get_latest
 from app.notices.service import add_notice, notice_state
-from app.notices.monitor import is_fresh, set_source_notice
+from app.notices.monitor import friendly_error, is_fresh, set_source_notice
 from app.graph.service import (
     find_influence_paths,
     resolve_entity_id,
@@ -1274,6 +1274,18 @@ def test_is_fresh():
     assert is_fresh(date(2026, 5, 18), 3, today) is True
     assert is_fresh(date(2026, 5, 10), 3, today) is False
     assert is_fresh(datetime(2026, 5, 18, 10, 0), 3, today) is True
+
+
+def test_friendly_error():
+    assert (
+        friendly_error(TimeoutError("x"), "Telegram-бот недоступен")
+        == "Telegram-бот недоступен: таймаут соединения"
+    )
+    assert (
+        friendly_error(ConnectionError("x"), "MOEX ISS недоступен")
+        == "MOEX ISS недоступен: нет соединения"
+    )
+    assert friendly_error(RuntimeError("boom"), "Компонент") == "Компонент: RuntimeError: boom"
 
 
 async def test_set_source_notice_lifecycle(session):

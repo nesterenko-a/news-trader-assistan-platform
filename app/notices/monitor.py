@@ -47,13 +47,27 @@ def is_fresh(value, days: int, now: date | None = None) -> bool:
     return value >= now - timedelta(days=days)
 
 
+def friendly_error(exc: Exception, fallback: str) -> str:
+    name = type(exc).__name__
+    low = name.lower()
+    if "timeout" in low:
+        return f"{fallback}: таймаут соединения"
+    if "network" in low:
+        return f"{fallback}: сетевая ошибка"
+    if "unauthorized" in low or "forbidden" in low:
+        return f"{fallback}: неверный токен или нет прав доступа"
+    if "connection" in low or "connect" in low:
+        return f"{fallback}: нет соединения"
+    return f"{fallback}: {name}: {exc}"[:300]
+
+
 async def check_db() -> str | None:
     try:
         async with SessionLocal() as session:
             await session.execute(text("SELECT 1"))
         return None
     except Exception as exc:
-        return f"{type(exc).__name__}: {exc}"[:300]
+        return friendly_error(exc, "База данных недоступна")
 
 
 async def check_llm() -> str | None:
@@ -69,7 +83,7 @@ async def check_llm() -> str | None:
         await client._client.models.list()
         return None
     except Exception as exc:
-        return f"{type(exc).__name__}: {exc}"[:300]
+        return friendly_error(exc, "ИИ-анализ (LLM) недоступен")
 
 
 async def check_telegram() -> str | None:
@@ -86,7 +100,7 @@ async def check_telegram() -> str | None:
         await bot.get_me()
         return None
     except Exception as exc:
-        return f"{type(exc).__name__}: {exc}"[:300]
+        return friendly_error(exc, "Telegram-бот недоступен")
     finally:
         try:
             await bot.shutdown()
@@ -101,10 +115,10 @@ async def check_moex() -> str | None:
         async with httpx.AsyncClient(timeout=TIMEOUT_HTTP, follow_redirects=True) as client:
             response = await client.get(MOEX_CHECK_URL)
         if response.status_code != 200:
-            return f"MOEX ISS: HTTP {response.status_code}"
+            return f"MOEX ISS недоступен: HTTP {response.status_code}"
         return None
     except Exception as exc:
-        return f"MOEX ISS: {type(exc).__name__}: {exc}"[:300]
+        return friendly_error(exc, "MOEX ISS недоступен")
 
 
 async def check_rss() -> str | None:
