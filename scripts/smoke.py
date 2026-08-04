@@ -89,6 +89,8 @@ try:
             "История цены" in chart_page.text,
             "chart-range" in chart_page.text,
             ">Всё</a>" in chart_page.text,
+            ">1 день</a>" in chart_page.text,
+            ">7 дней</a>" in chart_page.text,
         )
 
         page = client.get("/securities/AFLT")

@@ -67,7 +67,7 @@
       <h2>История цены</h2>
       <div class="chart-range">
         {% for opt in range_options %}
-        <a class="{{ 'active' if opt == chart_range else '' }}" href="/securities/{{ view.ticker }}?range={{ opt }}">{{ {'1y': '1 год', '5y': '5 лет', 'all': 'Всё'}[opt] }}</a>
+        <a class="{{ 'active' if opt == chart_range else '' }}" href="/securities/{{ view.ticker }}?range={{ opt }}">{{ {'1d': '1 день', '7d': '7 дней', '1y': '1 год', '5y': '5 лет', 'all': 'Всё'}[opt] }}</a>
         {% endfor %}
       </div>
     </div>

@@ -60,7 +60,7 @@ from app.strategy.engine import generate_strategy
 router = APIRouter(tags=["web"])
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 
-RANGE_OPTIONS = {"1y": 365, "5y": 5 * 365, "all": None}
+RANGE_OPTIONS = {"1d": 1, "7d": 7, "1y": 365, "5y": 5 * 365, "all": None}
 MAX_CHART_POINTS = 360
 
 _web_context_factory = WebContextFactory()
@@ -87,11 +87,13 @@ async def _base_context(session: AsyncSession, user: User | None) -> dict:
 
 def _build_chart(candles: list[MarketCandle], width: int = 900, height: int = 280) -> dict | None:
     valid = [(c.trading_date, c.close) for c in candles if c.close is not None]
-    if len(valid) < 2:
+    if not valid:
         return None
-
-    step = max(1, len(valid) // MAX_CHART_POINTS)
-    sampled = valid[::step]
+    if len(valid) == 1:
+        sampled = [valid[0], valid[0]]
+    else:
+        step = max(1, len(valid) // MAX_CHART_POINTS)
+        sampled = valid[::step]
 
     prices = [close for _, close in sampled]
     min_price = min(prices)
