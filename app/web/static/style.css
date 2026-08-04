@@ -335,6 +335,7 @@ main { padding: 24px 16px 40px; }
   padding: 2px 6px;
   display: inline-block;
   line-height: 1;
+  position: relative;
 }
 .attention-toggle:hover { text-decoration: none; }
 .attention-icon {
@@ -350,6 +351,23 @@ main { padding: 24px 16px 40px; }
   border: 1px solid var(--muted);
   color: var(--muted);
 }
+.attention-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  padding: 0 3px;
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+  color: #fff;
+  font-weight: 700;
+}
+.attention-badge-info { background: var(--accent); }
+.attention-badge-warning { background: var(--amber); }
+.attention-badge-critical { background: var(--red); }
 .attention-icon.attention-info {
   background: rgba(79, 140, 255, 0.18);
   border-color: var(--accent);

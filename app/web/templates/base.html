@@ -17,6 +17,7 @@
         <div class="menu">
           <a class="attention-toggle" href="#" aria-label="Внимание" aria-expanded="false">
             <span class="attention-icon attention-none" id="attention-icon">!</span>
+            <span class="attention-badge" id="attention-badge" hidden></span>
           </a>
           <div class="menu-dropdown" id="attention-popup">
             <span class="menu-user">Внимание</span>
@@ -93,6 +94,16 @@
       .then(function (data) {
         var icon = document.getElementById("attention-icon");
         if (icon) icon.className = "attention-icon attention-" + data.state;
+        var badge = document.getElementById("attention-badge");
+        if (badge) {
+          if (data.notices.length) {
+            badge.textContent = data.notices.length >= 100 ? "99+" : String(data.notices.length);
+            badge.className = "attention-badge attention-badge-" + data.state;
+            badge.hidden = false;
+          } else {
+            badge.hidden = true;
+          }
+        }
         var list = document.getElementById("attention-list");
         if (!list) return;
         list.innerHTML = "";
