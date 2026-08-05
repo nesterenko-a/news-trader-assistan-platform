@@ -15,6 +15,7 @@
   <h2>Скрипты</h2>
   <div class="grid admin-scripts">
     {% for s in scripts %}
+    {% if not s.get('hidden') %}
     <div class="mini">
       <form method="post" action="/admin/scripts/run">
         <input type="hidden" name="script" value="{{ s.key }}">
@@ -29,9 +30,15 @@
         <input type="number" name="param" min="1" value="{{ s.param[2] }}">
         {% endif %}
         {% endif %}
+        {% if s.key == "update_oi" %}
+        <label class="muted small" style="display:block;margin-top:8px">
+          <input type="checkbox" name="param_all" value="1"> Скачать OI по всем фьючерсам (--all)
+        </label>
+        {% endif %}
         <button class="btn" type="submit" {% if busy %}disabled{% endif %} style="margin-top:8px">Запустить</button>
       </form>
     </div>
+    {% endif %}
     {% endfor %}
   </div>
 </section>

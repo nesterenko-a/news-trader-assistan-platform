@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import date, timedelta
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
@@ -657,27 +658,34 @@ async def admin_run_script(
         return RedirectResponse(url="/login", status_code=303)
     form = await request.form()
     script_key = str(form.get("script") or "")
+    # Чекбокс «скачать OI по всем фьючерсам» на карточке update_oi
+    if form.get("param_all") is not None and script_key == "update_oi":
+        script_key = "update_oi_all"
     script = get_script(script_key)
     if script is None:
         return RedirectResponse(url="/admin?error=1", status_code=303)
     param_value = None
-    param_raw = str(form.get("param") or "").strip()
-    if param_raw:
-        param_type = (
-            script["param"][3]
-            if script["param"] is not None and len(script["param"]) > 3
-            else "int"
-        )
-        if param_type == "text":
-            param_value = param_raw
-        else:
-            try:
-                param_value = int(param_raw)
-            except ValueError:
-                return RedirectResponse(url="/admin?error=2", status_code=303)
+    if script_key == "update_oi_all":
+        run_params = {"all": True}
+    else:
+        param_raw = str(form.get("param") or "").strip()
+        if param_raw:
+            param_type = (
+                script["param"][3]
+                if script["param"] is not None and len(script["param"]) > 3
+                else "int"
+            )
+            if param_type == "text":
+                param_value = param_raw
+            else:
+                try:
+                    param_value = int(param_raw)
+                except ValueError:
+                    return RedirectResponse(url="/admin?error=2", status_code=303)
+        run_params = {"param": param_value} if param_value is not None else {}
     run = ScriptRun(
         script_name=script_key,
-        params={"param": param_value} if param_value is not None else {},
+        params=run_params,
         user_id=user.id,
     )
     session.add(run)
@@ -689,6 +697,26 @@ async def admin_run_script(
     except ValueError:
         return RedirectResponse(url="/admin?error=2", status_code=303)
     return RedirectResponse(url=f"/admin/runs/{run.id}", status_code=303)
+
+
+def _run_progress(output: str | None) -> dict | None:
+    """Прогресс «[i/N]» из лога скрипта (например, фьючерсов загружено из общего числа)."""
+    if not output:
+        return None
+    matches = list(re.finditer(r"\[(\d+)/(\d+)\]", output))
+    if not matches:
+        return None
+    last = matches[-1]
+    done = int(last.group(1))
+    total = int(last.group(2))
+    if total <= 0:
+        return None
+    return {
+        "done": done,
+        "total": total,
+        "remaining": total - done,
+        "pct": round(done / total * 100),
+    }
 
 
 @router.get("/admin/runs/{run_id}")
@@ -709,6 +737,7 @@ async def admin_run_detail(
             "run": run,
             "script_title": (get_script(run.script_name) or {}).get("title", run.script_name),
             "running": run.status == "running",
+            "progress": _run_progress(run.output),
         }
     )
     return templates.TemplateResponse(request, "admin_run.html", context)

@@ -17,6 +17,18 @@
   </p>
   {% if run.params %}<p class="muted">Параметры: {{ run.params }}</p>{% endif %}
 
+  {% if progress %}
+  <h2>Прогресс</h2>
+  <div style="background:#e9ecef;border-radius:6px;height:14px;overflow:hidden;margin:8px 0">
+    <div style="width:{{ progress.pct }}%;background:#2f7d32;height:100%;transition:width .5s"></div>
+  </div>
+  <p class="muted small">
+    Загружено: {{ progress.done }} из {{ progress.total }}
+    · осталось: {{ progress.remaining }}
+    · {{ progress.pct }}%
+  </p>
+  {% endif %}
+
   <h2>Вывод</h2>
   {% if running %}<p class="muted small">Лог обновляется автоматически каждые 3 секунды.</p>{% endif %}
   <pre class="run-output">{{ run.output or "(лог пока пуст — скрипт ещё выполняется)" }}</pre>
