@@ -2,7 +2,7 @@
 
 Файл для AI-агентов, работающих с проектом **NewsTrader Assistant** — ассистент для торговли ценными бумагами на основе новостного фона и цепочек рыночных связей (knowledge graph).
 
-Полная спецификация проекта — в `docs/` (начните с `docs/README.md`; комплект из 19 документов, текущая версия v1.62). Правила работы — в `docs/16-working-process.md` — **обязательны к выполнению**.
+Полная спецификация проекта — в `docs/` (начните с `docs/README.md`; комплект из 19 документов, текущая версия v1.63). Правила работы — в `docs/16-working-process.md` — **обязательны к выполнению**.
 
 ## Стек
 
@@ -48,7 +48,7 @@ Python 3.13+ (в `.venv` — 3.14.6) · FastAPI · SQLAlchemy 2 (async) · Postg
   - `db/` — SQLAlchemy-модели; `schemas/` — Pydantic-схемы; `config.py` — pydantic-settings
 - `scripts/` — утилиты и лаунчеры (+ `.bat`)
 - `tests/` — pytest (SQLite)
-- `docs/` — документация (версионируется, v1.62)
+- `docs/` — документация (версионируется, v1.63)
 - `liquibase/` — ченджлоги БД (`changelogs/NNN_*.xml` + `changelog-master.xml`)
 - `docker/` — docker-compose (Postgres + Liquibase)
 

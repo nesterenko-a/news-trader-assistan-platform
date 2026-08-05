@@ -21,7 +21,18 @@
         <input type="hidden" name="script" value="{{ s.key }}">
         <span class="label">{{ s.title }}</span>
         <p class="muted small" style="margin:6px 0 0">{{ s.description }}</p>
-        {% if s.param %}
+        {% if s.params %}
+        {% for p in s.params %}
+        <label class="muted small" style="display:block;margin-top:8px">{{ p[1] }}</label>
+        {% if p|length > 3 and p[3] == "text" %}
+        <input type="text" name="param_{{ p[0][2:] }}" value="{{ p[2] }}"
+          {% if p[0] == "--ticker" %}id="oi-ticker" list="futures-datalist" autocomplete="off"{% endif %} style="width:100%">
+        {% if p[0] == "--ticker" %}<span class="muted small">Подсказка — список всех фьючерсов MOEX</span>{% endif %}
+        {% else %}
+        <input type="number" name="param_{{ p[0][2:] }}" min="1" value="{{ p[2] }}">
+        {% endif %}
+        {% endfor %}
+        {% elif s.param %}
         <label class="muted small" style="display:block;margin-top:8px">{{ s.param[1] }}</label>
         {% if s.param|length > 3 and s.param[3] == "text" %}
         <input type="text" name="param" value="{{ s.param[2] }}" list="futures-datalist" autocomplete="off" style="width:100%">
@@ -32,7 +43,7 @@
         {% endif %}
         {% if s.key == "update_oi" %}
         <label class="muted small" style="display:block;margin-top:8px">
-          <input type="checkbox" name="param_all" value="1"> Скачать OI по всем фьючерсам (--all)
+          <input type="checkbox" id="oi-all" name="param_all" value="1"> Скачать OI по всем фьючерсам (--all)
         </label>
         {% endif %}
         <button class="btn" type="submit" {% if busy %}disabled{% endif %} style="margin-top:8px">Запустить</button>
@@ -57,6 +68,16 @@ fetch('/v1/indicators/futures')
     });
   })
   .catch(function () {});
+</script>
+<script>
+(function () {
+  var cb = document.getElementById('oi-all');
+  var ticker = document.getElementById('oi-ticker');
+  if (!cb || !ticker) { return; }
+  function syncDisabled() { ticker.disabled = cb.checked; }
+  cb.addEventListener('change', syncDisabled);
+  syncDisabled();
+})();
 </script>
 
 <section class="card">

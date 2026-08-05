@@ -21,7 +21,7 @@ def test_run_progress_empty_or_absent():
 
 
 def test_build_argv_int_param():
-    argv = build_argv("backtest_asof", 7)
+    argv = build_argv("backtest_asof", {"--horizon": 7})
     assert "--horizon" in argv
     assert argv[argv.index("--horizon") + 1] == "7"
 
@@ -32,14 +32,20 @@ def test_build_argv_int_default():
 
 
 def test_build_argv_text_param():
-    argv = build_argv("update_oi", "SiU6")
-    assert "--ticker" in argv
+    argv = build_argv("update_oi", {"--ticker": "SiU6"})
     assert argv[argv.index("--ticker") + 1] == "SiU6"
+    assert argv[argv.index("--days") + 1] == "30"
 
 
 def test_build_argv_text_default():
     argv = build_argv("update_oi", None)
     assert argv[argv.index("--ticker") + 1] == "W4V6"
+    assert argv[argv.index("--days") + 1] == "30"
+
+
+def test_build_argv_days_param():
+    argv = build_argv("update_oi", {"--ticker": "W4V6", "--days": 60})
+    assert argv[argv.index("--days") + 1] == "60"
 
 
 def test_build_argv_args_flag():

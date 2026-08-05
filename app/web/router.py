@@ -664,9 +664,25 @@ async def admin_run_script(
     script = get_script(script_key)
     if script is None:
         return RedirectResponse(url="/admin?error=1", status_code=303)
-    param_value = None
+
+    param_values: dict | None = None
     if script_key == "update_oi_all":
         run_params = {"all": True}
+    elif script.get("params"):
+        # Несколько параметров: поля формы param_<flag без "--">
+        param_values = {}
+        for p in script["params"]:
+            flag, label, default, *rest = p
+            ptype = rest[0] if rest else "int"
+            raw = str(form.get(f"param_{flag[2:]}") or "").strip()
+            if ptype == "text":
+                param_values[flag] = raw if raw else str(default)
+            else:
+                try:
+                    param_values[flag] = int(raw) if raw else int(default)
+                except ValueError:
+                    return RedirectResponse(url="/admin?error=2", status_code=303)
+        run_params = {"params": param_values}
     else:
         param_raw = str(form.get("param") or "").strip()
         if param_raw:
@@ -676,13 +692,14 @@ async def admin_run_script(
                 else "int"
             )
             if param_type == "text":
-                param_value = param_raw
+                param_values = {script["param"][0]: param_raw}
             else:
                 try:
-                    param_value = int(param_raw)
+                    param_values = {script["param"][0]: int(param_raw)}
                 except ValueError:
                     return RedirectResponse(url="/admin?error=2", status_code=303)
-        run_params = {"param": param_value} if param_value is not None else {}
+        run_params = {"params": param_values} if param_values else {}
+
     run = ScriptRun(
         script_name=script_key,
         params=run_params,
@@ -691,7 +708,7 @@ async def admin_run_script(
     session.add(run)
     await session.commit()
     try:
-        launch(run.id, script_key, param_value)
+        launch(run.id, script_key, param_values)
     except RuntimeError:
         return RedirectResponse(url="/admin?busy=1", status_code=303)
     except ValueError:

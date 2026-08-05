@@ -139,10 +139,14 @@ SCRIPTS: list[dict] = [
             "(iss/history, блок history: OPENPOSITION, OPENPOSITIONVALUE) "
             "в таблицу market_open_positions и создание дневных свечей "
             "фьючерса (для сигналов «цена × OI»). Тикер — код фьючерса "
-            "(например W4V6); --days — за сколько последних календарных дней, "
-            "--from YYYY-MM-DD — с указанной даты."
+            "(например W4V6); поле «дней» работает и с тикером, и с флагом "
+            "--all (по умолчанию 30; для полной истории используйте --from "
+            "в CLI). Повторные запуски идемпотентны."
         ),
-        "param": ("--ticker", "Код фьючерса (SECID)", "W4V6", "text"),
+        "params": [
+            ("--ticker", "Код фьючерса (SECID)", "W4V6", "text"),
+            ("--days", "За последние N дней", 30, "int"),
+        ],
     },
     {
         "key": "update_oi_all",
@@ -169,21 +173,39 @@ def get_script(key: str) -> dict | None:
     return SCRIPTS_BY_KEY.get(key)
 
 
-def build_argv(script_key: str, param_value: int | str | None) -> list[str]:
+def build_argv(script_key: str, param_values: dict | None = None) -> list[str]:
     script = get_script(script_key)
     if script is None:
         raise ValueError(f"Неизвестный скрипт: {script_key}")
+    param_values = param_values or {}
     argv = [sys.executable, "-u", "-m", script["module"]]
     argv += script.get("args", [])
+
+    params = script.get("params")
+    if params:
+        for p in params:
+            flag, label, default, *rest = p
+            ptype = rest[0] if rest else "int"
+            value = param_values.get(flag, default)
+            if ptype == "text":
+                argv += [flag, str(value) if value not in (None, "") else str(default)]
+            else:
+                value = int(value) if value is not None else int(default)
+                if value <= 0:
+                    raise ValueError("Параметр должен быть положительным числом")
+                argv += [flag, str(value)]
+        return argv
+
     param = script["param"]
     if param is not None:
         flag = param[0]
-        param_type = param[3] if len(param) > 3 else "int"
-        if param_type == "text":
-            value = str(param_value) if param_value not in (None, "") else str(param[2])
+        ptype = param[3] if len(param) > 3 else "int"
+        value = param_values.get(flag)
+        if ptype == "text":
+            value = str(value) if value not in (None, "") else str(param[2])
             argv += [flag, value]
         else:
-            value = int(param_value) if param_value is not None else int(param[2])
+            value = int(value) if value is not None else int(param[2])
             if value <= 0:
                 raise ValueError("Параметр должен быть положительным числом")
             argv += [flag, str(value)]
@@ -209,8 +231,8 @@ async def _append_output(run_id: int, text: str) -> None:
         await session.commit()
 
 
-async def _execute(run_id: int, script_key: str, param_value: int | None) -> tuple[int, str]:
-    argv = build_argv(script_key, param_value)
+async def _execute(run_id: int, script_key: str, param_values: dict | None) -> tuple[int, str]:
+    argv = build_argv(script_key, param_values)
     env = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
     proc = await asyncio.create_subprocess_exec(
         *argv,
@@ -257,14 +279,14 @@ async def _execute(run_id: int, script_key: str, param_value: int | None) -> tup
     return exit_code, "".join(all_parts)
 
 
-async def run_script_task(run_id: int, script_key: str, param_value: int | None) -> None:
+async def run_script_task(run_id: int, script_key: str, param_values: dict | None) -> None:
     status = "failed"
     exit_code = -1
     output = "Скрипт не выполнен: ошибка запуска"
     try:
         await _mark_status(run_id, status="running")
         try:
-            exit_code, output = await _execute(run_id, script_key, param_value)
+            exit_code, output = await _execute(run_id, script_key, param_values)
             status = "success" if exit_code == 0 else "failed"
         except Exception as exc:
             exit_code = -1
@@ -294,12 +316,12 @@ async def run_script_task(run_id: int, script_key: str, param_value: int | None)
         _active_run_id = None
 
 
-def launch(run_id: int, script_key: str, param_value: int | None) -> None:
+def launch(run_id: int, script_key: str, param_values: dict | None) -> None:
     global _active_run_id
     if _active_run_id is not None:
         raise RuntimeError("Другой скрипт уже выполняется")
     _active_run_id = run_id
-    asyncio.get_running_loop().create_task(run_script_task(run_id, script_key, param_value))
+    asyncio.get_running_loop().create_task(run_script_task(run_id, script_key, param_values))
 
 
 def is_busy() -> bool:

@@ -964,7 +964,7 @@ async def test_promote_admin_users(session):
 def test_runner_build_argv():
     argv = build_argv("update_prices", None)
     assert argv[-2:] == ["--days", "5"]
-    argv = build_argv("collect_news", 3)
+    argv = build_argv("collect_news", {"--days": 3})
     assert argv[-2:] == ["--days", "3"]
 
     assert build_argv("seed_db", None) == [
@@ -982,7 +982,7 @@ def test_runner_build_argv():
         raise AssertionError("unknown script must raise ValueError")
 
     try:
-        build_argv("collect_news", -1)
+        build_argv("collect_news", {"--days": -1})
     except ValueError:
         pass
     else:
