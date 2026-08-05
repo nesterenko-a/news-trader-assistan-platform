@@ -346,6 +346,9 @@ async def indicators_page(
                 chart_change = _build_change_bars(
                     [(d, change_by_date.get(d)) for d in dates]
                 )
+                ordered_signals = sorted(
+                    result.signals, key=lambda s: s.date, reverse=True
+                )
                 signals = [
                     {
                         "date": s.date.strftime("%d.%m.%Y"),
@@ -353,7 +356,7 @@ async def indicators_page(
                         "severity": s.severity,
                         "note": s.note,
                     }
-                    for s in result.signals
+                    for s in ordered_signals
                 ]
 
     context.update(
