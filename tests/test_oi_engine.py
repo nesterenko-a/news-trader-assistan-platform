@@ -69,7 +69,7 @@ async def _store_news(session, entity_name: str, sentiment: str) -> None:
 
 
 async def _seed_futures_oi(
-    session, closes: list[float], ois: list[int], start: date
+    session, closes: list[float], ois: list[int], start: date, volumes: list[float] | None = None
 ) -> Security:
     security = Security(
         ticker="W4V6", name="WHEAT-10.26", security_type="futures", aliases=[]
@@ -81,11 +81,12 @@ async def _seed_futures_oi(
     await session.execute(
         security_entity.insert().values(security_id=security.id, entity_id=oil_id)
     )
+    volumes = volumes or [100.0] * len(closes)
     for i, (close, oi) in enumerate(zip(closes, ois)):
         d = start + timedelta(days=i)
         session.add(
             MarketCandle(
-                security_id=security.id, trading_date=d, close=close, volume=100
+                security_id=security.id, trading_date=d, close=close, volume=volumes[i]
             )
         )
         session.add(
@@ -232,3 +233,59 @@ async def test_ensure_futures_security_normalizes_string_date(session):
     assert fut.assetcode == "LKOH"
     assert fut.lastdeldate == date(2026, 8, 28)
     assert fut.security_type == "futures"
+
+
+async def _set_volumes(session, ticker: str, volumes: list[float]) -> None:
+    fut = await session.scalar(select(Security).where(Security.ticker == ticker))
+    candles = (
+        await session.scalars(
+            select(MarketCandle).where(MarketCandle.security_id == fut.id)
+        )
+    ).all()
+    for candle, v in zip(candles, volumes):
+        candle.volume = v
+    await session.commit()
+
+
+async def test_engine_oi_contradiction_volume_down_weakens(session):
+    await seed_graph(session)
+    start = date.today() - timedelta(days=6)
+    await _seed_futures_oi(
+        session,
+        closes=[100.0, 99.0, 98.0],
+        ois=[1000, 1100, 1200],
+        start=start,
+        volumes=[100.0, 200.0, 300.0],
+    )
+    await _store_news(session, "Нефть", "positive")
+    await session.commit()
+
+    r_up = await generate_strategy(session, "W4V6", persist=False, use_live_market=False)
+    await _set_volumes(session, "W4V6", [300.0, 200.0, 100.0])
+    r_down = await generate_strategy(session, "W4V6", persist=False, use_live_market=False)
+
+    assert r_up["strategy"]["verdict"] == "BUY"
+    # падающий объём ослабляет противоречие слабее: ×0.92 против ×0.85
+    assert r_up["strategy"]["net_score"] < r_down["strategy"]["net_score"]
+
+
+async def test_engine_oi_confirmation_volume_up_amplifies(session):
+    await seed_graph(session)
+    start = date.today() - timedelta(days=6)
+    await _seed_futures_oi(
+        session,
+        closes=[100.0, 101.0, 102.0],
+        ois=[1000, 1100, 1200],
+        start=start,
+        volumes=[100.0, 200.0, 300.0],
+    )
+    await _store_news(session, "Нефть", "positive")
+    await session.commit()
+
+    r_up = await generate_strategy(session, "W4V6", persist=False, use_live_market=False)
+    await _set_volumes(session, "W4V6", [300.0, 200.0, 100.0])
+    r_down = await generate_strategy(session, "W4V6", persist=False, use_live_market=False)
+
+    assert r_up["strategy"]["verdict"] == "BUY"
+    # согласный сигнал с растущим объёмом усиливает: ×1.05 против без усиления
+    assert r_up["strategy"]["net_score"] > r_down["strategy"]["net_score"]

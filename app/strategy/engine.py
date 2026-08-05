@@ -306,10 +306,18 @@ async def generate_strategy(
         if oi_future is not None:
             oi_signal = await latest_oi_signal(session, oi_future.id, as_of=now.date())
     if oi_signal:
-        if oi_signal["kind"] in ("strong_bear", "long_liquidation") and net_score > 0:
-            net_score *= 0.85
-        elif oi_signal["kind"] in ("strong_bull", "short_covering") and net_score < 0:
-            net_score *= 0.85
+        kind = oi_signal["kind"]
+        vol = oi_signal.get("volume")
+        bearish = kind in ("strong_bear", "long_liquidation")
+        bullish = kind in ("strong_bull", "short_covering")
+        if bearish and net_score > 0:
+            net_score *= 0.85 if vol == "up" else 0.92 if vol == "down" else 0.85
+        elif bullish and net_score < 0:
+            net_score *= 0.85 if vol == "up" else 0.92 if vol == "down" else 0.85
+        elif bullish and net_score > 0 and vol == "up":
+            net_score *= 1.05
+        elif bearish and net_score < 0 and vol == "up":
+            net_score *= 1.05
         oi_note = oi_signal["note"]
     else:
         oi_note = None

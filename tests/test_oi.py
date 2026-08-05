@@ -33,6 +33,43 @@ def test_short_covering():
     assert "short_covering" in [s.kind for s in res.signals]
 
 
+def test_volume_up_confirms_signal():
+    d0 = date(2026, 8, 1)
+    series = [
+        (d0 + timedelta(days=i), c, o, v)
+        for i, (c, o, v) in enumerate(
+            zip([100, 101, 102], [1000, 1100, 1200], [100, 200, 300])
+        )
+    ]
+    res = calculate_oi(series)
+    bull = [s for s in res.signals if s.kind == "strong_bull"]
+    assert bull
+    assert all(s.volume == "up" for s in bull)
+    assert "объём растёт ↑" in bull[0].note
+
+
+def test_volume_down_weakens_signal():
+    d0 = date(2026, 8, 1)
+    series = [
+        (d0 + timedelta(days=i), c, o, v)
+        for i, (c, o, v) in enumerate(
+            zip([100, 101, 102], [1000, 1100, 1200], [300, 200, 100])
+        )
+    ]
+    res = calculate_oi(series)
+    bull = [s for s in res.signals if s.kind == "strong_bull"]
+    assert bull
+    assert all(s.volume == "down" for s in bull)
+    assert "объём падает ↓" in bull[0].note
+
+
+def test_no_volume_no_flag():
+    res = calculate_oi(_series([100, 101, 102], [1000, 1100, 1200]))
+    bull = [s for s in res.signals if s.kind == "strong_bull"]
+    assert bull
+    assert all(s.volume is None for s in bull)
+
+
 def test_bearish_setup_price_flat_oi_up():
     res = calculate_oi(_series([100, 100, 100], [1000, 1100, 1200]))
     signals = [s for s in res.signals if s.kind == "bearish_setup"]

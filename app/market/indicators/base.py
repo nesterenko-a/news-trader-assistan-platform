@@ -15,6 +15,7 @@ class IndicatorSignal:
     kind: str
     severity: str
     note: str
+    volume: str | None = None
 
 
 @dataclass

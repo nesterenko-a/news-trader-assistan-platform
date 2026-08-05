@@ -18,13 +18,15 @@ _SIGNAL_TEXT = {
 
 
 def calculate_oi(
-    series: list[tuple[date, float | None, int | None]],
+    series: list[tuple[date, float | None, int | None, float | None]],
     params: dict | None = None,
 ) -> IndicatorResult:
-    """Серия OI и сигналы «цена × OI».
+    """Серия OI и сигналы «цена × OI × объём».
 
-    series — отсортированный по датам список (date, close, open_position).
-    close/open_position могут быть None (пропуски не участвуют в сигналах).
+    series — отсортированный по датам список (date, close, open_position[, volume]).
+    close/open_position/volume могут быть None (пропуски не участвуют в сигналах).
+    Объём подтверждает/ослабляет сигнал: рост объёма к предыдущему дню — «up»,
+    падение — «down» (пометка в сигнале и трактовке).
     """
     p = {**DEFAULT_PARAMS, **(params or {})}
     oi_threshold = float(p["oi_change_threshold_pct"])
@@ -34,8 +36,11 @@ def calculate_oi(
     signals: list[IndicatorSignal] = []
     prev_close: float | None = None
     prev_oi: float | None = None
+    prev_volume: float | None = None
 
-    for row_date, close, oi in series:
+    for row in series:
+        row_date, close, oi = row[0], row[1], row[2]
+        volume = row[3] if len(row) > 3 else None
         if oi is None:
             continue
         oi_value = float(oi)
@@ -48,12 +53,32 @@ def calculate_oi(
                     date=row_date, value=round(oi_change_pct, 4), kind="oi_change_pct"
                 )
             )
+            volume_flag = None
+            if (
+                volume is not None
+                and prev_volume is not None
+                and prev_volume != 0
+            ):
+                volume_change_pct = (volume - prev_volume) / prev_volume * 100.0
+                volume_flag = "up" if volume_change_pct > 0 else "down"
+                values.append(
+                    IndicatorValue(
+                        date=row_date,
+                        value=round(volume_change_pct, 4),
+                        kind="volume_change_pct",
+                    )
+                )
             if close is not None and prev_close not in (None, 0):
                 price_change_pct = (close - prev_close) / prev_close * 100.0
                 signal = _classify(
                     price_change_pct, oi_change_pct, price_threshold, oi_threshold
                 )
                 if signal:
+                    note = _SIGNAL_TEXT[signal]
+                    if volume_flag == "up":
+                        note += " · объём растёт ↑"
+                    elif volume_flag == "down":
+                        note += " · объём падает ↓"
                     signals.append(
                         IndicatorSignal(
                             date=row_date,
@@ -63,11 +88,13 @@ def calculate_oi(
                                 if signal in ("strong_bull", "strong_bear")
                                 else "warning"
                             ),
-                            note=_SIGNAL_TEXT[signal],
+                            note=note,
+                            volume=volume_flag,
                         )
                     )
         prev_oi = oi_value
         prev_close = close
+        prev_volume = volume
 
     return IndicatorResult(
         indicator="oi",

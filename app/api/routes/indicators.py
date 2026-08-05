@@ -148,6 +148,7 @@ def _result_to_dict(result: IndicatorResult) -> dict:
                 "kind": s.kind,
                 "severity": s.severity,
                 "note": s.note,
+                "volume": s.volume,
             }
             for s in result.signals
         ],

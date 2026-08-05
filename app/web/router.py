@@ -258,10 +258,14 @@ async def _build_oi_charts(
         )
     ).all()
     close_by_date = {c.trading_date: c.close for c in candles}
+    volume_by_date = {c.trading_date: c.volume for c in candles}
     oi_by_date = {r.trading_date: r.open_position for r in oi_rows}
     dates = sorted(set(close_by_date) | set(oi_by_date))
     result = calculate_oi(
-        [(d, close_by_date.get(d), oi_by_date.get(d)) for d in dates]
+        [
+            (d, close_by_date.get(d), oi_by_date.get(d), volume_by_date.get(d))
+            for d in dates
+        ]
     )
     oi_vals = {v.date: v.value for v in result.values if v.kind == "oi"}
     change_vals = {v.date: v.value for v in result.values if v.kind == "oi_change_pct"}
@@ -437,6 +441,7 @@ async def indicators_page(
                         "label": SIGNAL_LABELS.get(s.kind, s.kind),
                         "severity": s.severity,
                         "note": s.note,
+                        "volume": s.volume,
                     }
                     for s in ordered_signals
                 ]

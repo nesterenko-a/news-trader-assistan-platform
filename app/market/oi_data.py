@@ -206,8 +206,14 @@ async def latest_oi_signal(
         )
     ).all()
     close_by_date = {c.trading_date: c.close for c in candles}
+    volume_by_date = {c.trading_date: c.volume for c in candles}
     series = [
-        (r.trading_date, close_by_date.get(r.trading_date), r.open_position)
+        (
+            r.trading_date,
+            close_by_date.get(r.trading_date),
+            r.open_position,
+            volume_by_date.get(r.trading_date),
+        )
         for r in oi_rows
     ]
     result = calculate_oi(series)
@@ -223,6 +229,7 @@ async def latest_oi_signal(
         "kind": last.kind,
         "severity": last.severity,
         "note": last.note,
+        "volume": last.volume,
         "oi": oi_by_date.get(last.date),
         "oi_change_pct": change_by_date.get(last.date),
     }
