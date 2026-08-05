@@ -24,6 +24,7 @@ from app.market.oi_data import (
 from app.strategy.engine import (
     _build_counterarguments,
     _oi_contradicts,
+    _oi_verdict_label,
     generate_strategy,
 )
 
@@ -289,3 +290,26 @@ async def test_engine_oi_confirmation_volume_up_amplifies(session):
     assert r_up["strategy"]["verdict"] == "BUY"
     # согласный сигнал с растущим объёмом усиливает: ×1.05 против без усиления
     assert r_up["strategy"]["net_score"] > r_down["strategy"]["net_score"]
+
+
+def test_oi_verdict_label():
+    assert _oi_verdict_label("strong_bull") == "покупка"
+    assert _oi_verdict_label("strong_bear") == "продажа"
+    assert _oi_verdict_label("long_liquidation") == "покупка"
+    assert _oi_verdict_label("short_covering") == "продажа"
+    assert _oi_verdict_label("bearish_setup") == "продажа"
+    assert _oi_verdict_label("bullish_setup") == "покупка"
+
+
+async def test_oi_risk_contains_indicator_verdict(session):
+    counter, risks = await _build_counterarguments(
+        session,
+        signals=[],
+        verdict="BUY",
+        indicator_note=None,
+        oi_signal={
+            "kind": "strong_bear",
+            "note": "Цена падает ↓, OI растёт ↑ — открытие − коротких позиций",
+        },
+    )
+    assert any("Вердикт по индикатору: продажа" in r for r in risks)

@@ -73,6 +73,15 @@ def _oi_sentiment(kind: str) -> str:
     return "neutral"
 
 
+def _oi_verdict_label(kind: str) -> str:
+    """Вердикт по индикатору OI (семантическая трактовка сигнала): покупка/продажа/удержание."""
+    if kind in ("strong_bull", "long_liquidation", "bullish_setup"):
+        return "покупка"
+    if kind in ("strong_bear", "short_covering", "bearish_setup"):
+        return "продажа"
+    return "удержание"
+
+
 async def _build_counterarguments(
     session: AsyncSession,
     signals: list[dict],
@@ -102,7 +111,10 @@ async def _build_counterarguments(
             risks.append(f"рыночный: {indicator_note}")
 
     if oi_signal:
-        oi_text = f"OI (открытый интерес): {oi_signal['note']}"
+        oi_text = (
+            f"OI (открытый интерес): {oi_signal['note']}"
+            f" — Вердикт по индикатору: {_oi_verdict_label(oi_signal['kind'])}"
+        )
         risks.append(f"рыночный: {oi_text}")
         if verdict in ("BUY", "SELL") and _oi_contradicts(
             oi_signal["kind"], verdict

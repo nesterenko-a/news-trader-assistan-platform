@@ -77,6 +77,20 @@
   </div>
 </section>
 
+{% if chart_volume %}
+<section class="card chart-card">
+  <div class="chart-head"><h2>Объём торгов</h2></div>
+  <svg class="chart" viewBox="0 0 {{ chart_volume.width }} {{ chart_volume.height }}" preserveAspectRatio="none">
+    {{ chart_volume.rects | safe }}
+  </svg>
+  <div class="chart-labels">
+    <span>{{ chart_volume.first_date }} → {{ chart_volume.last_date }}</span>
+    <span>макс. объём: {{ chart_volume.max_volume }} контр.</span>
+  </div>
+  <p class="muted small">Рост объёма подтверждает сигнал «цена × OI», падение — сигнал слабее («движение на излёте»).</p>
+</section>
+{% endif %}
+
 <section class="card">
   <h2>Как читать сигналы «цена × OI»</h2>
 
@@ -204,7 +218,7 @@
   {% if signals %}
   <table class="table">
     <thead>
-      <tr><th>Дата</th><th>Сигнал</th><th>Важность</th><th>Трактовка</th></tr>
+      <tr><th>Дата</th><th>Сигнал</th><th>Важность</th><th>Объём</th><th>Трактовка</th></tr>
     </thead>
     <tbody>
       {% for s in signals %}
@@ -215,6 +229,19 @@
           <span class="run-status {{ 'run-bear' if s.kind == 'strong_bear' else ('run-success' if s.severity == 'strong' else 'run-warning') }}">
             {{ 'сильный' if s.severity == 'strong' else 'предупреждение' }}
           </span>
+        </td>
+        <td>
+          {% if s.volume_value is not none %}
+            {{ "{:,.0f}".format(s.volume_value).replace(",", " ") }}
+            {% if s.volume_change_pct is not none %}
+              <span class="{{ 'pos' if s.volume_change_pct > 0 else 'neg' }}">{{ "%+.1f"|format(s.volume_change_pct) }}%</span>
+            {% endif %}
+            <span class="muted small">
+              {% if s.volume == 'up' %}· подтверждает движение{% elif s.volume == 'down' %}· движение на излёте{% endif %}
+            </span>
+          {% else %}
+            <span class="muted">—</span>
+          {% endif %}
         </td>
         <td>{{ s.note }}</td>
       </tr>

@@ -4,6 +4,7 @@ from app.db.models import Security
 from app.web.router import (
     _build_change_bars,
     _build_dual_chart,
+    _build_volume_bars,
     _effective_sectors,
     _filter_securities,
 )
@@ -85,3 +86,16 @@ def test_filter_securities_by_sector_uses_effective():
     effective = _effective_sectors(securities)
     filtered = _filter_securities(securities, effective, "Авиаперевозки", "", "all")
     assert [s.ticker for s in filtered] == ["AFLT", "AFLT-6.26"]
+
+
+def test_build_volume_bars():
+    chart = _build_volume_bars(
+        [(date(2026, 8, 1), 100.0), (date(2026, 8, 2), 200.0), (date(2026, 8, 3), None)]
+    )
+    assert chart is not None
+    assert chart["rects"].count("<rect") == 2
+    assert chart["max_volume"] == 200
+
+
+def test_build_volume_bars_empty():
+    assert _build_volume_bars([]) is None

@@ -236,6 +236,44 @@ def _build_change_bars(
     }
 
 
+def _build_volume_bars(
+    pairs: list[tuple[date, float | None]],
+    width: int = 900,
+    height: int = 140,
+) -> dict | None:
+    """Столбцы объёма торгов (от нижней линии, в абсолютных значениях)."""
+    if not pairs:
+        return None
+    step = max(1, len(pairs) // MAX_CHART_POINTS)
+    sampled = pairs[::step]
+    valid = [v for _, v in sampled if v is not None]
+    if not valid:
+        return None
+    max_v = max(valid) or 1.0
+    bar_width = max(2.0, (width - 20) / len(sampled) * 0.7)
+    rects: list[str] = []
+    m = len(sampled)
+    base = height - 10
+    for i, (_, v) in enumerate(sampled):
+        if v is None:
+            continue
+        x = round(10 + i * (width - 20) / (m - 1 if m > 1 else 1) - bar_width / 2, 1)
+        h = round((height - 20) * v / max_v, 1)
+        y = round(base - h, 1)
+        rects.append(
+            f'<rect x="{x}" y="{y}" width="{round(bar_width, 1)}" '
+            f'height="{h}" fill="var(--accent)" opacity="0.55"/>'
+        )
+    return {
+        "rects": "".join(rects),
+        "width": width,
+        "height": height,
+        "max_volume": round(max_v),
+        "first_date": sampled[0][0].isoformat(),
+        "last_date": sampled[-1][0].isoformat(),
+    }
+
+
 async def _build_oi_charts(
     session: AsyncSession,
     security: Security,
@@ -370,6 +408,7 @@ async def indicators_page(
     error = ""
     chart_oi = None
     chart_change = None
+    chart_volume = None
     signals: list[dict] = []
     params_used = None
     security_name = ""
@@ -416,6 +455,7 @@ async def indicators_page(
                     )
                 ).all()
                 close_by_date = {c.trading_date: c.close for c in candles}
+                volume_by_date = {c.trading_date: c.volume for c in candles}
                 oi_by_date = {
                     v.date: v.value for v in result.values if v.kind == "oi"
                 }
@@ -424,12 +464,20 @@ async def indicators_page(
                     for v in result.values
                     if v.kind == "oi_change_pct"
                 }
+                volume_change_by_date = {
+                    v.date: v.value
+                    for v in result.values
+                    if v.kind == "volume_change_pct"
+                }
                 dates = sorted(set(close_by_date) | set(oi_by_date))
                 chart_oi = _build_dual_chart(
                     [(d, oi_by_date.get(d), close_by_date.get(d)) for d in dates]
                 )
                 chart_change = _build_change_bars(
                     [(d, change_by_date.get(d)) for d in dates]
+                )
+                chart_volume = _build_volume_bars(
+                    [(d, volume_by_date.get(d)) for d in dates]
                 )
                 ordered_signals = sorted(
                     result.signals, key=lambda s: s.date, reverse=True
@@ -442,6 +490,8 @@ async def indicators_page(
                         "severity": s.severity,
                         "note": s.note,
                         "volume": s.volume,
+                        "volume_value": volume_by_date.get(s.date),
+                        "volume_change_pct": volume_change_by_date.get(s.date),
                     }
                     for s in ordered_signals
                 ]
@@ -457,6 +507,7 @@ async def indicators_page(
             "error": error,
             "chart_oi": chart_oi,
             "chart_change": chart_change,
+            "chart_volume": chart_volume,
             "signals": signals,
             "params_used": params_used,
             "security_name": security_name,
