@@ -8,6 +8,7 @@ from app.db.models import (
     Article,
     ArticleEntity,
     EvidenceItem,
+    MarketCandle,
     Security,
     Strategy,
 )
@@ -19,6 +20,7 @@ from app.graph.service import (
     security_entity_ids,
 )
 from app.market.indicators import rsi, sma, volatility
+from app.market.indicators.volume_profile import calculate_volume_profile
 from app.market.oi_data import latest_oi_signal, nearest_future
 
 DECAY_PER_HOUR = 0.0137
@@ -351,6 +353,54 @@ async def generate_strategy(
                 "weight": 0.0,
             }
         )
+
+    vp_candles = (
+        await session.scalars(
+            select(MarketCandle)
+            .where(
+                MarketCandle.security_id == security.id,
+                MarketCandle.trading_date <= now.date(),
+            )
+            .order_by(MarketCandle.trading_date)
+        )
+    ).all()
+    vp_meta = calculate_volume_profile(
+        vp_candles, params={"period": 60}
+    ).meta
+    if vp_meta.get("nodes"):
+        signals.append(
+            {
+                "entity": "Профиль объёма",
+                "snippet": "",
+                "url": "",
+                "sentiment": "neutral",
+                "kind": "vp",
+                "path": [
+                    f"POC {vp_meta['poc']:.2f} · "
+                    f"Value Area {vp_meta['val']:.2f}–{vp_meta['vah']:.2f}"
+                ],
+                "weight": 0.0,
+            }
+        )
+        last_close = vp_candles[-1].close if vp_candles else None
+        if last_close is not None:
+            vah, val = vp_meta["vah"], vp_meta["val"]
+            if last_close > vah and net_score > 0:
+                net_score *= 0.9
+                indicator_note = (
+                    f"цена {last_close:.2f} выше Value Area (VAH={vah:.2f}) — "
+                    f"перекупленность по профилю объёма"
+                    if not indicator_note
+                    else f"{indicator_note}; цена выше Value Area (VAH={vah:.2f}) — перекупленность"
+                )
+            elif last_close < val and net_score < 0:
+                net_score *= 0.9
+                indicator_note = (
+                    f"цена {last_close:.2f} ниже Value Area (VAL={val:.2f}) — "
+                    f"перепроданность по профилю объёма"
+                    if not indicator_note
+                    else f"{indicator_note}; цена ниже Value Area (VAL={val:.2f}) — перепроданность"
+                )
 
     coverage = min(len(signals) / 5.0, 1.0)
     confidence = max(0.0, min(0.95, agreement * 0.5 + coverage * 0.3 + 0.2))

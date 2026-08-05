@@ -56,6 +56,7 @@ from app.db.models import (
 from app.market.moex import MOEXClient
 from app.market.oi_data import futures_for_security, nearest_future
 from app.market.indicators.oi import calculate_oi
+from app.market.indicators.volume_profile import calculate_volume_profile
 from app.news.service import load_security_news
 from app.presentation.factories import WebContextFactory
 from app.presentation.view import build_strategy_view
@@ -193,6 +194,38 @@ def _build_dual_chart(
         "last_date": sampled[-1][0].isoformat(),
         "width": width,
         "height": height,
+    }
+
+
+def _build_volume_profile_view(meta: dict | None) -> dict | None:
+    """Вид профиля объёма для SVG: узлы, POC/VAH/VAL, размеры."""
+    if not meta or not meta.get("nodes"):
+        return None
+    nodes = meta["nodes"]
+    max_volume = max((n["volume"] for n in nodes), default=0.0) or 1.0
+    bar_h = 8
+    step_price = (nodes[-1]["price"] - nodes[0]["price"]) / max(1, len(nodes))
+
+    def _y(price: float) -> float:
+        frac = (price - nodes[0]["price"]) / max(step_price, 1e-9) - 0.5
+        return round(max(0.0, min(len(nodes) - 1, frac)) * bar_h, 1)
+
+    return {
+        "nodes": nodes,
+        "poc": meta["poc"],
+        "vah": meta["vah"],
+        "val": meta["val"],
+        "y_vah": _y(meta["vah"]),
+        "y_val": _y(meta["val"]),
+        "max_volume": max_volume,
+        "bins": len(nodes),
+        "bar_h": bar_h,
+        "height": 40 + len(nodes) * bar_h,
+        "min_price": nodes[0]["price"],
+        "max_price": nodes[-1]["price"],
+        "from": meta.get("from"),
+        "to": meta.get("to"),
+        "candles": meta.get("candles"),
     }
 
 
@@ -529,6 +562,7 @@ async def security_page(
     request: Request,
     ticker: str,
     range: str = "1y",
+    vp_period: int | None = Query(None, ge=5, le=3650),
     session: AsyncSession = Depends(get_session),
 ):
     user = await _optional_user(request, session)
@@ -551,6 +585,22 @@ async def security_page(
         )
     candles = (await session.scalars(statement)).all()
     chart = _build_chart(candles)
+
+    vp_days = vp_period if vp_period is not None else 60
+    vp_candles = (
+        await session.scalars(
+            select(MarketCandle)
+            .where(
+                MarketCandle.security_id == security.id,
+                MarketCandle.trading_date
+                >= date.today() - timedelta(days=max(vp_days * 2, 90)),
+            )
+            .order_by(MarketCandle.trading_date)
+        )
+    ).all()
+    vp = _build_volume_profile_view(
+        calculate_volume_profile(vp_candles, params={"period": vp_days}).meta
+    )
 
     futures = await futures_for_security(session, security.ticker)
     futures_items = [
@@ -621,6 +671,9 @@ async def security_page(
             "nearest_oi": nearest_oi,
             "chart_oi": chart_oi,
             "chart_change": chart_change,
+            "vp": vp,
+            "vp_period": vp_days,
+            "vp_options": [30, 60, 90, 180, 365],
         }
     )
     return templates.TemplateResponse(request, "security.html", context)

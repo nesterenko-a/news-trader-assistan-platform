@@ -1,6 +1,6 @@
 # 10. Спецификация API
 
-**Статус:** утверждено v1.12  
+**Статус:** утверждено v1.13  
 **Система:** NewsTrader Assistant
 
 Программный интерфейс системы. Спецификация концептуальная; точные схемы запросов/ответов фиксируются на этапе разработки (например, в формате OpenAPI) и должны соответствовать этому документу.
@@ -202,7 +202,7 @@
 
 - `GET /v1/indicators` — список доступных индикаторов (имя, описание, параметры по умолчанию, сложность).
 - `GET /v1/indicators/futures[?q=...]` — все фьючерсы срочного рынка MOEX (поля: `secid`, `shortname`, `assetcode`, `lastdeldate`, `prevopenposition`); `q` — фильтр по коду/названию/базовому активу. Ответ кэшируется на 1 час (источник — ISS `engines/futures/markets/forts/securities.json`).
-- `GET /v1/indicators/{name}?ticker=...` — расчёт индикатора. Параметры: `ticker` (обязательный; для OI — код фьючерса SECID, например W4V6), `from`/`to` (диапазон дат), `limit` (ограничение числа свечей), параметры индикатора (для OI: `oi_change_threshold_pct`, `price_change_threshold_pct`).
+- `GET /v1/indicators/{name}?ticker=...` — расчёт индикатора. Параметры: `ticker` (обязательный; для OI — код фьючерса SECID, например W4V6), `from`/`to` (диапазон дат), `limit` (ограничение числа свечей), параметры индикатора (для OI: `oi_change_threshold_pct`, `price_change_threshold_pct`; для Volume Profile: `period` — число дней (по умолчанию 60), `bins` — число ценовых баров, `value_area_pct` — % объёма Value Area, `hvn_factor`/`lvn_factor` — пороги узлов высокого/низкого объёма).
 
 Пример — OI для фьючерса W4V6:
 
@@ -225,6 +225,8 @@ GET /v1/indicators/oi?ticker=W4V6&from=2026-07-20&to=2026-08-05
 Коды ошибок: `404` — неизвестный индикатор; `400` — бумага не найдена или нет данных OI (требуется предварительно выполнить `scripts/update_oi.py --ticker <SECID>`); `422` — невалидные параметры.
 
 Сигналы OI (поле `kind`): `strong_bull` / `strong_bear` (цена и OI движутся в одну сторону — сильные), `bearish_setup` / `bullish_setup` (цена без изменений, OI растёт/падает — подготовка к движению), `long_liquidation` / `short_covering` (цена и OI движутся в разные стороны — закрытие позиций). Трактовки (`note`) содержат стрелки направления: ↑ — рост, ↓ — падение, → — без изменений.
+
+Индикатор **Volume Profile** (`GET /v1/indicators/volume_profile?ticker=AFLT&period=60`): `meta` содержит `nodes` — список узлов профиля (`price`, `volume`, `is_poc`, `in_value_area`, `is_hvn`, `is_lvn`), а также `poc`, `vah`, `val`, `from`/`to`, `candles`; `signals` — `poc`, `value_area`, `hvn`, `lvn` (см. [19-market-indicators.md](./19-market-indicators.md) §8.13).
 
 ## 4. Webhook для алертов (исходящие)
 

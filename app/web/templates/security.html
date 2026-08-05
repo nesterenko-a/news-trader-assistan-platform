@@ -85,6 +85,39 @@
     {% endif %}
   </section>
 
+  {% if vp %}
+  <section class="card chart-card">
+    <div class="chart-head">
+      <h2>Профиль объёма (Volume Profile)</h2>
+      <div class="chart-range">
+        {% for opt in vp_options %}
+        <a class="{{ 'active' if opt == vp_period }}" href="/securities/{{ view.ticker }}?range={{ chart_range }}&vp={{ opt }}">{{ {30: '1M', 60: '2M', 90: '3M', 180: '6M', 365: '1Y'}.get(opt, opt) }}</a>
+        {% endfor %}
+      </div>
+    </div>
+    <p class="muted small">Распределение объёма торгов по ценам за последние {{ vp.candles }} торговых дней ({{ vp.from }} → {{ vp.to }}). Ширина бара — объём на ценовом уровне.</p>
+    <svg class="chart" viewBox="0 0 900 {{ vp.height }}" preserveAspectRatio="none">
+      {% for n in vp.nodes %}
+      <rect x="0" y="{{ loop.index0 * vp.bar_h }}" width="{{ (n.volume / vp.max_volume) * 620 }}" height="{{ vp.bar_h - 1 }}" class="{{ 'vp-poc' if n.is_poc else ('vp-hvn' if n.is_hvn else ('vp-lvn' if n.is_lvn else 'vp-bar')) }}"/>
+      {% endfor %}
+      <line x1="0" y1="{{ vp.y_vah }}" x2="900" y2="{{ vp.y_vah }}" style="stroke:#e67e22;stroke-width:1.5;stroke-dasharray:5,3"/>
+      <line x1="0" y1="{{ vp.y_val }}" x2="900" y2="{{ vp.y_val }}" style="stroke:#2fbf71;stroke-width:1.5;stroke-dasharray:5,3"/>
+      <text x="660" y="{{ vp.y_vah + 12 }}" class="vp-label">VAH {{ vp.vah }}</text>
+      <text x="660" y="{{ vp.y_val + 12 }}" class="vp-label">VAL {{ vp.val }}</text>
+    </svg>
+    <div class="chart-legend">
+      <span class="legend-item"><i class="legend-dot" style="background:var(--accent)"></i> POC — контрольная точка: {{ vp.poc }}</span>
+      <span class="legend-item"><i class="legend-dot" style="background:#e67e22"></i> VAH — верх Value Area: {{ vp.vah }}</span>
+      <span class="legend-item"><i class="legend-dot" style="background:#2fbf71"></i> VAL — низ Value Area: {{ vp.val }}</span>
+    </div>
+    <div class="chart-labels">
+      <span>{{ vp.max_price }}</span>
+      <span>Value Area ≈ 70% объёма · HVN — зоны «согласия», LVN — быстрые проходы</span>
+      <span>{{ vp.min_price }}</span>
+    </div>
+  </section>
+  {% endif %}
+
   {% if futures %}
   <section class="card">
     <h2>Фьючерсы на акцию</h2>

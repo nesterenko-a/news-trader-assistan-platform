@@ -10,6 +10,7 @@ from app.db.models import MarketCandle, MarketOpenPosition, Security
 from app.market.indicators.base import IndicatorResult
 from app.market.indicators.oi import calculate_oi
 from app.market.indicators.registry import REGISTRY
+from app.market.indicators.volume_profile import calculate_volume_profile
 from app.market.moex import MOEXClient
 
 router = APIRouter(prefix="/indicators", tags=["indicators"])
@@ -56,6 +57,11 @@ async def calculate_indicator(
     limit: int | None = Query(None, ge=1, le=5000),
     oi_change_threshold_pct: float | None = Query(None, gt=0),
     price_change_threshold_pct: float | None = Query(None, ge=0),
+    period: int | None = Query(None, ge=5, le=5000),
+    bins: int | None = Query(None, ge=10, le=500),
+    value_area_pct: float | None = Query(None, gt=0, le=100),
+    hvn_factor: float | None = Query(None, gt=1),
+    lvn_factor: float | None = Query(None, gt=0, lt=1),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     if name not in REGISTRY:
@@ -85,6 +91,28 @@ async def calculate_indicator(
                 params={
                     "oi_change_threshold_pct": oi_change_threshold_pct,
                     "price_change_threshold_pct": price_change_threshold_pct,
+                },
+            )
+        )
+
+    if name == "volume_profile":
+        candle_q = (
+            select(MarketCandle)
+            .where(MarketCandle.security_id == security.id)
+            .order_by(MarketCandle.trading_date)
+        )
+        candles = (await session.scalars(candle_q)).all()
+        if limit is not None:
+            candles = candles[-limit:]
+        return _result_to_dict(
+            calculate_volume_profile(
+                candles,
+                params={
+                    "period": period,
+                    "bins": bins,
+                    "value_area_pct": value_area_pct,
+                    "hvn_factor": hvn_factor,
+                    "lvn_factor": lvn_factor,
                 },
             )
         )

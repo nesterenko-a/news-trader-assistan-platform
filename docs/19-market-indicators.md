@@ -1,6 +1,6 @@
 # 19. Биржевые индикаторы — модули, ТЗ и roadmap
 
-**Статус:** утверждено v1.9 (ТЗ Volume Profile: POC/VAH/VAL/HVN/LVN, §8.13; правки по замечаниям)  
+**Статус:** утверждено v1.10 (Volume Profile реализован: модуль, API, профиль на карточке бумаги с выбором периода, сигнал в движке; правки по замечаниям)  
 **Система:** NewsTrader Assistant
 **Связанные документы:** [04-functional-requirements.md](./04-functional-requirements.md) (FR-04-02), [07-data-model.md](./07-data-model.md) (`MarketCandle`), [09-strategy-engine.md](./09-strategy-engine.md), [10-api-specification.md](./10-api-specification.md), [12-roadmap.md](./12-roadmap.md), [14-web-interface.md](./14-web-interface.md), [17-quickstart.md](./17-quickstart.md)
 
@@ -427,7 +427,7 @@ class IndicatorResult:
 
 **Сложность:** средне (алгоритм простой и детерминированный, но нет эталона в pandas-ta/ta-lib — проверка вручную на синтетике; новая визуализация профиля).
 
-**Roadmap:** 1) модуль `app/market/indicators/volume_profile.py` + юнит-тесты на синтетике (эталон ручной); 2) валидация на данных MOEX; 3) реестр/API `/v1/indicators/volume_profile` (параметры `period`/`bins`); 4) веб: профиль объёма на карточке бумаги с выбором периода; 5) интеграция в движок стратегий (техсигналы POC/VAH/VAL/HVN/LVN); 6) документация (10/14) и статус в 12-roadmap.
+**Roadmap:** 1) модуль `app/market/indicators/volume_profile.py` + юнит-тесты на синтетике (эталон ручной) — **реализовано**; 2) валидация на данных MOEX — **реализовано**; 3) реестр/API `/v1/indicators/volume_profile` (параметры `period`/`bins`) — **реализовано**; 4) веб: профиль объёма на карточке бумаги с выбором периода (1M/2M/3M/6M/1Y) — **реализовано**; 5) интеграция в движок стратегий (сигнал POC/Value Area в «Сигналах», ослабление net_score при цене вне Value Area) — **реализовано**; 6) документация (10/14) и статус в 12-roadmap — **реализовано**.
 
 **Критерии приёмки:** POC — бар с максимальным объёмом; Value Area содержит ≈70% объёма; HVN/LVN помечены по порогам; профиль рендерится на карточке бумаги с выбором периода; `pytest` зелёный; описано в 10/14; статус в 12-roadmap обновлён.
 

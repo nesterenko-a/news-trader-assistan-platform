@@ -313,3 +313,31 @@ async def test_oi_risk_contains_indicator_verdict(session):
         },
     )
     assert any("Вердикт по индикатору: продажа" in r for r in risks)
+
+
+async def test_engine_volume_profile_signal(session):
+    await seed_graph(session)
+    stock = await session.scalar(select(Security).where(Security.ticker == "LKOH"))
+    oil_id = await resolve_entity_id(session, "Нефть")
+    await session.execute(
+        security_entity.insert().values(security_id=stock.id, entity_id=oil_id)
+    )
+    start = date.today() - timedelta(days=30)
+    for i in range(30):
+        d = start + timedelta(days=i)
+        session.add(
+            MarketCandle(
+                security_id=stock.id, trading_date=d,
+                open=100 + i, high=102 + i, low=98 + i, close=101 + i, volume=1000,
+            )
+        )
+    await session.commit()
+    await _store_news(session, "Нефть", "positive")
+    await session.commit()
+
+    result = await generate_strategy(
+        session, "LKOH", persist=False, use_live_market=False
+    )
+    vp_signals = [s for s in result["signals"] if s["kind"] == "vp"]
+    assert vp_signals
+    assert "POC" in vp_signals[0]["path"][0]

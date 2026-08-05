@@ -1,6 +1,11 @@
 from dataclasses import dataclass, field
 
-KIND_LABELS = {"direct": "прямой", "indirect": "косвенный", "oi": "OI (фьючерс)"}
+KIND_LABELS = {
+    "direct": "прямой",
+    "indirect": "косвенный",
+    "oi": "OI (фьючерс)",
+    "vp": "профиль объёма",
+}
 
 
 @dataclass
@@ -67,7 +72,7 @@ def build_strategy_view(
                 kind_label=KIND_LABELS.get(kind, kind),
                 sentiment=signal["sentiment"],
                 weight=round(signal["weight"], 3),
-                weight_str="—" if kind == "oi" else f"{signal['weight']:+.3f}",
+                weight_str="—" if kind in ("oi", "vp") else f"{signal['weight']:+.3f}",
                 path=" → ".join(signal["path"]),
             )
         )

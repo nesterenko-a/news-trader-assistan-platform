@@ -74,8 +74,7 @@ main { padding: 24px 16px 40px; }
   font-size: 12px;  max-width: 180px;
 }
 
-.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-.seg-item {
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }.seg-item {
   padding: 6px 14px;
   cursor: pointer;
   font-size: 13px;
@@ -86,6 +85,12 @@ main { padding: 24px 16px 40px; }
 .seg-item:last-child { border-right: none; }
 .seg-item:has(input:checked) { background: var(--accent); color: #fff; }
 .seg-item input { display: none; }
+
+.vp-bar { fill: var(--accent); opacity: 0.35; }
+.vp-poc { fill: var(--accent); opacity: 1; }
+.vp-hvn { fill: var(--accent); opacity: 0.75; }
+.vp-lvn { fill: var(--accent); opacity: 0.15; }
+.vp-label { fill: var(--muted, #999); font-size: 11px; }
 
 .sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 .sort-arrow { font-size: 10px; margin-left: 4px; }
