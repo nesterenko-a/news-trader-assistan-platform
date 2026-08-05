@@ -85,6 +85,8 @@ main { padding: 24px 16px 40px; }
 .seg-item:last-child { border-right: none; }
 .seg-item:has(input:checked) { background: var(--accent); color: #fff; }
 .seg-item input { display: none; }
+.seg-link { text-decoration: none; display: inline-block; }
+.seg-active { background: var(--accent); color: #fff; }
 
 .vp-bar { fill: var(--accent); opacity: 0.35; }
 .vp-poc { fill: var(--accent); opacity: 1; }

@@ -4,9 +4,16 @@
 
 {% block content %}
 <section class="card">
-  <h1>Индикаторы · Открытый интерес (OI)</h1>
+  <h1>Индикаторы</h1>
+  <nav class="seg" style="margin-bottom:12px">
+    {% for key, meta in indicators_list %}
+    <a class="seg-item seg-link {{ 'seg-active' if key == indicator_name }}" href="/indicators?name={{ key }}{% if ticker %}&ticker={{ ticker }}{% endif %}">{{ meta.title }}</a>
+    {% endfor %}
+  </nav>
+  {% if indicator_name == 'oi' %}
   <p class="muted">Открытые позиции фьючерсов и сигналы «цена × OI». Выберите фьючерс и период.</p>
   <form method="get" action="/indicators" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">
+    <input type="hidden" name="name" value="oi">
     <div>
       <label class="muted small" style="display:block">Код фьючерса (SECID)</label>
       <input type="text" name="ticker" value="{{ ticker }}" list="futures-datalist" autocomplete="off">
@@ -252,6 +259,78 @@
   <p class="muted">Сигналов за выбранный период нет (порог ΔOI: {{ params_used.oi_change_threshold_pct if params_used else oi_threshold }}%).</p>
   {% endif %}
 </section>
+{% endif %}
+
+{% elif indicator_name == 'volume_profile' %}
+<p class="muted">Профиль объёма — распределение объёма торгов по ценовым уровням за период: POC, Value Area (VAH/VAL), HVN, LVN. Работает для акций и фьючерсов.</p>
+<form method="get" action="/indicators" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">
+  <input type="hidden" name="name" value="volume_profile">
+  <div>
+    <label class="muted small" style="display:block">Тикер (акция или фьючерс)</label>
+    <input type="text" name="ticker" value="{{ ticker }}" autocomplete="off">
+  </div>
+  <div>
+    <label class="muted small" style="display:block">Период</label>
+    <select name="vp_period" onchange="this.form.submit()">
+      {% for opt in vp_options %}
+      <option value="{{ opt }}" {% if opt == vp_period %}selected{% endif %}>{{ {30: '1M', 60: '2M', 90: '3M', 180: '6M', 365: '1Y'}.get(opt, opt) }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button class="btn" type="submit">Показать</button>
+</form>
+
+{% if vp_error %}<section class="card"><p class="error">{{ vp_error }}</p></section>{% endif %}
+
+{% if vp %}
+<section class="card chart-card" style="margin-top:12px">
+  <div class="chart-head">
+    <h2>Профиль объёма — {{ vp_security_name }} ({{ ticker }})</h2>
+  </div>
+  <p class="muted small">За последние {{ vp.candles }} торговых дней ({{ vp.from }} → {{ vp.to }}). Ширина бара — объём на ценовом уровне.</p>
+  <svg class="chart" viewBox="0 0 900 {{ vp.height }}" preserveAspectRatio="none">
+    {% for n in vp.nodes %}
+    <rect x="0" y="{{ loop.index0 * vp.bar_h }}" width="{{ (n.volume / vp.max_volume) * 620 }}" height="{{ vp.bar_h - 1 }}" class="{{ 'vp-poc' if n.is_poc else ('vp-hvn' if n.is_hvn else ('vp-lvn' if n.is_lvn else 'vp-bar')) }}"/>
+    {% endfor %}
+    <line x1="0" y1="{{ vp.y_vah }}" x2="900" y2="{{ vp.y_vah }}" style="stroke:#e67e22;stroke-width:1.5;stroke-dasharray:5,3"/>
+    <line x1="0" y1="{{ vp.y_val }}" x2="900" y2="{{ vp.y_val }}" style="stroke:#2fbf71;stroke-width:1.5;stroke-dasharray:5,3"/>
+    <text x="660" y="{{ vp.y_vah + 12 }}" class="vp-label">VAH {{ vp.vah }}</text>
+    <text x="660" y="{{ vp.y_val + 12 }}" class="vp-label">VAL {{ vp.val }}</text>
+  </svg>
+  <div class="chart-legend">
+    <span class="legend-item"><i class="legend-dot" style="background:var(--accent)"></i> POC — контрольная точка: {{ vp.poc }}</span>
+    <span class="legend-item"><i class="legend-dot" style="background:#e67e22"></i> VAH — верх Value Area: {{ vp.vah }}</span>
+    <span class="legend-item"><i class="legend-dot" style="background:#2fbf71"></i> VAL — низ Value Area: {{ vp.val }}</span>
+  </div>
+  <div class="chart-labels">
+    <span>{{ vp.max_price }}</span>
+    <span>HVN — зоны «согласия», LVN — быстрые проходы</span>
+    <span>{{ vp.min_price }}</span>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Сигналы Volume Profile</h2>
+  {% if vp_signals %}
+  <table class="table">
+    <thead><tr><th>Сигнал</th><th>Важность</th><th>Трактовка</th></tr></thead>
+    <tbody>
+      {% for s in vp_signals %}
+      <tr>
+        <td><b>{{ s.kind }}</b></td>
+        <td><span class="run-status run-warning">предупреждение</span></td>
+        <td>{{ s.note }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Нет данных для расчёта профиля.</p>
+  {% endif %}
+</section>
+{% else %}
+<p class="muted">Введите тикер (например AFLT) и нажмите «Показать».</p>
+{% endif %}
 {% endif %}
 
 <script>

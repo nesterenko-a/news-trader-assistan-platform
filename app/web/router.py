@@ -56,6 +56,7 @@ from app.db.models import (
 from app.market.moex import MOEXClient
 from app.market.oi_data import futures_for_security, nearest_future
 from app.market.indicators.oi import calculate_oi
+from app.market.indicators.registry import REGISTRY
 from app.market.indicators.volume_profile import calculate_volume_profile
 from app.news.service import load_security_news
 from app.presentation.factories import WebContextFactory
@@ -429,15 +430,72 @@ async def index(
 @router.get("/indicators")
 async def indicators_page(
     request: Request,
+    name: str = "oi",
     ticker: str = "",
     from_: date | None = Query(None, alias="from"),
     to: date | None = Query(None, alias="to"),
     oi_change_threshold_pct: float | None = Query(None, gt=0),
+    vp_period: int | None = Query(None, ge=5, le=3650),
     session: AsyncSession = Depends(get_session),
 ):
-    """Страница индикаторов: OI — график OI+цена, изменение OI, сигналы «цена × OI»."""
+    """Страница индикаторов: вкладки из реестра (OI, Volume Profile, ...)."""
     user = await _optional_user(request, session)
     context = await _base_context(session, user)
+    indicator_name = name if name in REGISTRY else "oi"
+    indicators_list = sorted(REGISTRY.items())
+
+    if indicator_name == "volume_profile":
+        vp_period_used = vp_period if vp_period is not None else 60
+        vp = None
+        vp_signals: list[dict] = []
+        vp_error = ""
+        vp_security_name = ""
+        if ticker:
+            security = await session.scalar(
+                select(Security).where(Security.ticker == ticker.upper())
+            )
+            if security is None:
+                vp_error = "Бумага не найдена."
+            else:
+                vp_security_name = security.name
+                vp_candles = (
+                    await session.scalars(
+                        select(MarketCandle)
+                        .where(
+                            MarketCandle.security_id == security.id,
+                            MarketCandle.trading_date
+                            >= date.today()
+                            - timedelta(days=max(vp_period_used * 2, 90)),
+                        )
+                        .order_by(MarketCandle.trading_date)
+                    )
+                ).all()
+                vp_result = calculate_volume_profile(
+                    vp_candles, params={"period": vp_period_used}
+                )
+                vp = _build_volume_profile_view(vp_result.meta)
+                vp_signals = [
+                    {"kind": s.kind, "severity": s.severity, "note": s.note}
+                    for s in vp_result.signals
+                ]
+        context.update(
+            {
+                "indicator_name": indicator_name,
+                "indicators_list": indicators_list,
+                "ticker": ticker,
+                "vp": vp,
+                "vp_period": vp_period_used,
+                "vp_options": [30, 60, 90, 180, 365],
+                "vp_signals": vp_signals,
+                "vp_error": vp_error,
+                "vp_security_name": vp_security_name,
+                "from": "", "to": "", "oi_threshold": 1.0, "error": "",
+                "chart_oi": None, "chart_change": None, "chart_volume": None,
+                "signals": [], "params_used": None, "security_name": "",
+            }
+        )
+        return templates.TemplateResponse(request, "indicators.html", context)
+
     error = ""
     chart_oi = None
     chart_change = None
@@ -544,6 +602,14 @@ async def indicators_page(
             "signals": signals,
             "params_used": params_used,
             "security_name": security_name,
+            "indicator_name": indicator_name,
+            "indicators_list": indicators_list,
+            "vp": None,
+            "vp_period": 60,
+            "vp_options": [30, 60, 90, 180, 365],
+            "vp_signals": [],
+            "vp_error": "",
+            "vp_security_name": "",
         }
     )
     return templates.TemplateResponse(request, "indicators.html", context)
