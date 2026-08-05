@@ -40,7 +40,14 @@ async def calculate_indicator(
         select(Security).where(Security.ticker == ticker.upper())
     )
     if security is None:
-        raise HTTPException(status_code=400, detail="Бумага не найдена")
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Бумага не найдена. Для фьючерсных контрактов сначала скачайте "
+                "данные OI: python -m scripts.update_oi --ticker <SECID> "
+                "(например W4V6)"
+            ),
+        )
 
     if name == "oi":
         return _result_to_dict(
