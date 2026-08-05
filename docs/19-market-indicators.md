@@ -1,6 +1,6 @@
 # 19. Биржевые индикаторы — модули, ТЗ и roadmap
 
-**Статус:** утверждено v1.0 (решение от 2026-08-05)
+**Статус:** утверждено v1.1 (уточнение §8.12: `update_oi.py` создаёт также свечи фьючерса; правки по замечаниям)  
 **Система:** NewsTrader Assistant
 **Связанные документы:** [04-functional-requirements.md](./04-functional-requirements.md) (FR-04-02), [07-data-model.md](./07-data-model.md) (`MarketCandle`), [09-strategy-engine.md](./09-strategy-engine.md), [10-api-specification.md](./10-api-specification.md), [12-roadmap.md](./12-roadmap.md), [14-web-interface.md](./14-web-interface.md), [17-quickstart.md](./17-quickstart.md)
 
@@ -364,7 +364,7 @@ class IndicatorResult:
 - текущее значение: `securities/{SECID}.json` → блок `marketdata`: `OPENPOSITION` (контракты), `OICHANGE` (изменение к предыдущему дню); блок `securities`: `PREVOPENPOSITION`;
 - история по датам: `forts/openpositions.json` (блок `history`: `TRADEDATE`, `SECID`, `CLOSE`, `VOLUME`, `OPENPOSITION`, `OPENPOSITIONVALUE`, `SETTLEPRICE`); точный способ запроса диапазона (`from`/`till`/`date`) уточняется на этапе реализации — задача «разведка ISS».
 
-**Хранение:** таблица `market_open_positions` (см. §7) + `scripts/update_oi.py`.
+**Хранение:** таблица `market_open_positions` (см. §7) + `scripts/update_oi.py`. Скрипт из того же ответа ISS создаёт и дневные свечи фьючерса (`MarketCandle`) — без них сигналы «цена × OI» не рассчитываются.
 
 **Расчёт (модуль `oi.py`):** вход — серия `(date, close, oi)` (цена из `MarketCandle`, OI из таблицы); выход: `values` — `oi`, `oi_change` (= oiₜ − oiₜ₋₁), `oi_change_pct` (= oi_change / oiₜ₋₁ · 100).
 
