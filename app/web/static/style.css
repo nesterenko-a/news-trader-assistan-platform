@@ -495,3 +495,24 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
   visibility: visible;
   opacity: 1;
 }
+
+/* Легенда графика */
+.chart-legend {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text);
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend-dot {
+  display: inline-block;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+}
