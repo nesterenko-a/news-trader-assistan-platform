@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Индикаторы — NewsTrader Assistant{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h1>Индикаторы · Открытый интерес (OI)</h1>
+  <p class="muted">Открытые позиции фьючерсов и сигналы «цена × OI». Выберите фьючерс и период.</p>
+  <form method="get" action="/indicators" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">
+    <div>
+      <label class="muted small" style="display:block">Код фьючерса (SECID)</label>
+      <input type="text" name="ticker" value="{{ ticker }}" list="futures-datalist" autocomplete="off">
+    </div>
+    <div>
+      <label class="muted small" style="display:block">С даты</label>
+      <input type="date" name="from" value="{{ from }}">
+    </div>
+    <div>
+      <label class="muted small" style="display:block">По дату</label>
+      <input type="date" name="to" value="{{ to }}">
+    </div>
+    <div>
+      <label class="muted small" style="display:block">Порог ΔOI, %</label>
+      <input type="number" name="oi_change_threshold_pct" min="0.1" step="0.1" value="{{ oi_threshold }}">
+    </div>
+    <button class="btn" type="submit">Показать</button>
+  </form>
+  <datalist id="futures-datalist"></datalist>
+</section>
+
+{% if error %}
+<section class="card"><p class="error">{{ error }}</p></section>
+{% endif %}
+
+{% if chart_oi %}
+<section class="card chart-card">
+  <div class="chart-head">
+    <h2>OI и цена — {{ security_name }} ({{ ticker }})</h2>
+  </div>
+  <svg class="chart" viewBox="0 0 {{ chart_oi.width }} {{ chart_oi.height }}" preserveAspectRatio="none">
+    {% for seg in chart_oi.oi_segments %}<polyline points="{{ seg }}"/>{% endfor %}
+    {% for seg in chart_oi.close_segments %}<polyline points="{{ seg }}" style="stroke:#e67e22"/>{% endfor %}
+  </svg>
+  <div class="chart-labels">
+    <span>{{ chart_oi.first_date }} → {{ chart_oi.last_date }}</span>
+    <span>OI: {{ chart_oi.min_oi }} – {{ chart_oi.max_oi }} контр.</span>
+    {% if chart_oi.min_close is not none %}<span>Цена: {{ chart_oi.min_close }} – {{ chart_oi.max_close }}</span>{% endif %}
+  </div>
+</section>
+
+<section class="card chart-card">
+  <div class="chart-head"><h2>Изменение OI, %</h2></div>
+  <svg class="chart" viewBox="0 0 {{ chart_change.width }} {{ chart_change.height }}" preserveAspectRatio="none">
+    {{ chart_change.rects | safe }}
+    <line x1="10" y1="{{ chart_change.zero_y }}" x2="{{ chart_change.width - 10 }}" y2="{{ chart_change.zero_y }}" style="stroke:#999;stroke-width:1;stroke-dasharray:4,4"/>
+  </svg>
+  <div class="chart-labels">
+    <span>{{ chart_change.first_date }} → {{ chart_change.last_date }}</span>
+    <span>макс. ΔOI: ±{{ chart_change.max_abs }}%</span>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Сигналы «цена × OI»</h2>
+  {% if signals %}
+  <table class="table">
+    <thead>
+      <tr><th>Дата</th><th>Сигнал</th><th>Важность</th><th>Трактовка</th></tr>
+    </thead>
+    <tbody>
+      {% for s in signals %}
+      <tr>
+        <td>{{ s.date }}</td>
+        <td><b>{{ s.label }}</b></td>
+        <td>
+          <span class="run-status run-{{ 'success' if s.severity == 'strong' else 'warning' }}">
+            {{ 'сильный' if s.severity == 'strong' else 'предупреждение' }}
+          </span>
+        </td>
+        <td>{{ s.note }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Сигналов за выбранный период нет (порог ΔOI: {{ params_used.oi_change_threshold_pct if params_used else oi_threshold }}%).</p>
+  {% endif %}
+</section>
+{% endif %}
+
+<script>
+fetch('/v1/indicators/futures')
+  .then(function (r) { return r.json(); })
+  .then(function (d) {
+    var dl = document.getElementById('futures-datalist');
+    (d.futures || []).forEach(function (f) {
+      var o = document.createElement('option');
+      o.value = f.secid;
+      o.label = f.shortname + ' · ' + f.assetcode;
+      dl.appendChild(o);
+    });
+  })
+  .catch(function () {});
+</script>
+{% endblock %}

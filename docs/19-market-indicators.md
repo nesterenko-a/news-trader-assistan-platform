@@ -1,6 +1,6 @@
 # 19. Биржевые индикаторы — модули, ТЗ и roadmap
 
-**Статус:** утверждено v1.2 (добавлен API-эндпоинт списка фьючерсов; правки по замечаниям)  
+**Статус:** утверждено v1.3 (страница `/indicators` для OI реализована; правки по замечаниям)  
 **Система:** NewsTrader Assistant
 **Связанные документы:** [04-functional-requirements.md](./04-functional-requirements.md) (FR-04-02), [07-data-model.md](./07-data-model.md) (`MarketCandle`), [09-strategy-engine.md](./09-strategy-engine.md), [10-api-specification.md](./10-api-specification.md), [12-roadmap.md](./12-roadmap.md), [14-web-interface.md](./14-web-interface.md), [17-quickstart.md](./17-quickstart.md)
 
@@ -165,6 +165,8 @@ class IndicatorResult:
 - Дизайн страницы фиксируется на этапе реализации и описывается в [14-web-interface.md](./14-web-interface.md).
 
 ### 6.1. UI-требования: индикатор OI (страница `/indicators`, раздел «Открытый интерес»)
+
+*Реализовано (см. [14-web-interface.md](./14-web-interface.md)): форма выбора фьючерса/периода/порога, график OI+цена (две линии), график изменения OI (столбцы с нулевой осью), таблица сигналов; пропуски — разрывы линии.*
 
 - Выбор фьючерсного тикера (SECID, например W4V6), диапазон дат, параметр `oi_change_threshold_pct`.
 - **График 1 — OI и цена:** линия OI (ось слева, подпись «контракты») + линия close (ось справа) на общей временной шкале — для визуального поиска дивергенций «цена × OI».

@@ -2,7 +2,7 @@ from pathlib import Path
 from datetime import date, timedelta
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import delete, select
@@ -26,6 +26,7 @@ from app.auth import (
 from app.bot.linking import consume_link_code, set_user_chat, unlink_telegram
 from app.bot.push import get_bot_username
 from app.admin.runner import SCRIPTS, get_script, is_busy, launch
+from app.api.routes.indicators import _calculate_oi
 from app.feedback.service import (
     get_rating,
     ratings_map,
@@ -63,6 +64,12 @@ templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 
 RANGE_OPTIONS = {"1d": 1, "7d": 7, "1y": 365, "5y": 5 * 365, "all": None}
 MAX_CHART_POINTS = 360
+SIGNAL_LABELS = {
+    "strong_bull": "Strong Bull",
+    "strong_bear": "Strong Bear",
+    "long_liquidation": "Long Liquidation",
+    "short_covering": "Short Covering",
+}
 
 _web_context_factory = WebContextFactory()
 _moex = MOEXClient()
@@ -122,6 +129,108 @@ def _build_chart(candles: list[MarketCandle], width: int = 900, height: int = 28
     }
 
 
+def _chart_scale(
+    values: list[float | None], width: int, height: int
+) -> tuple[dict | None, list[str]]:
+    """Масштаб и сегменты полилинии; None в ряду разрывает линию."""
+    valid = [v for v in values if v is not None]
+    if not valid:
+        return None, []
+    low = min(valid)
+    high = max(valid)
+    span = high - low or 1.0
+    pad = span * 0.05
+    low -= pad
+    high += pad
+    segments: list[str] = []
+    points: list[str] = []
+    n = len(values)
+    for i, v in enumerate(values):
+        x = round(10 + i * (width - 20) / (n - 1 if n > 1 else 1), 1)
+        if v is None:
+            if points:
+                segments.append(" ".join(points))
+                points = []
+            continue
+        y = round(10 + (high - v) / (high - low) * (height - 20), 1)
+        points.append(f"{x},{y}")
+    if points:
+        segments.append(" ".join(points))
+    return {"low": low, "high": high}, segments
+
+
+def _build_dual_chart(
+    series: list[tuple[date, float | None, float | None]],
+    width: int = 900,
+    height: int = 280,
+) -> dict | None:
+    """Две линии на одной шкале времени: (дата, oi, close) — OI и цена."""
+    if not series:
+        return None
+    step = max(1, len(series) // MAX_CHART_POINTS)
+    sampled = series[::step]
+    oi_scale, oi_segments = _chart_scale(
+        [s[1] for s in sampled], width, height
+    )
+    close_scale, close_segments = _chart_scale(
+        [s[2] for s in sampled], width, height
+    )
+    if oi_scale is None:
+        return None
+    return {
+        "oi_segments": oi_segments,
+        "close_segments": close_segments,
+        "min_oi": round(oi_scale["low"], 2),
+        "max_oi": round(oi_scale["high"], 2),
+        "min_close": round(close_scale["low"], 2) if close_scale else None,
+        "max_close": round(close_scale["high"], 2) if close_scale else None,
+        "first_date": sampled[0][0].isoformat(),
+        "last_date": sampled[-1][0].isoformat(),
+        "width": width,
+        "height": height,
+    }
+
+
+def _build_change_bars(
+    pairs: list[tuple[date, float | None]],
+    width: int = 900,
+    height: int = 160,
+) -> dict | None:
+    """Столбцы изменения (например OI, %) вокруг нулевой оси."""
+    if not pairs:
+        return None
+    step = max(1, len(pairs) // MAX_CHART_POINTS)
+    sampled = pairs[::step]
+    valid = [v for _, v in sampled if v is not None]
+    if not valid:
+        return None
+    max_abs = max(abs(v) for v in valid) or 1.0
+    mid = 10 + (height - 20) / 2
+    bar_width = max(2.0, (width - 20) / len(sampled) * 0.7)
+    rects: list[str] = []
+    m = len(sampled)
+    for i, (_, v) in enumerate(sampled):
+        if v is None:
+            continue
+        x = round(10 + i * (width - 20) / (m - 1 if m > 1 else 1) - bar_width / 2, 1)
+        h = round((height - 20) * v / (2 * max_abs), 1)
+        y = round(mid - h, 1)
+        color = "#2f7d32" if v >= 0 else "#c0392b"
+        rects.append(
+            f'<rect x="{x}" y="{y}" width="{round(bar_width, 1)}" '
+            f'height="{abs(h)}" fill="{color}" opacity="0.85"/>'
+        )
+    return {
+        "rects": "".join(rects),
+        "zero_y": round(mid, 1),
+        "max_abs": round(max_abs, 2),
+        "width": width,
+        "height": height,
+        "first_date": sampled[0][0].isoformat(),
+        "last_date": sampled[-1][0].isoformat(),
+    }
+
+
 @router.get("/")
 async def index(
     request: Request,
@@ -159,6 +268,111 @@ async def index(
         }
     )
     return templates.TemplateResponse(request, "index.html", context)
+
+
+@router.get("/indicators")
+async def indicators_page(
+    request: Request,
+    ticker: str = "",
+    from_: date | None = Query(None, alias="from"),
+    to: date | None = Query(None, alias="to"),
+    oi_change_threshold_pct: float | None = Query(None, gt=0),
+    session: AsyncSession = Depends(get_session),
+):
+    """Страница индикаторов: OI — график OI+цена, изменение OI, сигналы «цена × OI»."""
+    user = await _optional_user(request, session)
+    context = await _base_context(session, user)
+    error = ""
+    chart_oi = None
+    chart_change = None
+    signals: list[dict] = []
+    params_used = None
+    security_name = ""
+
+    if ticker:
+        security = await session.scalar(
+            select(Security).where(Security.ticker == ticker.upper())
+        )
+        if security is None:
+            error = (
+                "Бумага не найдена. Для фьючерсов сначала скачайте OI: "
+                "админка → «Обновить открытые позиции (OI)» или "
+                "scripts.update_oi --ticker <SECID>."
+            )
+        else:
+            security_name = security.name
+            try:
+                result = await _calculate_oi(
+                    session,
+                    security,
+                    from_date=from_,
+                    till_date=to,
+                    limit=None,
+                    params={
+                        "oi_change_threshold_pct": oi_change_threshold_pct,
+                        "price_change_threshold_pct": None,
+                    },
+                )
+            except HTTPException as exc:
+                error = str(exc.detail)
+                result = None
+            if result is not None:
+                params_used = result.params
+                candle_q = select(MarketCandle).where(
+                    MarketCandle.security_id == security.id
+                )
+                if from_ is not None:
+                    candle_q = candle_q.where(MarketCandle.trading_date >= from_)
+                if to is not None:
+                    candle_q = candle_q.where(MarketCandle.trading_date <= to)
+                candles = (
+                    await session.scalars(
+                        candle_q.order_by(MarketCandle.trading_date)
+                    )
+                ).all()
+                close_by_date = {c.trading_date: c.close for c in candles}
+                oi_by_date = {
+                    v.date: v.value for v in result.values if v.kind == "oi"
+                }
+                change_by_date = {
+                    v.date: v.value
+                    for v in result.values
+                    if v.kind == "oi_change_pct"
+                }
+                dates = sorted(set(close_by_date) | set(oi_by_date))
+                chart_oi = _build_dual_chart(
+                    [(d, oi_by_date.get(d), close_by_date.get(d)) for d in dates]
+                )
+                chart_change = _build_change_bars(
+                    [(d, change_by_date.get(d)) for d in dates]
+                )
+                signals = [
+                    {
+                        "date": s.date.strftime("%d.%m.%Y"),
+                        "label": SIGNAL_LABELS.get(s.kind, s.kind),
+                        "severity": s.severity,
+                        "note": s.note,
+                    }
+                    for s in result.signals
+                ]
+
+    context.update(
+        {
+            "ticker": ticker,
+            "from": from_.isoformat() if from_ else "",
+            "to": to.isoformat() if to else "",
+            "oi_threshold": (
+                oi_change_threshold_pct if oi_change_threshold_pct is not None else 1.0
+            ),
+            "error": error,
+            "chart_oi": chart_oi,
+            "chart_change": chart_change,
+            "signals": signals,
+            "params_used": params_used,
+            "security_name": security_name,
+        }
+    )
+    return templates.TemplateResponse(request, "indicators.html", context)
 
 
 @router.get("/securities")
