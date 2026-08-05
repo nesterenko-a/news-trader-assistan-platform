@@ -32,3 +32,4 @@ Thumbs.db
 
 # Reasonix — локальные метаданные сессий/десктопа
 .reasonix/
+reasonix.toml
