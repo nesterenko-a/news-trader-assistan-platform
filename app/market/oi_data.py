@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import MarketCandle, MarketOpenPosition, Security
+from app.market.indicators.oi import calculate_oi
 from app.market.moex import MOEXClient
 
 
@@ -94,3 +95,64 @@ async def sync_security_oi(
 
     await session.commit()
     return inserted
+
+
+async def latest_oi_signal(
+    session: AsyncSession,
+    security_id: int,
+    as_of: date | None = None,
+    lookback_rows: int = 90,
+) -> dict | None:
+    """Последний сигнал «цена × OI» по данным, доступным на as_of (без заглядывания в будущее).
+
+    Возвращает None, если OI-данных нет или сигналов за окно не было.
+    """
+    as_of = as_of or date.today()
+    oi_rows = (
+        await session.scalars(
+            select(MarketOpenPosition)
+            .where(
+                MarketOpenPosition.security_id == security_id,
+                MarketOpenPosition.trading_date <= as_of,
+            )
+            .order_by(MarketOpenPosition.trading_date.desc())
+            .limit(lookback_rows)
+        )
+    ).all()
+    if not oi_rows:
+        return None
+    oi_rows.sort(key=lambda r: r.trading_date)
+    min_date = oi_rows[0].trading_date
+    max_date = oi_rows[-1].trading_date
+    candles = (
+        await session.scalars(
+            select(MarketCandle)
+            .where(
+                MarketCandle.security_id == security_id,
+                MarketCandle.trading_date >= min_date,
+                MarketCandle.trading_date <= max_date,
+            )
+            .order_by(MarketCandle.trading_date)
+        )
+    ).all()
+    close_by_date = {c.trading_date: c.close for c in candles}
+    series = [
+        (r.trading_date, close_by_date.get(r.trading_date), r.open_position)
+        for r in oi_rows
+    ]
+    result = calculate_oi(series)
+    if not result.signals:
+        return None
+    last = result.signals[-1]
+    oi_by_date = {v.date: v.value for v in result.values if v.kind == "oi"}
+    change_by_date = {
+        v.date: v.value for v in result.values if v.kind == "oi_change_pct"
+    }
+    return {
+        "date": last.date,
+        "kind": last.kind,
+        "severity": last.severity,
+        "note": last.note,
+        "oi": oi_by_date.get(last.date),
+        "oi_change_pct": change_by_date.get(last.date),
+    }

@@ -19,6 +19,7 @@ from app.graph.service import (
     security_entity_ids,
 )
 from app.market.indicators import rsi, sma, volatility
+from app.market.oi_data import latest_oi_signal
 
 DECAY_PER_HOUR = 0.0137
 LOOKBACK_DAYS = 7
@@ -54,11 +55,21 @@ def _horizon_for_score(net_score: float) -> str:
     return "long"
 
 
+def _oi_contradicts(kind: str, verdict: str) -> bool:
+    """Противоречит ли сигнал OI вердикту (контраргумент)."""
+    if verdict == "BUY":
+        return kind in ("strong_bear", "long_liquidation")
+    if verdict == "SELL":
+        return kind in ("strong_bull", "short_covering")
+    return False
+
+
 async def _build_counterarguments(
     session: AsyncSession,
     signals: list[dict],
     verdict: str,
     indicator_note: str | None,
+    oi_signal: dict | None = None,
 ) -> tuple[list[dict], list[str]]:
     counterarguments: list[dict] = []
     risks: list[str] = []
@@ -80,6 +91,16 @@ async def _build_counterarguments(
                 {"entity": "индикаторы", "text": indicator_note, "weight": 0.0}
             )
             risks.append(f"рыночный: {indicator_note}")
+
+    if oi_signal:
+        oi_text = f"OI (открытый интерес): {oi_signal['note']}"
+        risks.append(f"рыночный: {oi_text}")
+        if verdict in ("BUY", "SELL") and _oi_contradicts(
+            oi_signal["kind"], verdict
+        ):
+            counterarguments.append(
+                {"entity": "OI (открытый интерес)", "text": oi_text, "weight": 0.0}
+            )
 
     from app.macro.service import list_events
 
@@ -267,6 +288,22 @@ async def generate_strategy(
     else:
         quotes = None
 
+    oi_signal = await latest_oi_signal(session, security.id, as_of=now.date())
+    if oi_signal:
+        if oi_signal["kind"] in ("strong_bear", "long_liquidation") and net_score > 0:
+            net_score *= 0.85
+        elif oi_signal["kind"] in ("strong_bull", "short_covering") and net_score < 0:
+            net_score *= 0.85
+        oi_note = oi_signal["note"]
+    else:
+        oi_note = None
+    if oi_note:
+        indicator_note = (
+            f"OI — {oi_note}"
+            if not indicator_note
+            else f"{indicator_note}; OI — {oi_note}"
+        )
+
     coverage = min(len(signals) / 5.0, 1.0)
     confidence = max(0.0, min(0.95, agreement * 0.5 + coverage * 0.3 + 0.2))
     verdict = _verdict_for_score(net_score)
@@ -275,7 +312,7 @@ async def generate_strategy(
     horizon = _horizon_for_score(net_score)
 
     counterarguments, risks = await _build_counterarguments(
-        session, signals, verdict, indicator_note
+        session, signals, verdict, indicator_note, oi_signal=oi_signal
     )
     if counterarguments:
         counter_weight = sum(
