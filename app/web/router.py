@@ -69,6 +69,8 @@ SIGNAL_LABELS = {
     "strong_bear": "Strong Bear",
     "long_liquidation": "Long Liquidation",
     "short_covering": "Short Covering",
+    "bearish_setup": "Bearish Setup",
+    "bullish_setup": "Bullish Setup",
 }
 
 _web_context_factory = WebContextFactory()
@@ -352,6 +354,7 @@ async def indicators_page(
                 signals = [
                     {
                         "date": s.date.strftime("%d.%m.%Y"),
+                        "kind": s.kind,
                         "label": SIGNAL_LABELS.get(s.kind, s.kind),
                         "severity": s.severity,
                         "note": s.note,

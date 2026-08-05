@@ -33,6 +33,29 @@ def test_short_covering():
     assert "short_covering" in [s.kind for s in res.signals]
 
 
+def test_bearish_setup_price_flat_oi_up():
+    res = calculate_oi(_series([100, 100, 100], [1000, 1100, 1200]))
+    signals = [s for s in res.signals if s.kind == "bearish_setup"]
+    assert signals
+    assert all(s.severity == "warning" for s in signals)
+    assert "→" in signals[0].note
+
+
+def test_bullish_setup_price_flat_oi_down():
+    res = calculate_oi(_series([100, 100, 100], [1200, 1100, 1000]))
+    signals = [s for s in res.signals if s.kind == "bullish_setup"]
+    assert signals
+    assert all(s.severity == "warning" for s in signals)
+    assert "→" in signals[0].note
+
+
+def test_notes_contain_arrows():
+    res = calculate_oi(_series([100, 101, 102], [1000, 1100, 1200]))
+    note = next(s.note for s in res.signals if s.kind == "strong_bull")
+    assert "↑" in note
+    assert "+" in note
+
+
 def test_no_signal_below_threshold():
     res = calculate_oi(_series([100, 101, 102], [1000, 1005, 1010]))
     assert res.signals == []

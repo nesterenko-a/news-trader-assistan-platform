@@ -8,10 +8,12 @@ DEFAULT_PARAMS = {
 }
 
 _SIGNAL_TEXT = {
-    "strong_bull": "Цена растёт, OI растёт — набор длинных позиций",
-    "strong_bear": "Цена падает, OI растёт — открытие коротких позиций",
-    "long_liquidation": "Цена падает, OI падает — закрытие длинных позиций",
-    "short_covering": "Цена растёт, OI падает — закрытие коротких позиций",
+    "strong_bull": "Цена растёт ↑, OI растёт ↑ — набор + длинных позиций",
+    "strong_bear": "Цена падает ↓, OI растёт ↑ — открытие − коротких позиций",
+    "long_liquidation": "Цена падает ↓, OI падает ↓ — закрытие длинных позиций",
+    "short_covering": "Цена растёт ↑, OI падает ↓ — закрытие коротких позиций",
+    "bearish_setup": "Цена без изменений →, OI растёт ↑ — рынок готовится к снижению",
+    "bullish_setup": "Цена без изменений →, OI падает ↓ — рынок готовится к росту",
 }
 
 
@@ -94,9 +96,11 @@ def _classify(
             return "strong_bull"
         if price_down:
             return "strong_bear"
+        return "bearish_setup"
     if oi_pct <= -oi_threshold:
         if price_down:
             return "long_liquidation"
         if price_up:
             return "short_covering"
+        return "bullish_setup"
     return None

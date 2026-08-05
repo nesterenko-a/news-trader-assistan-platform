@@ -425,6 +425,7 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .run-status { padding: 4px 10px; border-radius: 8px; font-weight: 700; font-size: 13px; white-space: nowrap; }
 .run-running { background: rgba(245, 166, 35, 0.15); color: var(--amber); }
 .run-success { background: rgba(47, 191, 113, 0.15); color: var(--green); }
+.run-bear { background: rgba(229, 72, 77, 0.15); color: var(--red); }
 .run-failed { background: rgba(229, 72, 77, 0.15); color: var(--red); }
 .run-output {
   background: var(--panel-2);
