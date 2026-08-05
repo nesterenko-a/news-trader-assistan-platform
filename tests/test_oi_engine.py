@@ -16,6 +16,7 @@ from app.db.models import (
 )
 from app.graph.service import resolve_entity_id, seed_graph
 from app.market.oi_data import (
+    ensure_futures_security,
     futures_for_security,
     latest_oi_signal,
     nearest_future,
@@ -222,3 +223,12 @@ async def test_engine_stock_uses_nearest_future_oi(session):
     assert oi_signal["entity"] == f"OI {fut.ticker}"
     assert oi_signal["weight"] == 0.0
     assert any("рыночный: OI" in r for r in result["risks"])
+
+
+async def test_ensure_futures_security_normalizes_string_date(session):
+    fut = await ensure_futures_security(
+        session, "W4V6", "WHEAT-10.26", assetcode="LKOH", lastdeldate="2026-08-28"
+    )
+    assert fut.assetcode == "LKOH"
+    assert fut.lastdeldate == date(2026, 8, 28)
+    assert fut.security_type == "futures"

@@ -45,6 +45,7 @@ from app.notices.service import notice_state
 from app.db.connection import get_session
 from app.db.models import (
     MarketCandle,
+    MarketOpenPosition,
     PortfolioPosition,
     ScriptRun,
     Security,

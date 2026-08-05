@@ -13,13 +13,19 @@ async def ensure_futures_security(
     ticker: str,
     shortname: str = "",
     assetcode: str | None = None,
-    lastdeldate: date | None = None,
+    lastdeldate: date | str | None = None,
 ) -> Security:
     """Возвращает Security по тикеру; если фьючерса нет в справочнике — создаёт.
 
-    assetcode — код базового актива (тикер акции), lastdeldate — дата экспирации;
-    заданные значения проставляются и при создании, и при обновлении существующей записи.
+    assetcode — код базового актива (тикер акции), lastdeldate — дата экспирации
+    (принимает date или строку ISO); заданные значения проставляются и при
+    создании, и при обновлении существующей записи.
     """
+    if isinstance(lastdeldate, str) and lastdeldate:
+        try:
+            lastdeldate = date.fromisoformat(lastdeldate)
+        except ValueError:
+            lastdeldate = None
     security = await session.scalar(select(Security).where(Security.ticker == ticker))
     if security is None:
         security = Security(
