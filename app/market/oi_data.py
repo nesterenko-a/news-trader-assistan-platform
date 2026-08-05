@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import MarketOpenPosition, Security
+from app.db.models import MarketCandle, MarketOpenPosition, Security
 from app.market.moex import MOEXClient
 
 
@@ -53,25 +53,44 @@ async def sync_security_oi(
 
     inserted = 0
     for row in rows:
-        if row["open_position"] <= 0 and row["open_position_value"] is None:
-            continue
-        existing = await session.scalar(
-            select(MarketOpenPosition).where(
-                MarketOpenPosition.security_id == security.id,
-                MarketOpenPosition.trading_date == row["date"],
-            )
-        )
-        if existing is None:
-            session.add(
-                MarketOpenPosition(
-                    security_id=security.id,
-                    trading_date=row["date"],
-                    open_position=row["open_position"],
-                    open_position_value=row["open_position_value"],
-                    source="iss",
+        if row["open_position"] > 0 or row["open_position_value"] is not None:
+            existing = await session.scalar(
+                select(MarketOpenPosition).where(
+                    MarketOpenPosition.security_id == security.id,
+                    MarketOpenPosition.trading_date == row["date"],
                 )
             )
-            inserted += 1
+            if existing is None:
+                session.add(
+                    MarketOpenPosition(
+                        security_id=security.id,
+                        trading_date=row["date"],
+                        open_position=row["open_position"],
+                        open_position_value=row["open_position_value"],
+                        source="iss",
+                    )
+                )
+                inserted += 1
+
+        if row["close"] is not None:
+            candle = await session.scalar(
+                select(MarketCandle).where(
+                    MarketCandle.security_id == security.id,
+                    MarketCandle.trading_date == row["date"],
+                )
+            )
+            if candle is None:
+                session.add(
+                    MarketCandle(
+                        security_id=security.id,
+                        trading_date=row["date"],
+                        open=row["open"],
+                        high=row["high"],
+                        low=row["low"],
+                        close=row["close"],
+                        volume=row["volume"],
+                    )
+                )
 
     await session.commit()
     return inserted

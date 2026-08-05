@@ -7,6 +7,20 @@ from app.config import get_settings
 settings = get_settings()
 
 
+def _cursor_total(data: dict) -> int | None:
+    """Извлекает TOTAL из блока '<block>.cursor' ответа ISS (для пагинации)."""
+    cursor_block = data.get("history.cursor")
+    if not cursor_block:
+        return None
+    columns = cursor_block.get("columns", [])
+    rows = cursor_block.get("data") or []
+    if not columns or not rows:
+        return None
+    record = dict(zip(columns, rows[0]))
+    total = record.get("TOTAL")
+    return int(total) if total is not None else None
+
+
 class MOEXClient:
     def __init__(self, base_url: str | None = None):
         self.base_url = base_url or settings.moex_base_url
@@ -65,14 +79,15 @@ class MOEXClient:
         params = {
             "iss.only": "history",
             "history.columns": (
-                "TRADEDATE,CLOSE,VOLUME,OPENPOSITION,OPENPOSITIONVALUE,SHORTNAME"
+                "TRADEDATE,OPEN,HIGH,LOW,CLOSE,VOLUME,"
+                "OPENPOSITION,OPENPOSITIONVALUE,SHORTNAME"
             ),
             "from": from_date.isoformat(),
             "till": till_date.isoformat(),
         }
         rows = []
         start = 0
-        page_size = 500
+        page_size = 100
         while True:
             params["start"] = str(start)
             params["limit"] = str(page_size)
@@ -96,6 +111,21 @@ class MOEXClient:
                 rows.append(
                     {
                         "date": row_date,
+                        "open": (
+                            float(record["OPEN"])
+                            if record.get("OPEN") is not None
+                            else None
+                        ),
+                        "high": (
+                            float(record["HIGH"])
+                            if record.get("HIGH") is not None
+                            else None
+                        ),
+                        "low": (
+                            float(record["LOW"])
+                            if record.get("LOW") is not None
+                            else None
+                        ),
                         "close": (
                             float(record["CLOSE"])
                             if record.get("CLOSE") is not None
@@ -117,9 +147,14 @@ class MOEXClient:
                         "shortname": record.get("SHORTNAME") or "",
                     }
                 )
-            if len(page_rows) < page_size:
-                break
+
             start += len(page_rows)
+            total = _cursor_total(data)
+            if total is not None:
+                if start >= total:
+                    break
+            elif len(page_rows) < page_size:
+                break
 
         rows.sort(key=lambda r: r["date"])
         return rows
