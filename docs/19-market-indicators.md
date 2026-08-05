@@ -1,6 +1,6 @@
 # 19. Биржевые индикаторы — модули, ТЗ и roadmap
 
-**Статус:** утверждено v1.1 (уточнение §8.12: `update_oi.py` создаёт также свечи фьючерса; правки по замечаниям)  
+**Статус:** утверждено v1.2 (добавлен API-эндпоинт списка фьючерсов; правки по замечаниям)  
 **Система:** NewsTrader Assistant
 **Связанные документы:** [04-functional-requirements.md](./04-functional-requirements.md) (FR-04-02), [07-data-model.md](./07-data-model.md) (`MarketCandle`), [09-strategy-engine.md](./09-strategy-engine.md), [10-api-specification.md](./10-api-specification.md), [12-roadmap.md](./12-roadmap.md), [14-web-interface.md](./14-web-interface.md), [17-quickstart.md](./17-quickstart.md)
 
@@ -155,6 +155,8 @@ class IndicatorResult:
 Ошибки: `404` — неизвестный индикатор; `422` — невалидные параметры; `400` — нет данных по бумаге/периоду. Аутентификация — по текущим правилам API (уточняется на этапе реализации).
 
 **Особенность OI:** значения для `oi` берутся не из `MarketCandle`, а из таблицы `market_open_positions` (см. §7); цена для сигналов — из `MarketCandle` по тем же датам. Контракт ответа (`values`/`signals`) — общий.
+
+**Список фьючерсов:** `GET /v1/indicators/futures[?q=...]` возвращает все фьючерсы срочного рынка MOEX (`secid`, `shortname`, `assetcode`, `lastdeldate`, `prevopenposition`); используется админкой для выбора тикера при загрузке OI (кэш 1 час).
 
 ## 6. Веб-интерфейс (дизайн)
 

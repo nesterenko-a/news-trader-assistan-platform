@@ -663,10 +663,18 @@ async def admin_run_script(
     param_value = None
     param_raw = str(form.get("param") or "").strip()
     if param_raw:
-        try:
-            param_value = int(param_raw)
-        except ValueError:
-            return RedirectResponse(url="/admin?error=2", status_code=303)
+        param_type = (
+            script["param"][3]
+            if script["param"] is not None and len(script["param"]) > 3
+            else "int"
+        )
+        if param_type == "text":
+            param_value = param_raw
+        else:
+            try:
+                param_value = int(param_raw)
+            except ValueError:
+                return RedirectResponse(url="/admin?error=2", status_code=303)
     run = ScriptRun(
         script_name=script_key,
         params={"param": param_value} if param_value is not None else {},

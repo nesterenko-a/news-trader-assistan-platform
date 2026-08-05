@@ -1,4 +1,5 @@
 from datetime import date
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -9,8 +10,32 @@ from app.db.models import MarketCandle, MarketOpenPosition, Security
 from app.market.indicators.base import IndicatorResult
 from app.market.indicators.oi import calculate_oi
 from app.market.indicators.registry import REGISTRY
+from app.market.moex import MOEXClient
 
 router = APIRouter(prefix="/indicators", tags=["indicators"])
+
+_FUTURES_CACHE: dict = {"ts": 0.0, "data": None}
+_FUTURES_TTL_SECONDS = 3600
+
+
+@router.get("/futures")
+async def list_futures(q: str | None = None) -> dict:
+    """Все фьючерсы срочного рынка MOEX (для загрузки OI), с TTL-кэшем 1 час."""
+    now = time.monotonic()
+    if _FUTURES_CACHE["data"] is None or now - _FUTURES_CACHE["ts"] > _FUTURES_TTL_SECONDS:
+        _FUTURES_CACHE["data"] = await MOEXClient().fetch_futures_list()
+        _FUTURES_CACHE["ts"] = now
+    futures = _FUTURES_CACHE["data"]
+    if q:
+        needle = q.strip().lower()
+        futures = [
+            f
+            for f in futures
+            if needle in f["secid"].lower()
+            or needle in f["shortname"].lower()
+            or needle in f["assetcode"].lower()
+        ]
+    return {"count": len(futures), "futures": futures}
 
 
 @router.get("")

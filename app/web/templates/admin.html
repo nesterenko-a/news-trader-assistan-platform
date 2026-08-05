@@ -22,7 +22,12 @@
         <p class="muted small" style="margin:6px 0 0">{{ s.description }}</p>
         {% if s.param %}
         <label class="muted small" style="display:block;margin-top:8px">{{ s.param[1] }}</label>
+        {% if s.param|length > 3 and s.param[3] == "text" %}
+        <input type="text" name="param" value="{{ s.param[2] }}" list="futures-datalist" autocomplete="off" style="width:100%">
+        <span class="muted small">Подсказка — список всех фьючерсов MOEX</span>
+        {% else %}
         <input type="number" name="param" min="1" value="{{ s.param[2] }}">
+        {% endif %}
         {% endif %}
         <button class="btn" type="submit" {% if busy %}disabled{% endif %} style="margin-top:8px">Запустить</button>
       </form>
@@ -30,6 +35,22 @@
     {% endfor %}
   </div>
 </section>
+
+<datalist id="futures-datalist"></datalist>
+<script>
+fetch('/v1/indicators/futures')
+  .then(function (r) { return r.json(); })
+  .then(function (d) {
+    var dl = document.getElementById('futures-datalist');
+    (d.futures || []).forEach(function (f) {
+      var o = document.createElement('option');
+      o.value = f.secid;
+      o.label = f.shortname + ' · ' + f.assetcode + ' · OI ' + f.prevopenposition;
+      dl.appendChild(o);
+    });
+  })
+  .catch(function () {});
+</script>
 
 <section class="card">
   <h2>Последние запуски</h2>

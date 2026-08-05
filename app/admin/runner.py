@@ -137,11 +137,25 @@ SCRIPTS: list[dict] = [
         "description": (
             "Скачивание истории открытых позиций фьючерсов из MOEX ISS "
             "(iss/history, блок history: OPENPOSITION, OPENPOSITIONVALUE) "
-            "в таблицу market_open_positions. Код фьючерса указывается "
-            "параметром --ticker (например W4V6); --days — за сколько "
-            "последних календарных дней, --from YYYY-MM-DD — с указанной даты."
+            "в таблицу market_open_positions и создание дневных свечей "
+            "фьючерса (для сигналов «цена × OI»). Тикер — код фьючерса "
+            "(например W4V6); --days — за сколько последних календарных дней, "
+            "--from YYYY-MM-DD — с указанной даты."
         ),
-        "param": ("--days", "За последние N дней", 30),
+        "param": ("--ticker", "Код фьючерса (SECID)", "W4V6", "text"),
+    },
+    {
+        "key": "update_oi_all",
+        "module": "scripts.update_oi",
+        "title": "Скачать OI по всем фьючерсам",
+        "description": (
+            "Скачивание открытых позиций и свечей по ВСЕМ фьючерсам, "
+            "доступным на MOEX (список берётся из ISS, ~500 контрактов). "
+            "Долгий запуск; параметр --days задаёт окно (в админ-панели "
+            "используется окно по умолчанию 30 дней)."
+        ),
+        "param": None,
+        "args": ["--all"],
     },
 ]
 
@@ -154,18 +168,24 @@ def get_script(key: str) -> dict | None:
     return SCRIPTS_BY_KEY.get(key)
 
 
-def build_argv(script_key: str, param_value: int | None) -> list[str]:
+def build_argv(script_key: str, param_value: int | str | None) -> list[str]:
     script = get_script(script_key)
     if script is None:
         raise ValueError(f"Неизвестный скрипт: {script_key}")
     argv = [sys.executable, "-u", "-m", script["module"]]
+    argv += script.get("args", [])
     param = script["param"]
     if param is not None:
         flag = param[0]
-        value = int(param_value) if param_value is not None else int(param[2])
-        if value <= 0:
-            raise ValueError("Параметр должен быть положительным числом")
-        argv += [flag, str(value)]
+        param_type = param[3] if len(param) > 3 else "int"
+        if param_type == "text":
+            value = str(param_value) if param_value not in (None, "") else str(param[2])
+            argv += [flag, value]
+        else:
+            value = int(param_value) if param_value is not None else int(param[2])
+            if value <= 0:
+                raise ValueError("Параметр должен быть положительным числом")
+            argv += [flag, str(value)]
     return argv
 
 

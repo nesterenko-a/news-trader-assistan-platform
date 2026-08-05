@@ -3,6 +3,7 @@ import asyncio
 from datetime import date
 
 from app.db.connection import SessionLocal, init_db
+from app.market.moex import MOEXClient
 from app.market.oi_data import sync_security_oi
 
 
@@ -15,6 +16,11 @@ async def main() -> None:
         action="append",
         default=[],
         help="фьючерсный код SECID (например W4V6); можно несколько раз",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="скачать OI по всем фьючерсам, доступным на MOEX",
     )
     parser.add_argument("--days", type=int, default=30, help="lookback days")
     parser.add_argument(
@@ -30,9 +36,21 @@ async def main() -> None:
     await init_db()
     async with SessionLocal() as session:
         tickers = [t.upper() for t in args.ticker]
+        if args.all:
+            futures = await MOEXClient().fetch_futures_list()
+            tickers = [f["secid"] for f in futures]
+            print(
+                f"Найдено фьючерсов на MOEX: {len(tickers)}. "
+                f"Скачивание OI по всем...",
+                flush=True,
+            )
         if not tickers:
-            parser.error("укажите --ticker SECID (например --ticker W4V6)")
-        print(f"Синхронизация открытых позиций MOEX ({len(tickers)} фьючерсов)...", flush=True)
+            parser.error("укажите --ticker SECID или --all")
+
+        print(
+            f"Синхронизация открытых позиций MOEX ({len(tickers)} фьючерсов)...",
+            flush=True,
+        )
         total = 0
         for i, ticker in enumerate(tickers, 1):
             if since is not None:

@@ -7,9 +7,9 @@ from app.config import get_settings
 settings = get_settings()
 
 
-def _cursor_total(data: dict) -> int | None:
+def _cursor_total(data: dict, block: str = "history") -> int | None:
     """Извлекает TOTAL из блока '<block>.cursor' ответа ISS (для пагинации)."""
-    cursor_block = data.get("history.cursor")
+    cursor_block = data.get(f"{block}.cursor")
     if not cursor_block:
         return None
     columns = cursor_block.get("columns", [])
@@ -157,6 +157,63 @@ class MOEXClient:
                 break
 
         rows.sort(key=lambda r: r["date"])
+        return rows
+
+    async def fetch_futures_list(self) -> list[dict]:
+        """Все фьючерсы срочного рынка MOEX: SECID, SHORTNAME, ASSETCODE, дата экспирации, OI предыдущего дня."""
+        url = f"{self.base_url}/engines/futures/markets/forts/securities.json"
+        params = {
+            "iss.only": "securities",
+            "securities.columns": (
+                "SECID,SHORTNAME,ASSETCODE,LASTTRADEDATE,PREVOPENPOSITION"
+            ),
+        }
+        rows: list[dict] = []
+        seen: set[str] = set()
+        start = 0
+        page_size = 100
+        while True:
+            params["start"] = str(start)
+            params["limit"] = str(page_size)
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.get(url, params=params)
+                resp.raise_for_status()
+                data = resp.json()
+
+            block = data.get("securities", {})
+            columns = block.get("columns", [])
+            page_rows = block.get("data", [])
+            new_count = 0
+            for row in page_rows:
+                record = dict(zip(columns, row))
+                secid = record.get("SECID")
+                if not secid or secid in seen:
+                    continue
+                seen.add(secid)
+                new_count += 1
+                rows.append(
+                    {
+                        "secid": secid,
+                        "shortname": record.get("SHORTNAME") or "",
+                        "assetcode": record.get("ASSETCODE") or "",
+                        "lastdeldate": record.get("LASTTRADEDATE") or "",
+                        "prevopenposition": (
+                            int(record["PREVOPENPOSITION"])
+                            if record.get("PREVOPENPOSITION") is not None
+                            else 0
+                        ),
+                    }
+                )
+
+            start += len(page_rows)
+            total = _cursor_total(data, "securities")
+            if total is not None:
+                if start >= total:
+                    break
+            elif not page_rows or new_count == 0:
+                break
+
+        rows.sort(key=lambda r: r["secid"])
         return rows
 
     async def fetch_candles(
