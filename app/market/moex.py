@@ -51,6 +51,79 @@ class MOEXClient:
         )
         return [(c["date"], c["close"]) for c in candles]
 
+    async def fetch_open_positions(
+        self,
+        ticker: str,
+        from_date: date,
+        till_date: date,
+    ) -> list[dict]:
+        """История открытых позиций фьючерса: iss/history/.../forts/securities/{SECID}.json"""
+        url = (
+            f"{self.base_url}/history/engines/futures/markets/forts/"
+            f"securities/{ticker}.json"
+        )
+        params = {
+            "iss.only": "history",
+            "history.columns": (
+                "TRADEDATE,CLOSE,VOLUME,OPENPOSITION,OPENPOSITIONVALUE,SHORTNAME"
+            ),
+            "from": from_date.isoformat(),
+            "till": till_date.isoformat(),
+        }
+        rows = []
+        start = 0
+        page_size = 500
+        while True:
+            params["start"] = str(start)
+            params["limit"] = str(page_size)
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.get(url, params=params)
+                resp.raise_for_status()
+                data = resp.json()
+
+            block = data.get("history", {})
+            columns = block.get("columns", [])
+            page_rows = block.get("data", [])
+            for row in page_rows:
+                record = dict(zip(columns, row))
+                tradedate = record.get("TRADEDATE")
+                if not tradedate:
+                    continue
+                try:
+                    row_date = date.fromisoformat(tradedate)
+                except ValueError:
+                    continue
+                rows.append(
+                    {
+                        "date": row_date,
+                        "close": (
+                            float(record["CLOSE"])
+                            if record.get("CLOSE") is not None
+                            else None
+                        ),
+                        "volume": (
+                            int(record["VOLUME"]) if record.get("VOLUME") else 0
+                        ),
+                        "open_position": (
+                            int(record["OPENPOSITION"])
+                            if record.get("OPENPOSITION") is not None
+                            else 0
+                        ),
+                        "open_position_value": (
+                            float(record["OPENPOSITIONVALUE"])
+                            if record.get("OPENPOSITIONVALUE") is not None
+                            else None
+                        ),
+                        "shortname": record.get("SHORTNAME") or "",
+                    }
+                )
+            if len(page_rows) < page_size:
+                break
+            start += len(page_rows)
+
+        rows.sort(key=lambda r: r["date"])
+        return rows
+
     async def fetch_candles(
         self,
         ticker: str,

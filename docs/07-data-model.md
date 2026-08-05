@@ -1,6 +1,6 @@
 # 07. Модель данных
 
-**Статус:** утверждено v1.13  
+**Статус:** утверждено v1.14  
 **Система:** NewsTrader Assistant
 
 Описание сущностей системы и их взаимосвязей. Модель представлена концептуально, без привязки к конкретной СУБД (см. [06-architecture.md](./06-architecture.md)).
@@ -171,6 +171,21 @@
 | trading_date | date | Торговая дата |
 | open / high / low / close | float | Цены свечи |
 | volume | bigint | Объём торгов |
+
+### 2.6.1. MarketOpenPosition (открытые позиции фьючерсов)
+
+Дневные открытые позиции срочного рынка MOEX (таблица `market_open_positions`; источник — ISS `iss/history/engines/futures/markets/forts/securities/{SECID}.json`). Наполняется скриптом `scripts/update_oi.py` (см. [13-operations.md](./13-operations.md)); используется индикатором OI ([19-market-indicators.md](./19-market-indicators.md) §8.12).
+
+| Поле | Тип | Описание |
+|---|---|---|
+| id | PK | Идентификатор |
+| security_id | FK | Фьючерсный контракт (SECID, например W4V6) |
+| trading_date | date | Торговая дата |
+| open_position | bigint | Открытые позиции, контрактов |
+| open_position_value | float | Открытые позиции, руб. (опционально) |
+| source | varchar(20) | Источник (iss) |
+
+Уникальность: пара (security_id, trading_date).
 
 ### 2.7. Indicator
 

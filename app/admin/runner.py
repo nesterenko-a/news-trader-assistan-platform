@@ -130,6 +130,19 @@ SCRIPTS: list[dict] = [
         ),
         "param": ("--horizon", "Горизонт (торговых дней)", 5),
     },
+    {
+        "key": "update_oi",
+        "module": "scripts.update_oi",
+        "title": "Обновить открытые позиции (OI)",
+        "description": (
+            "Скачивание истории открытых позиций фьючерсов из MOEX ISS "
+            "(iss/history, блок history: OPENPOSITION, OPENPOSITIONVALUE) "
+            "в таблицу market_open_positions. Код фьючерса указывается "
+            "параметром --ticker (например W4V6); --days — за сколько "
+            "последних календарных дней, --from YYYY-MM-DD — с указанной даты."
+        ),
+        "param": ("--days", "За последние N дней", 30),
+    },
 ]
 
 SCRIPTS_BY_KEY = {s["key"]: s for s in SCRIPTS}

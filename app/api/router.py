@@ -4,6 +4,7 @@ from app.api.routes import (
     alerts,
     auth,
     health,
+    indicators,
     macro,
     paper,
     portfolio,
@@ -24,3 +25,4 @@ api_router.include_router(strategies.router)
 api_router.include_router(alerts.router)
 api_router.include_router(macro.router)
 api_router.include_router(paper.router)
+api_router.include_router(indicators.router)

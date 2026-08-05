@@ -297,6 +297,22 @@ class MarketCandle(Base):
     volume: Mapped[int] = mapped_column(BigInteger, default=0)
 
 
+class MarketOpenPosition(Base):
+    __tablename__ = "market_open_positions"
+    __table_args__ = (
+        UniqueConstraint(
+            "security_id", "trading_date", name="ix_market_open_positions_security_date"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    security_id: Mapped[int] = mapped_column(ForeignKey("securities.id"), index=True)
+    trading_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    open_position: Mapped[int] = mapped_column(BigInteger, default=0)
+    open_position_value: Mapped[float | None] = mapped_column(nullable=True)
+    source: Mapped[str] = mapped_column(String(20), default="iss")
+
+
 class PaperAccount(Base):
     __tablename__ = "paper_accounts"
 

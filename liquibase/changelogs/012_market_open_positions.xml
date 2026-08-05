@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+
+    <changeSet id="0120-market-open-positions" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="market_open_positions"/>
+            </not>
+        </preConditions>
+        <createTable tableName="market_open_positions">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="security_id" type="bigint">
+                <constraints foreignKeyName="fk_market_open_positions_security_id" references="securities(id)"/>
+            </column>
+            <column name="trading_date" type="date">
+                <constraints nullable="false"/>
+            </column>
+            <column name="open_position" type="bigint" defaultValueNumeric="0"/>
+            <column name="open_position_value" type="double precision"/>
+            <column name="source" type="varchar(20)" defaultValue="iss"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="0121-market-open-positions-unique" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="ix_market_open_positions_security_date"/>
+            </not>
+        </preConditions>
+        <addUniqueConstraint tableName="market_open_positions" columnNames="security_id, trading_date" constraintName="ix_market_open_positions_security_date"/>
+    </changeSet>
+
+    <changeSet id="0122-market-open-positions-date-index" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="ix_market_open_positions_trading_date"/>
+            </not>
+        </preConditions>
+        <createIndex indexName="ix_market_open_positions_trading_date" tableName="market_open_positions">
+            <column name="trading_date"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
