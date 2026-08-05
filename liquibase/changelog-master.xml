@@ -17,5 +17,6 @@
     <include file="changelogs/010_factor_weights.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/011_system_notices.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/012_market_open_positions.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/013_security_futures.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

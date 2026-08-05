@@ -9,9 +9,17 @@ from app.market.moex import MOEXClient
 
 
 async def ensure_futures_security(
-    session: AsyncSession, ticker: str, shortname: str = ""
+    session: AsyncSession,
+    ticker: str,
+    shortname: str = "",
+    assetcode: str | None = None,
+    lastdeldate: date | None = None,
 ) -> Security:
-    """Возвращает Security по тикеру; если фьючерса нет в справочнике — создаёт."""
+    """Возвращает Security по тикеру; если фьючерса нет в справочнике — создаёт.
+
+    assetcode — код базового актива (тикер акции), lastdeldate — дата экспирации;
+    заданные значения проставляются и при создании, и при обновлении существующей записи.
+    """
     security = await session.scalar(select(Security).where(Security.ticker == ticker))
     if security is None:
         security = Security(
@@ -22,9 +30,21 @@ async def ensure_futures_security(
             sector="",
             currency="RUB",
             aliases=[],
+            assetcode=assetcode,
+            lastdeldate=lastdeldate,
         )
         session.add(security)
         await session.flush()
+    else:
+        changed = False
+        if assetcode and security.assetcode != assetcode:
+            security.assetcode = assetcode
+            changed = True
+        if lastdeldate and security.lastdeldate != lastdeldate:
+            security.lastdeldate = lastdeldate
+            changed = True
+        if changed:
+            await session.flush()
     return security
 
 
@@ -33,6 +53,7 @@ async def sync_security_oi(
     ticker: str,
     days: int | None = None,
     since: date | None = None,
+    futures_meta: dict[str, dict] | None = None,
 ) -> int:
     """Скачивает историю открытых позиций фьючерса с ISS и сохраняет в market_open_positions."""
     ticker = ticker.upper()
@@ -50,7 +71,14 @@ async def sync_security_oi(
     if not rows:
         return 0
 
-    security = await ensure_futures_security(session, ticker, rows[-1]["shortname"])
+    meta = (futures_meta or {}).get(ticker, {})
+    security = await ensure_futures_security(
+        session,
+        ticker,
+        rows[-1]["shortname"],
+        assetcode=meta.get("assetcode"),
+        lastdeldate=meta.get("lastdeldate"),
+    )
 
     inserted = 0
     for row in rows:
@@ -95,6 +123,42 @@ async def sync_security_oi(
 
     await session.commit()
     return inserted
+
+
+async def futures_for_security(
+    session: AsyncSession, ticker: str
+) -> list[Security]:
+    """Фьючерсы, базовым активом которых является бумага (assetcode == ticker)."""
+    ticker = ticker.upper()
+    rows = await session.scalars(
+        select(Security)
+        .where(Security.security_type == "futures", Security.assetcode == ticker)
+        .order_by(Security.lastdeldate)
+    )
+    return list(rows.all())
+
+
+async def nearest_future(
+    session: AsyncSession,
+    ticker: str,
+    as_of: date | None = None,
+) -> Security | None:
+    """Ближайший по экспирации фьючерс на бумагу.
+
+    Сначала — фьючерсы с lastdeldate >= as_of (самый близкий к экспирации),
+    если таких нет — последний по дате экспирации (или любой, если дат нет).
+    """
+    futures = await futures_for_security(session, ticker)
+    if not futures:
+        return None
+    as_of = as_of or date.today()
+    upcoming = [f for f in futures if f.lastdeldate and f.lastdeldate >= as_of]
+    if upcoming:
+        return min(upcoming, key=lambda f: f.lastdeldate)
+    dated = [f for f in futures if f.lastdeldate]
+    if dated:
+        return max(dated, key=lambda f: f.lastdeldate)
+    return futures[0]
 
 
 async def latest_oi_signal(

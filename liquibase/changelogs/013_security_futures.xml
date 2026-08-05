@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+
+    <changeSet id="0130-security-assetcode" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="securities" columnName="assetcode"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="securities">
+            <column name="assetcode" type="varchar(20)"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="0131-security-lastdeldate" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="securities" columnName="lastdeldate"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="securities">
+            <column name="lastdeldate" type="date"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

@@ -233,6 +233,8 @@ class Security(Base):
     sector: Mapped[str] = mapped_column(String(100), default="")
     currency: Mapped[str] = mapped_column(String(10), default="RUB")
     aliases: Mapped[list] = mapped_column(JSON, default=list)
+    assetcode: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    lastdeldate: Mapped[date | None] = mapped_column(nullable=True)
 
 
 class Strategy(Base):

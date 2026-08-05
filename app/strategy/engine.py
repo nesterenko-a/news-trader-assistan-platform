@@ -19,7 +19,7 @@ from app.graph.service import (
     security_entity_ids,
 )
 from app.market.indicators import rsi, sma, volatility
-from app.market.oi_data import latest_oi_signal
+from app.market.oi_data import latest_oi_signal, nearest_future
 
 DECAY_PER_HOUR = 0.0137
 LOOKBACK_DAYS = 7
@@ -62,6 +62,15 @@ def _oi_contradicts(kind: str, verdict: str) -> bool:
     if verdict == "SELL":
         return kind in ("strong_bull", "short_covering")
     return False
+
+
+def _oi_sentiment(kind: str) -> str:
+    """Знак OI-сигнала для отображения в «Сигналах»."""
+    if kind in ("strong_bull", "short_covering"):
+        return "positive"
+    if kind in ("strong_bear", "long_liquidation"):
+        return "negative"
+    return "neutral"
 
 
 async def _build_counterarguments(
@@ -288,7 +297,14 @@ async def generate_strategy(
     else:
         quotes = None
 
-    oi_signal = await latest_oi_signal(session, security.id, as_of=now.date())
+    oi_signal = None
+    oi_future = None
+    if security.security_type == "futures":
+        oi_signal = await latest_oi_signal(session, security.id, as_of=now.date())
+    else:
+        oi_future = await nearest_future(session, security.ticker, as_of=now.date())
+        if oi_future is not None:
+            oi_signal = await latest_oi_signal(session, oi_future.id, as_of=now.date())
     if oi_signal:
         if oi_signal["kind"] in ("strong_bear", "long_liquidation") and net_score > 0:
             net_score *= 0.85
@@ -302,6 +318,18 @@ async def generate_strategy(
             f"OI — {oi_note}"
             if not indicator_note
             else f"{indicator_note}; OI — {oi_note}"
+        )
+    if oi_signal and oi_future is not None:
+        signals.append(
+            {
+                "entity": f"OI {oi_future.ticker}",
+                "snippet": "",
+                "url": "",
+                "sentiment": _oi_sentiment(oi_signal["kind"]),
+                "kind": "oi",
+                "path": [oi_future.name or oi_future.ticker],
+                "weight": 0.0,
+            }
         )
 
     coverage = min(len(signals) / 5.0, 1.0)

@@ -1,6 +1,12 @@
 from datetime import date
 
-from app.web.router import _build_change_bars, _build_dual_chart
+from app.db.models import Security
+from app.web.router import (
+    _build_change_bars,
+    _build_dual_chart,
+    _effective_sectors,
+    _filter_securities,
+)
 
 
 def test_build_dual_chart_basic():
@@ -47,3 +53,35 @@ def test_build_change_bars():
 
 def test_build_change_bars_empty():
     assert _build_change_bars([]) is None
+
+
+def _securities():
+    return [
+        Security(id=1, ticker="AFLT", name="Аэрофлот", security_type="stock", sector="Авиаперевозки", market="MOEX"),
+        Security(id=2, ticker="AFLT-6.26", name="AEROFLOT-6.26", security_type="futures", sector="", market="MOEX", assetcode="AFLT", lastdeldate=date(2026, 6, 18)),
+        Security(id=3, ticker="SBER", name="Сбер", security_type="stock", sector="Банки", market="MOEX"),
+    ]
+
+
+def test_effective_sectors_futures_inherit_base_sector():
+    effective = _effective_sectors(_securities())
+    assert effective[2] == "Авиаперевозки"
+    assert effective[3] == "Банки"
+
+
+def test_filter_securities_by_type():
+    securities = _securities()
+    effective = _effective_sectors(securities)
+    stocks = _filter_securities(securities, effective, "", "", "stocks")
+    futures = _filter_securities(securities, effective, "", "", "futures")
+    all_ = _filter_securities(securities, effective, "", "", "all")
+    assert [s.ticker for s in stocks] == ["AFLT", "SBER"]
+    assert [s.ticker for s in futures] == ["AFLT-6.26"]
+    assert len(all_) == 3
+
+
+def test_filter_securities_by_sector_uses_effective():
+    securities = _securities()
+    effective = _effective_sectors(securities)
+    filtered = _filter_securities(securities, effective, "Авиаперевозки", "", "all")
+    assert [s.ticker for s in filtered] == ["AFLT", "AFLT-6.26"]

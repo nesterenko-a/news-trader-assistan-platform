@@ -15,7 +15,11 @@ from app.db.models import (
     security_entity,
 )
 from app.graph.service import resolve_entity_id, seed_graph
-from app.market.oi_data import latest_oi_signal
+from app.market.oi_data import (
+    futures_for_security,
+    latest_oi_signal,
+    nearest_future,
+)
 from app.strategy.engine import (
     _build_counterarguments,
     _oi_contradicts,
@@ -163,3 +167,58 @@ async def test_engine_oi_signal_in_counterarguments(session):
     )
     assert any("рыночный: OI" in r for r in result["risks"])
     assert any("OI" in reason for reason in result["rationale_summary"].split("; "))
+
+
+async def test_futures_for_security_by_assetcode(session):
+    stock = Security(ticker="LKOH", name="ЛУКОЙЛ", security_type="stock", sector="Нефть и газ", aliases=[])
+    fut1 = Security(
+        ticker="LKOH-6.26", name="LUKOIL-6.26", security_type="futures",
+        assetcode="LKOH", lastdeldate=date(2026, 6, 18), aliases=[],
+    )
+    fut2 = Security(
+        ticker="LKOH-9.26", name="LUKOIL-9.26", security_type="futures",
+        assetcode="LKOH", lastdeldate=date(2026, 9, 17), aliases=[],
+    )
+    other = Security(ticker="SBER", name="Сбер", security_type="stock", aliases=[])
+    session.add_all([stock, fut1, fut2, other])
+    await session.commit()
+
+    futures = await futures_for_security(session, "LKOH")
+    assert [f.ticker for f in futures] == ["LKOH-6.26", "LKOH-9.26"]
+    assert await futures_for_security(session, "SBER") == []
+
+    nearest = await nearest_future(session, "LKOH", as_of=date(2026, 5, 1))
+    assert nearest.ticker == "LKOH-6.26"
+    nearest_past = await nearest_future(session, "LKOH", as_of=date(2027, 1, 1))
+    assert nearest_past.ticker == "LKOH-9.26"
+
+
+async def test_engine_stock_uses_nearest_future_oi(session):
+    await seed_graph(session)
+    stock = await session.scalar(select(Security).where(Security.ticker == "LKOH"))
+    oil_id = await resolve_entity_id(session, "Нефть")
+    await session.execute(
+        security_entity.insert().values(security_id=stock.id, entity_id=oil_id)
+    )
+    start = date.today() - timedelta(days=6)
+    fut = await _seed_futures_oi(
+        session,
+        closes=[100.0, 99.0, 98.0],
+        ois=[1000, 1100, 1200],
+        start=start,
+    )
+    fut.assetcode = "LKOH"
+    fut.lastdeldate = date.today() + timedelta(days=30)
+    await session.commit()
+
+    await _store_news(session, "Нефть", "positive")
+    await session.commit()
+
+    result = await generate_strategy(
+        session, "LKOH", persist=False, use_live_market=False
+    )
+    assert any(s["kind"] == "oi" for s in result["signals"])
+    oi_signal = next(s for s in result["signals"] if s["kind"] == "oi")
+    assert oi_signal["entity"] == f"OI {fut.ticker}"
+    assert oi_signal["weight"] == 0.0
+    assert any("рыночный: OI" in r for r in result["risks"])

@@ -40,9 +40,13 @@ async def main() -> None:
 
     await init_db()
     async with SessionLocal() as session:
+        futures = await MOEXClient().fetch_futures_list()
+        futures_meta = {
+            f["secid"]: {"assetcode": f.get("assetcode"), "lastdeldate": f.get("lastdeldate")}
+            for f in futures
+        }
         tickers = [t.upper() for t in args.ticker]
         if args.all:
-            futures = await MOEXClient().fetch_futures_list()
             tickers = [f["secid"] for f in futures]
             print(f"Найдено фьючерсов на MOEX: {len(tickers)}. ", flush=True)
         if not tickers:
@@ -58,7 +62,9 @@ async def main() -> None:
         )
         total = 0
         for i, ticker in enumerate(tickers, 1):
-            inserted = await sync_security_oi(session, ticker, since=since)
+            inserted = await sync_security_oi(
+                session, ticker, since=since, futures_meta=futures_meta
+            )
             total += inserted
             print(f"  [{i}/{len(tickers)}] {ticker}: +{inserted} записей OI", flush=True)
         print(f"Итого обновлено: {total} записей OI")

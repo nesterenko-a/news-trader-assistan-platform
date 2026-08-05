@@ -1,6 +1,6 @@
 # 07. Модель данных
 
-**Статус:** утверждено v1.14  
+**Статус:** утверждено v1.15  
 **Система:** NewsTrader Assistant
 
 Описание сущностей системы и их взаимосвязей. Модель представлена концептуально, без привязки к конкретной СУБД (см. [06-architecture.md](./06-architecture.md)).
@@ -87,10 +87,14 @@
 | ticker | string | Биржевой код (AFLT, SBER, AAPL) |
 | name | string | Полное название |
 | market | string | Биржа/рынок (MOEX, NASDAQ и т.д.) |
-| security_type | enum | stock / bond / etf / commodity / crypto |
-| sector | string | Отрасль |
+| security_type | enum | stock / bond / etf / commodity / crypto / futures |
+| sector | string | Отрасль (у фьючерсов может быть пустой — наследуется от базовой акции, см. ниже) |
 | currency | string | Валюта торгов |
 | aliases | string[] | Альтернативные названия для сопоставления с текстами |
+| assetcode | string \| null | Код базового актива (для фьючерсов — тикер акции/индекса/валюты, из ISS `ASSETCODE`); по нему строится связь «фьючерс → акция» |
+| lastdeldate | date \| null | Дата экспирации (последний день торговли) фьючерса, из ISS `LASTTRADEDATE` |
+
+Связь «акция ↔ фьючерс»: фьючерс связан с акцией, если `assetcode` фьючерса равен `ticker` акции (например, фьючерс SBER-6.26 → assetcode `SBER` → акция SBER). Фьючерсы на индексы/валюты/сырьё (assetcode ≠ тикеру акции) с акциями не связываются. Заполняется при синке OI (`scripts/update_oi.py`, см. [13-operations.md](./13-operations.md)).
 
 ### 2.2. Article (новость/статья)
 
@@ -440,6 +444,7 @@
 | Article → ArticleEntity → Entity | Статья упоминает сущности с тональностью и значимостью |
 | Entity → Influence → Entity | Сущность влияет на другую сущность (знак, сила, обоснование) |
 | Security → Entity | Бумага отображается на сущность графа (напр., компания/отрасль) |
+| Futures → Security (акция) | Фьючерс связан с базовой акцией по `assetcode == ticker` (для фьючерсов на акции) |
 | Strategy → EvidenceItem | Каждый элемент обоснования привязан к стратегии |
 | Strategy → UserFeedback | Вердикты оцениваются пользователями |
 | User → WatchlistItem → Security | Пользователь отслеживает бумаги |

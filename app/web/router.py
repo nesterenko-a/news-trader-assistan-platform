@@ -53,6 +53,8 @@ from app.db.models import (
     WatchlistItem,
 )
 from app.market.moex import MOEXClient
+from app.market.oi_data import futures_for_security, nearest_future
+from app.market.indicators.oi import calculate_oi
 from app.news.service import load_security_news
 from app.presentation.factories import WebContextFactory
 from app.presentation.view import build_strategy_view
@@ -233,40 +235,116 @@ def _build_change_bars(
     }
 
 
+async def _build_oi_charts(
+    session: AsyncSession,
+    security: Security,
+) -> tuple[dict | None, dict | None]:
+    """Двойной график OI+цена и столбцы ΔOI по данным фьючерса (как на /indicators)."""
+    oi_rows = (
+        await session.scalars(
+            select(MarketOpenPosition)
+            .where(MarketOpenPosition.security_id == security.id)
+            .order_by(MarketOpenPosition.trading_date)
+        )
+    ).all()
+    if not oi_rows:
+        return None, None
+    candles = (
+        await session.scalars(
+            select(MarketCandle)
+            .where(MarketCandle.security_id == security.id)
+            .order_by(MarketCandle.trading_date)
+        )
+    ).all()
+    close_by_date = {c.trading_date: c.close for c in candles}
+    oi_by_date = {r.trading_date: r.open_position for r in oi_rows}
+    dates = sorted(set(close_by_date) | set(oi_by_date))
+    result = calculate_oi(
+        [(d, close_by_date.get(d), oi_by_date.get(d)) for d in dates]
+    )
+    oi_vals = {v.date: v.value for v in result.values if v.kind == "oi"}
+    change_vals = {v.date: v.value for v in result.values if v.kind == "oi_change_pct"}
+    chart_oi = _build_dual_chart(
+        [(d, oi_vals.get(d), close_by_date.get(d)) for d in dates]
+    )
+    chart_change = _build_change_bars(
+        [(d, change_vals.get(d)) for d in dates]
+    )
+    return chart_oi, chart_change
+
+
+def _effective_sectors(securities: list[Security]) -> dict[int, str]:
+    """Эффективный сектор: у фьючерсов без сектора берётся сектор базовой акции (по assetcode)."""
+    by_ticker = {s.ticker: s for s in securities}
+    result = {}
+    for s in securities:
+        if s.sector:
+            result[s.id] = s.sector
+        elif s.security_type == "futures" and s.assetcode:
+            base = by_ticker.get(s.assetcode)
+            result[s.id] = base.sector if base else ""
+        else:
+            result[s.id] = s.sector
+    return result
+
+
+def _filter_securities(
+    securities: list[Security],
+    effective_sector: dict[int, str],
+    sector: str,
+    market: str,
+    type_: str,
+) -> list[Security]:
+    out = []
+    for s in securities:
+        if type_ == "stocks" and s.security_type == "futures":
+            continue
+        if type_ == "futures" and s.security_type != "futures":
+            continue
+        if sector and effective_sector.get(s.id, "") != sector:
+            continue
+        if market and s.market != market:
+            continue
+        out.append(s)
+    return out
+
+
 @router.get("/")
 async def index(
     request: Request,
     sector: str = "",
     market: str = "",
+    type: str = "all",
     session: AsyncSession = Depends(get_session),
 ):
     user = await _optional_user(request, session)
-    statement = select(Security).order_by(Security.ticker)
-    if sector:
-        statement = statement.where(Security.sector == sector)
-    if market:
-        statement = statement.where(Security.market == market)
-    securities = (await session.scalars(statement)).all()
+    securities = (await session.scalars(select(Security).order_by(Security.ticker))).all()
 
-    sectors = (
-        await session.scalars(
-            select(Security.sector).distinct().order_by(Security.sector)
-        )
-    ).all()
-    markets = (
-        await session.scalars(
-            select(Security.market).distinct().order_by(Security.market)
-        )
-    ).all()
+    type_ = type if type in ("stocks", "futures", "all") else "all"
+    effective = _effective_sectors(securities)
+    filtered = _filter_securities(securities, effective, sector, market, type_)
+
+    sectors = sorted({eff for eff in effective.values() if eff})
+    markets = sorted({s.market for s in securities if s.market})
 
     context = await _base_context(session, user)
     context.update(
         {
-            "securities": securities,
+            "securities": [
+                {
+                    "ticker": s.ticker,
+                    "name": s.name,
+                    "sector": effective.get(s.id, ""),
+                    "market": s.market,
+                    "is_futures": s.security_type == "futures",
+                }
+                for s in filtered
+            ],
             "sectors": sectors,
             "markets": markets,
             "current_sector": sector,
             "current_market": market,
+            "current_type": type_,
         }
     )
     return templates.TemplateResponse(request, "index.html", context)
@@ -417,6 +495,28 @@ async def security_page(
     candles = (await session.scalars(statement)).all()
     chart = _build_chart(candles)
 
+    futures = await futures_for_security(session, security.ticker)
+    futures_items = [
+        {
+            "ticker": f.ticker,
+            "name": f.name,
+            "lastdeldate": f.lastdeldate.isoformat() if f.lastdeldate else "",
+        }
+        for f in futures
+    ]
+    nearest = await nearest_future(session, security.ticker)
+    chart_oi = None
+    chart_change = None
+    nearest_oi = None
+    if nearest is not None:
+        chart_oi, chart_change = await _build_oi_charts(session, nearest)
+        if chart_oi:
+            nearest_oi = {
+                "ticker": nearest.ticker,
+                "name": nearest.name,
+                "lastdeldate": nearest.lastdeldate.isoformat() if nearest.lastdeldate else "",
+            }
+
     result = await generate_strategy(session, security.ticker)
     news = await load_security_news(session, security.id)
 
@@ -460,6 +560,10 @@ async def security_page(
             "macro_events": macro_items,
             "strategy_id": strategy_id,
             "my_rating": my_rating,
+            "futures": futures_items,
+            "nearest_oi": nearest_oi,
+            "chart_oi": chart_oi,
+            "chart_change": chart_change,
         }
     )
     return templates.TemplateResponse(request, "security.html", context)

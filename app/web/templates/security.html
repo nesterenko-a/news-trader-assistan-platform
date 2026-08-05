@@ -85,6 +85,63 @@
     {% endif %}
   </section>
 
+  {% if futures %}
+  <section class="card">
+    <h2>Фьючерсы на акцию</h2>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Код (SECID)</th>
+          <th>Название</th>
+          <th>Экспирация</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in futures %}
+        <tr>
+          <td><b>{{ f.ticker }}</b></td>
+          <td>{{ f.name }}</td>
+          <td>{{ f.lastdeldate }}</td>
+          <td><a href="/indicators?ticker={{ f.ticker }}">Открытый интерес (OI) →</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if nearest_oi and chart_oi %}
+  <section class="card chart-card">
+    <div class="chart-head">
+      <h2>Открытый интерес фьючерса — {{ nearest_oi.name }} ({{ nearest_oi.ticker }})</h2>
+      <a class="btn" href="/indicators?ticker={{ nearest_oi.ticker }}">Полная страница OI →</a>
+    </div>
+    <svg class="chart" viewBox="0 0 {{ chart_oi.width }} {{ chart_oi.height }}" preserveAspectRatio="none">
+      {% for seg in chart_oi.oi_segments %}<polyline points="{{ seg }}"/>{% endfor %}
+      {% for seg in chart_oi.close_segments %}<polyline points="{{ seg }}" style="stroke:#e67e22"/>{% endfor %}
+    </svg>
+    <div class="chart-legend">
+      <span class="legend-item"><i class="legend-dot" style="background:var(--accent)"></i> OI — открытые позиции (контр.)</span>
+      <span class="legend-item"><i class="legend-dot" style="background:#e67e22"></i> Цена фьючерса (close)</span>
+    </div>
+    <div class="chart-labels">
+      <span>{{ chart_oi.first_date }} → {{ chart_oi.last_date }}</span>
+      <span>OI: {{ chart_oi.min_oi }} – {{ chart_oi.max_oi }} контр.</span>
+      {% if chart_oi.min_close is not none %}<span>Цена: {{ chart_oi.min_close }} – {{ chart_oi.max_close }}</span>{% endif %}
+    </div>
+    {% if chart_change %}
+    <svg class="chart" viewBox="0 0 {{ chart_change.width }} {{ chart_change.height }}" preserveAspectRatio="none" style="margin-top:12px">
+      {{ chart_change.rects | safe }}
+      <line x1="10" y1="{{ chart_change.zero_y }}" x2="{{ chart_change.width - 10 }}" y2="{{ chart_change.zero_y }}" style="stroke:#999;stroke-width:1;stroke-dasharray:4,4"/>
+    </svg>
+    <div class="chart-labels">
+      <span>Изменение OI, % — макс. ±{{ chart_change.max_abs }}%</span>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+
   {% if view.levels.entry %}
   <div class="grid levels-grid">
     <div class="mini">
@@ -140,7 +197,7 @@
         <td>{{ s.entity }}</td>
         <td>{{ s.kind_label }}</td>
         <td>{{ s.sentiment }}</td>
-        <td class="{{ 'pos' if s.weight > 0 else 'neg' }}">{{ s.weight_str }}</td>
+        <td class="{{ 'pos' if s.weight > 0 else ('neg' if s.weight < 0 else '') }}">{{ s.weight_str }}</td>
         <td class="muted">{{ s.path }}</td>
       </tr>
       {% endfor %}
