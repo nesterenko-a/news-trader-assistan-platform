@@ -571,7 +571,9 @@ async def indicators_page(
                 ema_error = "Бумага не найдена."
             else:
                 ema_security_name = security.name
-                if fast is not None and slow is not None and fast >= slow:
+                eff_fast = fast if fast is not None else 12
+                eff_slow = slow if slow is not None else 26
+                if eff_fast >= eff_slow:
                     ema_error = "fast должен быть меньше slow"
                 else:
                     candle_q = (

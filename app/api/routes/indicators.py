@@ -123,7 +123,9 @@ async def calculate_indicator(
         )
 
     if name in ("ema", "macd"):
-        if fast is not None and slow is not None and fast >= slow:
+        eff_fast = fast if fast is not None else 12
+        eff_slow = slow if slow is not None else 26
+        if eff_fast >= eff_slow:
             raise HTTPException(status_code=422, detail="fast должен быть меньше slow")
         candle_q = (
             select(MarketCandle)
