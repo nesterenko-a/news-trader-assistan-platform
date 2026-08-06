@@ -3,11 +3,18 @@
 from datetime import date, datetime, timedelta, timezone
 
 import pytest_asyncio
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db.connection import Base
-from app.db.models import Article, ArticleEntity, MarketCandle, Security, Source
+from app.db.models import (
+    Article,
+    ArticleEntity,
+    EvidenceItem,
+    MarketCandle,
+    Security,
+    Source,
+)
 from app.graph.service import resolve_entity_id, seed_graph
 from app.market.indicators.base import IndicatorResult
 from app.market.indicators.ema import DEFAULT_PARAMS as EMA_PARAMS
@@ -300,3 +307,46 @@ async def test_engine_no_trend_signal_without_candles(session):
 
     result = await generate_strategy(session, "AFLT", persist=False, use_live_market=False)
     assert not any(s["kind"] == "trend" for s in result["signals"])
+
+
+async def test_engine_coverage_ignores_informational_signals(session):
+    """Информационные сигналы (вес 0: trend/vp) не влияют на confidence."""
+    await seed_graph(session)
+    await _store_news(session, "Аэрофлот", "negative")
+    await session.commit()
+
+    await _seed_closes(session, "AFLT", [100.0 + 0.02 * i * i for i in range(60)])
+    await session.commit()
+    r_trend = await generate_strategy(session, "AFLT", persist=False, use_live_market=False)
+    assert any(s["kind"] == "trend" for s in r_trend["signals"])
+
+    # перезасев: плоский ряд — тренда MACD нет, информационные сигналы те же
+    aero = await session.scalar(select(Security).where(Security.ticker == "AFLT"))
+    await session.execute(delete(MarketCandle).where(MarketCandle.security_id == aero.id))
+    await _seed_closes(session, "AFLT", [100.0] * 60)
+    await session.commit()
+    r_flat = await generate_strategy(session, "AFLT", persist=False, use_live_market=False)
+    assert not any(s["kind"] == "trend" for s in r_flat["signals"])
+
+    assert r_trend["strategy"]["confidence"] == r_flat["strategy"]["confidence"]
+
+
+async def test_engine_persist_skips_weight0_signals(session):
+    """При persist=True вес-0 сигналы (trend/vp) не попадают в evidence."""
+    await seed_graph(session)
+    await _seed_closes(session, "AFLT", [100.0 + 0.02 * i * i for i in range(60)])
+    await _store_news(session, "Аэрофлот", "negative")
+    await session.commit()
+
+    result = await generate_strategy(session, "AFLT", persist=True, use_live_market=False)
+    items = (
+        await session.scalars(
+            select(EvidenceItem).where(EvidenceItem.strategy_id == result["strategy_id"])
+        )
+    ).all()
+    assert items
+    # вес-0 допустим только у контраргумента «индикаторы» (несёт текст);
+    # сигналы (news_fact/graph_path) с нулевым весом не сохраняются
+    assert all(i.weight != 0 or i.kind == "counterargument" for i in items)
+    assert not any(i.kind == "graph_path" and i.weight == 0 for i in items)
+    assert all(i.kind in ("news_fact", "graph_path", "counterargument") for i in items)

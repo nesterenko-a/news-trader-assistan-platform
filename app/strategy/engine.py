@@ -440,7 +440,8 @@ async def generate_strategy(
                     else f"{indicator_note}; тренд по MACD вверх — сигнал ослаблен"
                 )
 
-    coverage = min(len(signals) / 5.0, 1.0)
+    weighted = [s for s in signals if s["weight"] != 0]
+    coverage = min(len(weighted) / 5.0, 1.0)
     confidence = max(0.0, min(0.95, agreement * 0.5 + coverage * 0.3 + 0.2))
     verdict = _verdict_for_score(net_score)
     if verdict != "HOLD" and confidence < MIN_CONFIDENCE_FOR_VERDICT:
@@ -491,6 +492,10 @@ async def generate_strategy(
         await session.flush()
 
         for s in signals[:10]:
+            if not s["weight"]:
+                # Информационные сигналы (вес 0: oi, vp, trend) не сохраняются —
+                # не участвуют в калибровке весов и только засоряют пул evidence.
+                continue
             session.add(
                 EvidenceItem(
                     strategy_id=strategy.id,
