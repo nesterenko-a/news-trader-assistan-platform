@@ -1655,11 +1655,14 @@ async def news_rss_add_selected(
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
     form = await request.form()
+    try:
+        count = min(int(str(form.get("cand_count") or "0")), 50)
+    except ValueError:
+        count = 0
     added = 0
-    index = 0
-    while True:
+    for index in range(count):
         if form.get(f"cand_{index}_pick") is None:
-            break
+            continue
         name = str(form.get(f"cand_{index}_name") or "").strip()
         url = str(form.get(f"cand_{index}_url") or "").strip()
         category = str(form.get(f"cand_{index}_category") or "")
@@ -1671,7 +1674,6 @@ async def news_rss_add_selected(
                 added += 1
             except HTTPException:
                 pass
-        index += 1
     return RedirectResponse(
         url=f"/news?info=Добавлено лент: {added}", status_code=303
     )

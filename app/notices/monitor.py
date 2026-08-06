@@ -136,12 +136,12 @@ async def check_rss() -> str | None:
     except Exception:
         pass
 
-    results = []
-    for url in urls[:5]:
-        ok, error = await check_feed(url)
-        results.append("ok" if ok else error)
-    if all(r != "ok" for r in results):
-        return f"RSS-источники недоступны: {results}"
+    results = await asyncio.gather(
+        *(check_feed(url) for url in urls[:5])
+    )
+    flattened = ["ok" if ok else error for ok, error in results]
+    if all(r != "ok" for r in flattened):
+        return f"RSS-источники недоступны: {flattened}"
     return None
 
 

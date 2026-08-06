@@ -414,7 +414,8 @@ async def test_news_add_selected_uses_row_index(session, monkeypatch):
     monkeypatch.setattr("app.web.router.add_source_api", fake_add)
 
     body = (
-        "cand_0_pick=on"
+        "cand_count=2"
+        "&cand_0_pick=on"
         f"&cand_0_name={quote('Лента А')}"
         f"&cand_0_url={quote(PUBLIC_RSS)}"
         "&cand_0_category=финансы"
@@ -445,3 +446,55 @@ async def test_news_add_selected_uses_row_index(session, monkeypatch):
     response = await news_rss_add_selected(request, session)
     assert response.status_code == 303
     assert calls == [PUBLIC_RSS]  # только выбранная строка 0; строка 1 не добавлена
+
+
+async def test_news_add_selected_offset_row(session, monkeypatch):
+    """Выбор строки 1 без строки 0 — не должен теряться."""
+    from starlette.requests import Request
+
+    from app.auth import create_session
+
+    user = await _mk_user(session)
+    token = await create_session(session, user)
+
+    calls = []
+
+    async def fake_add(payload, user, session):
+        calls.append(payload.url)
+        return {}
+
+    monkeypatch.setattr("app.web.router.add_source_api", fake_add)
+
+    body = (
+        "cand_count=2"
+        f"&cand_0_name={quote('Лента А')}"
+        f"&cand_0_url={quote(PUBLIC_RSS)}"
+        "&cand_0_category=финансы"
+        "&cand_1_pick=on"
+        f"&cand_1_name={quote('Лента Б')}"
+        f"&cand_1_url={quote('https://93.184.216.34/other')}"
+        "&cand_1_category=погода"
+    ).encode("utf-8")
+
+    async def receive():
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/news/rss/add-selected",
+            "headers": [
+                (b"cookie", f"nt_token={token}".encode()),
+                (b"content-type", b"application/x-www-form-urlencoded"),
+            ],
+            "server": ("test", 80),
+            "query_string": b"",
+            "client": ("test", 80),
+            "scheme": "http",
+        },
+        receive=receive,
+    )
+    response = await news_rss_add_selected(request, session)
+    assert response.status_code == 303
+    assert calls == ["https://93.184.216.34/other"]  # добавлена строка 1, строка 0 — нет

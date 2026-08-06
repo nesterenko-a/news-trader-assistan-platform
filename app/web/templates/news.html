@@ -100,6 +100,7 @@
   {% if candidates %}
   <h3>Кандидаты{% if query %}: «{{ query }}»{% endif %}</h3>
   <form method="post" action="/news/rss/add-selected">
+    <input type="hidden" name="cand_count" value="{{ candidates|length }}">
     <table class="table">
       <thead>
         <tr><th></th><th>Имя</th><th>URL</th><th>Категория</th><th>Статус</th></tr>
