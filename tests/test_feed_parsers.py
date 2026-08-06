@@ -104,3 +104,43 @@ async def test_check_feed_no_llm_fails(monkeypatch):
     monkeypatch.setattr(feed_check, "fetch_feed_bytes", fake_fetch)
     ok, desc = await feed_check.check_feed("https://example.com/feed")
     assert ok is False and "Не похоже на RSS" in desc
+
+
+async def test_check_feed_browser_fallback(monkeypatch):
+    from app.news import feed_check
+
+    async def fake_fetch(url):
+        return "<html>заглушка антибота</html>".encode("utf-8"), "ok"
+
+    async def fake_playwright(url):
+        return VALID_RSS
+
+    monkeypatch.setattr(feed_check, "fetch_feed_bytes", fake_fetch)
+    monkeypatch.setattr(
+        "app.news.browser_fetch.fetch_with_playwright", fake_playwright
+    )
+    ok, desc = await feed_check.check_feed(
+        "https://example.com/feed", use_browser=True
+    )
+    assert ok is True and "браузер" in desc
+
+
+async def test_check_feed_browser_not_called_without_flag(monkeypatch):
+    from app.news import feed_check
+
+    called = []
+
+    async def fake_fetch(url):
+        return "<html>заглушка антибота</html>".encode("utf-8"), "ok"
+
+    async def fake_playwright(url):
+        called.append(url)
+        return VALID_RSS
+
+    monkeypatch.setattr(feed_check, "fetch_feed_bytes", fake_fetch)
+    monkeypatch.setattr(
+        "app.news.browser_fetch.fetch_with_playwright", fake_playwright
+    )
+    ok, desc = await feed_check.check_feed("https://example.com/feed")
+    assert ok is False
+    assert called == []

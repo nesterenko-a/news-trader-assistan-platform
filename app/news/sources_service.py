@@ -98,6 +98,7 @@ async def get_rss_feeds(session: AsyncSession) -> list[dict]:
                 "reputation": source.reputation_score,
                 "category": source.category or "",
                 "use_llm": bool(source.use_llm),
+                "use_browser": bool(source.use_browser),
             }
         )
     return feeds

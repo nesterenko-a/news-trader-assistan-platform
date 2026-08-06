@@ -96,13 +96,17 @@ async def fetch_feed_bytes(url: str) -> tuple[bytes | None, str]:
     return None, "Слишком много редиректов"
 
 
-async def check_feed(url: str, use_llm: bool = False) -> tuple[bool, str]:
+async def check_feed(
+    url: str, use_llm: bool = False, use_browser: bool = False
+) -> tuple[bool, str]:
     """Проверяет ленту: (ok, описание). ok=False при любой ошибке.
 
     Парсинг — конвейером (feedparser → толерантный HTML/XML-парсер,
-    см. app.news.feed_parsers). Если записи не извлечены и use_llm=True —
-    дополнительно пробуется LLM-разбор контента.
+    см. app.news.feed_parsers). Если записи не извлечены:
+    - use_browser=True — фетч через Playwright (обход JS-челленджа антибота);
+    - use_llm=True — LLM-разбор контента.
     """
+    from app.news.browser_fetch import fetch_with_playwright
     from app.news.feed_parsers import parse_feed
     from app.news.llm_parse import parse_feed_with_llm
 
@@ -112,6 +116,15 @@ async def check_feed(url: str, use_llm: bool = False) -> tuple[bool, str]:
     result = parse_feed(data)
     if result.entries:
         return True, "ok"
+    if use_browser:
+        try:
+            browser_data = await fetch_with_playwright(url)
+        except Exception:
+            browser_data = None
+        if browser_data:
+            browser_result = parse_feed(browser_data)
+            if browser_result.entries:
+                return True, "ok (браузер)"
     if use_llm:
         try:
             entries = await parse_feed_with_llm(data)

@@ -113,6 +113,7 @@ async def fetch_rss_feeds(feeds: list[dict]) -> list[RawArticle]:
     Парсинг — конвейером (feedparser → толерантный HTML/XML-парсер); если
     записи не извлечены и у ленты включён use_llm — пробуется LLM-разбор.
     """
+    from app.news.browser_fetch import fetch_with_playwright
     from app.news.feed_parsers import parse_feed
     from app.news.llm_parse import parse_feed_with_llm
 
@@ -126,6 +127,19 @@ async def fetch_rss_feeds(feeds: list[dict]) -> list[RawArticle]:
             continue
         result = parse_feed(data)
         entries = result.entries
+        if not entries and feed.get("use_browser"):
+            try:
+                browser_data = await fetch_with_playwright(feed["url"])
+            except Exception:
+                browser_data = None
+            if browser_data:
+                browser_result = parse_feed(browser_data)
+                entries = browser_result.entries
+                if entries:
+                    print(
+                        f"  лента {feed['name']}: {len(entries)} записей через браузер",
+                        flush=True,
+                    )
         if not entries and feed.get("use_llm"):
             try:
                 entries = await parse_feed_with_llm(data)

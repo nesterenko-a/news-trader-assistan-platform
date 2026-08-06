@@ -1728,6 +1728,32 @@ async def news_rss_toggle_llm(
     return RedirectResponse(url="/news", status_code=303)
 
 
+@router.post("/news/rss/toggle-browser")
+async def news_rss_toggle_browser(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    """Включает/выключает обход антибота (Playwright) для ленты."""
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    try:
+        source_id = int(str(form.get("source_id") or "0"))
+    except ValueError:
+        source_id = 0
+    use_browser = str(form.get("use_browser") or "") == "on"
+    source = await session.scalar(
+        select(Source)
+        .join(UserSource, UserSource.source_id == Source.id)
+        .where(UserSource.user_id == user.id, Source.id == source_id)
+    )
+    if source is not None:
+        source.use_browser = use_browser
+        await session.commit()
+    return RedirectResponse(url="/news", status_code=303)
+
+
 @router.post("/news/rss/check")
 async def news_rss_check(
     request: Request,

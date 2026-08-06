@@ -259,6 +259,7 @@ class SourceOut(BaseModel):
     last_error: str | None = None
     last_checked_at: datetime | None = None
     use_llm: bool = False
+    use_browser: bool = False
 
 
 class SourceUpdateIn(BaseModel):
@@ -268,6 +269,7 @@ class SourceUpdateIn(BaseModel):
     reputation: float | None = None
     is_active: bool | None = None
     use_llm: bool | None = None
+    use_browser: bool | None = None
 
 
 class FeedCheckIn(BaseModel):
