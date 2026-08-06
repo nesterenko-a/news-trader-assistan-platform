@@ -220,6 +220,13 @@ async def _seed_closes(session, ticker: str, closes: list[float]) -> None:
         )
 
 
+def test_calculate_macd_flat_unknown():
+    # Плоский ряд: MACD == signal == 0 — тренд unknown, а не ложный «down»
+    result = calculate_macd(_candles([100.0] * 60))
+    assert result.meta["trend"] == "unknown"
+    assert not any(s.kind.startswith("cross") for s in result.signals)
+
+
 async def test_engine_trend_signal_down_weakens_buy(session):
     await seed_graph(session)
     await _seed_closes(session, "AFLT", [100.0 - 0.02 * i * i for i in range(60)])
