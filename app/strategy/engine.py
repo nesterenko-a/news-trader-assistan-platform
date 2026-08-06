@@ -404,8 +404,8 @@ async def generate_strategy(
                 )
 
     # MACD: направление тренда как техсигнал (шаг 5 ТЗ §8.2).
-    # Порог 40 свечей: при дефолтных параметрах 12/26/9 нужно slow+signal+1=36
-    # значений MACD; 40 свечей дают запас. При смене параметров — пересмотреть.
+    # Порог 40 свечей: при дефолтных параметрах 12/26/9 минимум 35 свечей
+    # (первые MACD на 26-й свече, signal-EMA требует ещё 9); 40 — с запасом.
     trend_candles = [c for c in vp_candles if c.close is not None][-200:]
     if len(trend_candles) >= 40:
         macd_meta = calculate_macd(trend_candles).meta
