@@ -1,6 +1,6 @@
 # 19. Биржевые индикаторы — модули, ТЗ и roadmap
 
-**Статус:** утверждено v1.12 (реализованы индикаторы EMA §8.1 и MACD §8.2: модули, реестр/API, веб-вкладки; правки по замечаниям)  
+**Статус:** утверждено v1.13 (реализованы индикаторы EMA §8.1 и MACD §8.2: модули, реестр/API, веб-вкладки; MACD интегрирован в движок стратегий — техсигнал тренда; правки по замечаниям)  
 **Система:** NewsTrader Assistant
 **Связанные документы:** [04-functional-requirements.md](./04-functional-requirements.md) (FR-04-02), [07-data-model.md](./07-data-model.md) (`MarketCandle`), [09-strategy-engine.md](./09-strategy-engine.md), [10-api-specification.md](./10-api-specification.md), [12-roadmap.md](./12-roadmap.md), [14-web-interface.md](./14-web-interface.md), [17-quickstart.md](./17-quickstart.md)
 
@@ -223,7 +223,7 @@ class IndicatorResult:
 
 ### 8.2. MACD — схождение/расхождение скользящих средних
 
-**Статус:** реализован (модуль `app/market/indicators/macd.py`, реестр/API `/v1/indicators/macd`, веб-вкладка; параметры `fast`/`slow`/`signal`; сигналы `cross_up`/`cross_down`, `hist_positive`/`hist_negative`).
+**Статус:** реализован (модуль `app/market/indicators/macd.py`, реестр/API `/v1/indicators/macd`, веб-вкладка; параметры `fast`/`slow`/`signal`; сигналы `cross_up`/`cross_down`, `hist_positive`/`hist_negative`; интеграция в движок — техсигнал направления тренда, см. [09-strategy-engine.md](./09-strategy-engine.md) §4.1).
 
 **Обоснование:** закрывает P0 FR-04-02; классический тренд-осциллятор, используется в стратегиях как фильтр направления.
 
@@ -235,7 +235,7 @@ class IndicatorResult:
 
 **Сложность:** просто.
 
-**Roadmap:** 1) модуль + тесты (включая сверку с эталоном); 2) валидация; 3) реестр/API; 4) веб; 5) интеграция в движок (направление тренда в техсигналах); 6) документация и статус.
+**Roadmap:** 1) модуль + тесты (включая сверку с эталоном); 2) валидация; 3) реестр/API; 4) веб; 5) интеграция в движок (направление тренда в техсигналах) — **реализовано**; 6) документация и статус — **реализовано**.
 
 ### 8.3. Полосы Боллинджера
 

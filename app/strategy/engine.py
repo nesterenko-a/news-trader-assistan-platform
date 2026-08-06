@@ -21,6 +21,7 @@ from app.graph.service import (
 )
 from app.market.indicators import rsi, sma, volatility
 from app.market.indicators.volume_profile import calculate_volume_profile
+from app.market.indicators.macd import calculate_macd
 from app.market.oi_data import latest_oi_signal, nearest_future
 
 DECAY_PER_HOUR = 0.0137
@@ -400,6 +401,41 @@ async def generate_strategy(
                     f"перепроданность по профилю объёма"
                     if not indicator_note
                     else f"{indicator_note}; цена ниже Value Area (VAL={val:.2f}) — перепроданность"
+                )
+
+    # MACD: направление тренда как техсигнал (шаг 5 ТЗ §8.2)
+    trend_candles = [c for c in vp_candles if c.close is not None][-200:]
+    if len(trend_candles) >= 40:
+        macd_meta = calculate_macd(trend_candles).meta
+        trend = macd_meta.get("trend")
+        if trend in ("up", "down"):
+            signals.append(
+                {
+                    "entity": "MACD (тренд)",
+                    "snippet": "",
+                    "url": "",
+                    "sentiment": "positive" if trend == "up" else "negative",
+                    "kind": "trend",
+                    "path": [
+                        "MACD "
+                        + ("> signal — тренд вверх" if trend == "up" else "< signal — тренд вниз")
+                    ],
+                    "weight": 0.0,
+                }
+            )
+            if trend == "down" and net_score > 0:
+                net_score *= 0.9
+                indicator_note = (
+                    "тренд по MACD вниз — сигнал ослаблен"
+                    if not indicator_note
+                    else f"{indicator_note}; тренд по MACD вниз — сигнал ослаблен"
+                )
+            elif trend == "up" and net_score < 0:
+                net_score *= 0.9
+                indicator_note = (
+                    "тренд по MACD вверх — сигнал ослаблен"
+                    if not indicator_note
+                    else f"{indicator_note}; тренд по MACD вверх — сигнал ослаблен"
                 )
 
     coverage = min(len(signals) / 5.0, 1.0)
