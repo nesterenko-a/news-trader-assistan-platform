@@ -108,9 +108,14 @@
         {% for cand in candidates %}
         <tr>
           <td>
-            <input type="checkbox" name="cand_name" value="{{ cand.name }}" {% if not cand.ok %}disabled{% endif %}>
-            <input type="hidden" name="cand_url" value="{{ cand.url }}">
-            <input type="hidden" name="cand_category" value="{{ cand.category }}">
+            {% if cand.ok %}
+            <input type="checkbox" name="cand_{{ loop.index0 }}_pick">
+            {% else %}
+            <input type="checkbox" disabled>
+            {% endif %}
+            <input type="hidden" name="cand_{{ loop.index0 }}_name" value="{{ cand.name }}">
+            <input type="hidden" name="cand_{{ loop.index0 }}_url" value="{{ cand.url }}">
+            <input type="hidden" name="cand_{{ loop.index0 }}_category" value="{{ cand.category }}">
           </td>
           <td>{{ cand.name }}</td>
           <td class="muted small">{{ cand.url }}</td>

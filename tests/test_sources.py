@@ -3,6 +3,7 @@
 import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
+from urllib.parse import quote
 
 import pytest
 import pytest_asyncio
@@ -16,10 +17,12 @@ from app.api.routes.sources import (
     remove_source,
     restore_defaults,
     search_sources,
+    update_source,
 )
+from app.api.routes.auth import register
 from app.db.connection import Base
 from app.db.models import Source, User, UserSource
-from app.news.feed_check import check_feed, validate_feed_url
+from app.news.feed_check import check_feed, fetch_feed_bytes, validate_feed_url
 from app.news.sources_service import (
     SOURCE_CATEGORIES,
     add_default_sources_for_user,
@@ -27,8 +30,14 @@ from app.news.sources_service import (
     restore_default_sources,
     user_sources,
 )
-from app.schemas import FeedCheckIn, FeedSearchIn, SourceIn
-from app.web.router import news_page
+from app.schemas import (
+    FeedCheckIn,
+    FeedSearchIn,
+    RegisterIn,
+    SourceIn,
+    SourceUpdateIn,
+)
+from app.web.router import news_page, news_rss_add_selected
 
 
 PUBLIC_RSS = "https://93.184.216.34/rss"  # публичный IP — без DNS-зависимости в тестах
@@ -54,21 +63,21 @@ async def _mk_user(session) -> User:
 
 # ---------- SSRF-валидатор ----------
 
-def test_validate_feed_url_rejects_bad_scheme():
-    assert validate_feed_url("ftp://example.com/rss") is not None
-    assert validate_feed_url("file:///etc/passwd") is not None
+async def test_validate_feed_url_rejects_bad_scheme():
+    assert await validate_feed_url("ftp://example.com/rss") is not None
+    assert await validate_feed_url("file:///etc/passwd") is not None
 
 
-def test_validate_feed_url_rejects_internal():
-    assert validate_feed_url("http://localhost/rss") is not None
-    assert validate_feed_url("http://127.0.0.1/rss") is not None
-    assert validate_feed_url("http://10.0.0.5/rss") is not None
-    assert validate_feed_url("http://192.168.1.10/rss") is not None
-    assert validate_feed_url("http://[::1]/rss") is not None
+async def test_validate_feed_url_rejects_internal():
+    assert await validate_feed_url("http://localhost/rss") is not None
+    assert await validate_feed_url("http://127.0.0.1/rss") is not None
+    assert await validate_feed_url("http://10.0.0.5/rss") is not None
+    assert await validate_feed_url("http://192.168.1.10/rss") is not None
+    assert await validate_feed_url("http://[::1]/rss") is not None
 
 
-def test_validate_feed_url_accepts_public():
-    assert validate_feed_url(PUBLIC_RSS) is None
+async def test_validate_feed_url_accepts_public():
+    assert await validate_feed_url(PUBLIC_RSS) is None
 
 
 async def test_check_feed_short_circuits_bad_scheme():
@@ -84,24 +93,9 @@ async def test_check_feed_ok_with_mock(monkeypatch):
         "</channel></rss>"
     ).encode("utf-8")
 
-    class FakeResponse:
-        status_code = 200
-        content = rss_xml
-
-    class FakeClient:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *exc):
-            return False
-
-        async def get(self, url):
-            return FakeResponse()
-
-    monkeypatch.setattr("app.news.feed_check.httpx.AsyncClient", FakeClient)
+    response = FakeStreamResponse(chunks=[rss_xml])
+    client = FakeStreamClient(response)
+    monkeypatch.setattr("app.news.feed_check.httpx.AsyncClient", lambda **kw: client)
     ok, error = await check_feed(PUBLIC_RSS)
     assert ok
     assert error == "ok"
@@ -317,3 +311,137 @@ async def test_news_page_renders_feeds(session):
     assert "✔ работает" in html
     assert "Вернуть стандартные ленты" in html
     assert "Найти ленты через ИИ" in html
+
+
+# ---------- Находки ревизии ----------
+
+class FakeStreamResponse:
+    def __init__(self, status_code=200, chunks=None, headers=None):
+        self.status_code = status_code
+        self._chunks = chunks or [b"ok"]
+        self.headers = headers or {}
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def aiter_bytes(self):
+        for chunk in self._chunks:
+            yield chunk
+
+
+class FakeStreamClient:
+    def __init__(self, response):
+        self._response = response
+        self.calls = []
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    def stream(self, method, url):
+        self.calls.append(url)
+        return self._response
+
+
+async def test_fetch_rejects_redirect_to_internal(monkeypatch):
+    redirect = FakeStreamResponse(
+        status_code=302, headers={"location": "http://127.0.0.1/admin"}
+    )
+    client = FakeStreamClient(redirect)
+    monkeypatch.setattr("app.news.feed_check.httpx.AsyncClient", lambda **kw: client)
+    data, error = await fetch_feed_bytes(PUBLIC_RSS)
+    assert data is None
+    assert "Внутренние" in error or "Локальные" in error
+
+
+async def test_fetch_rejects_oversized_body(monkeypatch):
+    big = FakeStreamResponse(chunks=[b"x" * (1024 * 1024)] * 3)  # > 2 МБ
+    client = FakeStreamClient(big)
+    monkeypatch.setattr("app.news.feed_check.httpx.AsyncClient", lambda **kw: client)
+    data, error = await fetch_feed_bytes(PUBLIC_RSS)
+    assert data is None
+    assert "слишком большой" in error
+
+
+async def test_api_add_name_collision_rejected(session, monkeypatch):
+    user = await _mk_user(session)
+    session.add(Source(name="Занято", kind="rss", config={"url": "https://93.184.216.34/old"}))
+    await session.commit()
+    monkeypatch.setattr("app.api.routes.sources.check_feed", AsyncMock(return_value=(True, "ok")))
+    with pytest.raises(Exception) as excinfo:
+        await add_source(SourceIn(name="Занято", url=PUBLIC_RSS), user, session)
+    assert "уже существует" in str(excinfo.value)
+
+
+async def test_api_update_empty_name_rejected(session):
+    user = await _mk_user(session)
+    src = Source(name="K", kind="rss", config={"url": PUBLIC_RSS})
+    session.add(src)
+    await session.flush()
+    session.add(UserSource(user_id=user.id, source_id=src.id))
+    await session.commit()
+    with pytest.raises(Exception):
+        await update_source(src.id, SourceUpdateIn(name="   "), user, session)
+
+
+async def test_registration_seeds_default_sources(session):
+    out = await register(RegisterIn(username="newuser", password="secret123"), session)
+    assert out["username"] == "newuser"
+    user = await session.scalar(select(User).where(User.username == "newuser"))
+    rows = await user_sources(session, user.id, kind="rss")
+    assert len(rows) > 0
+
+
+async def test_news_add_selected_uses_row_index(session, monkeypatch):
+    from starlette.requests import Request
+
+    from app.auth import create_session
+
+    user = await _mk_user(session)
+    token = await create_session(session, user)
+
+    calls = []
+
+    async def fake_add(payload, user, session):
+        calls.append(payload.url)
+        return {}
+
+    monkeypatch.setattr("app.web.router.add_source_api", fake_add)
+
+    body = (
+        "cand_0_pick=on"
+        f"&cand_0_name={quote('Лента А')}"
+        f"&cand_0_url={quote(PUBLIC_RSS)}"
+        "&cand_0_category=финансы"
+        f"&cand_1_name={quote('Лента Б')}"
+        f"&cand_1_url={quote('https://93.184.216.34/other')}"
+        "&cand_1_category=погода"
+    ).encode("utf-8")
+
+    async def receive():
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/news/rss/add-selected",
+            "headers": [
+                (b"cookie", f"nt_token={token}".encode()),
+                (b"content-type", b"application/x-www-form-urlencoded"),
+            ],
+            "server": ("test", 80),
+            "query_string": b"",
+            "client": ("test", 80),
+            "scheme": "http",
+        },
+        receive=receive,
+    )
+    response = await news_rss_add_selected(request, session)
+    assert response.status_code == 303
+    assert calls == [PUBLIC_RSS]  # только выбранная строка 0; строка 1 не добавлена

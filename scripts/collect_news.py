@@ -4,7 +4,7 @@ from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import select
 
-from app.collectors.rss import DEFAULT_FEEDS, RSSCollector
+from app.collectors.rss import DEFAULT_FEEDS, fetch_rss_feeds
 from app.collectors.telegram import TelegramCollector
 from app.config import get_settings
 from app.db.connection import SessionLocal, init_db
@@ -54,7 +54,7 @@ async def collect_news(
     source_ids, reputation = await ensure_sources(session, _rss_sources(feeds))
 
     print("Загрузка лент RSS...", flush=True)
-    raw_articles = RSSCollector(feeds).fetch()
+    raw_articles = await fetch_rss_feeds(feeds)
     candidates = await filter_candidates(
         session,
         raw_articles,

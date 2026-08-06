@@ -2,7 +2,11 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
+import asyncio
+
 import feedparser
+
+from app.news.feed_check import fetch_feed_bytes
 
 
 @dataclass
@@ -50,6 +54,12 @@ def _parse_date(value: str | None) -> datetime | None:
 
 
 class RSSCollector:
+    """Синхронный сбор из переданного списка лент (legacy, без сетевых ограничений).
+
+    Для продакшн-конвейера используйте async fetch_rss_feeds() — он применяет
+    SSRF-валидацию, таймауты и лимит размера.
+    """
+
     def __init__(self, feeds: list[dict] | None = None):
         self.feeds = feeds or DEFAULT_FEEDS
 
@@ -60,20 +70,42 @@ class RSSCollector:
                 parsed = feedparser.parse(feed["url"])
             except Exception:
                 continue
-            for entry in parsed.entries:
-                title = entry.get("title", "").strip()
-                if not title:
-                    continue
-                text = entry.get("summary", "") or entry.get("description", "") or ""
-                link = entry.get("link", "").strip()
-                published = _parse_date(entry.get("published", ""))
-                articles.append(
-                    RawArticle(
-                        title=title,
-                        text=text.strip(),
-                        url=link,
-                        source_name=feed["name"],
-                        published_at=published or datetime.now(timezone.utc),
-                    )
-                )
+            articles.extend(_parsed_entries(feed, parsed))
         return articles
+
+
+def _parsed_entries(feed: dict, parsed) -> list[RawArticle]:
+    articles: list[RawArticle] = []
+    for entry in parsed.entries:
+        title = entry.get("title", "").strip()
+        if not title:
+            continue
+        text = entry.get("summary", "") or entry.get("description", "") or ""
+        link = entry.get("link", "").strip()
+        published = _parse_date(entry.get("published", ""))
+        articles.append(
+            RawArticle(
+                title=title,
+                text=text.strip(),
+                url=link,
+                source_name=feed["name"],
+                published_at=published or datetime.now(timezone.utc),
+            )
+        )
+    return articles
+
+
+async def fetch_rss_feeds(feeds: list[dict]) -> list[RawArticle]:
+    """Безопасный асинхронный сбор: фетч с SSRF-валидацией на каждом хопе,
+    таймаутом 10 с и лимитом 2 МБ; ленты с ошибками пропускаются."""
+    results = await asyncio.gather(
+        *(fetch_feed_bytes(feed["url"]) for feed in feeds)
+    )
+    articles: list[RawArticle] = []
+    for feed, (data, error) in zip(feeds, results):
+        if data is None:
+            print(f"  лента {feed['name']}: {error}", flush=True)
+            continue
+        parsed = feedparser.parse(data)
+        articles.extend(_parsed_entries(feed, parsed))
+    return articles

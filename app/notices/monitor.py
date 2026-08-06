@@ -122,7 +122,7 @@ async def check_moex() -> str | None:
 
 
 async def check_rss() -> str | None:
-    import httpx
+    from app.news.feed_check import check_feed
 
     urls = list(RSS_SAMPLE)
     try:
@@ -137,14 +137,10 @@ async def check_rss() -> str | None:
         pass
 
     results = []
-    async with httpx.AsyncClient(timeout=5, follow_redirects=True) as client:
-        for url in urls[:5]:
-            try:
-                response = await client.get(url)
-                results.append(response.status_code)
-            except Exception as exc:
-                results.append(type(exc).__name__)
-    if all(r != 200 for r in results):
+    for url in urls[:5]:
+        ok, error = await check_feed(url)
+        results.append("ok" if ok else error)
+    if all(r != "ok" for r in results):
         return f"RSS-источники недоступны: {results}"
     return None
 

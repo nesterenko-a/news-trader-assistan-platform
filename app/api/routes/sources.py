@@ -92,20 +92,26 @@ async def add_source(
         raise HTTPException(status_code=400, detail="Недопустимый тип источника")
     if not _valid_category(payload.category):
         raise HTTPException(status_code=400, detail="Недопустимая категория")
-    url_error = validate_feed_url(payload.url)
+    url_error = await validate_feed_url(payload.url)
     if url_error:
         raise HTTPException(status_code=400, detail=url_error)
 
     url = payload.url.strip()
     name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Название не может быть пустым")
     source = None
     for cand in await session.scalars(select(Source).where(Source.kind == payload.kind)):
         if (cand.config or {}).get("url") == url:
             source = cand
             break
     if source is None:
-        source = await session.scalar(select(Source).where(Source.name == name))
-    if source is None:
+        clash = await session.scalar(select(Source).where(Source.name == name))
+        if clash is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="Источник с таким именем уже существует с другим URL",
+            )
         source = Source(
             name=name,
             kind=payload.kind,
@@ -116,6 +122,7 @@ async def add_source(
         session.add(source)
         await session.flush()
     else:
+        # Тот же URL — тот же источник: обновляем общие метаданные каталога.
         source.config = {**(source.config or {}), "url": url}
         source.category = payload.category
         source.reputation_score = payload.reputation
@@ -153,9 +160,17 @@ async def update_source(
     if payload.is_active is not None:
         source.is_active = payload.is_active
     if payload.name is not None:
-        source.name = payload.name.strip()
+        new_name = payload.name.strip()
+        if not new_name:
+            raise HTTPException(status_code=400, detail="Название не может быть пустым")
+        clash = await session.scalar(
+            select(Source).where(Source.name == new_name, Source.id != source.id)
+        )
+        if clash is not None:
+            raise HTTPException(status_code=400, detail="Источник с таким именем уже существует")
+        source.name = new_name
     if payload.url is not None:
-        url_error = validate_feed_url(payload.url)
+        url_error = await validate_feed_url(payload.url)
         if url_error:
             raise HTTPException(status_code=400, detail=url_error)
         source.config = {**(source.config or {}), "url": payload.url.strip()}

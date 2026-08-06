@@ -1547,7 +1547,7 @@ async def news_rss_add(
         return RedirectResponse(url="/news?error=Заполните имя и URL", status_code=303)
     if category not in SOURCE_CATEGORIES and category != "":
         return RedirectResponse(url="/news?error=Недопустимая категория", status_code=303)
-    err = validate_feed_url(url)
+    err = await validate_feed_url(url)
     if err:
         return RedirectResponse(url=f"/news?error={err}", status_code=303)
     try:
@@ -1655,25 +1655,23 @@ async def news_rss_add_selected(
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
     form = await request.form()
-    names = form.getlist("cand_name")
-    urls = form.getlist("cand_url")
-    cats = form.getlist("cand_category")
     added = 0
-    for name, url, category in zip(names, urls, cats):
-        name = str(name).strip()
-        url = str(url).strip()
-        category = str(category or "")
-        if not name or not url:
-            continue
-        if validate_feed_url(url):
-            continue
-        try:
-            await add_source_api(
-                SourceIn(name=name, url=url, category=category), user, session
-            )
-            added += 1
-        except HTTPException:
-            continue
+    index = 0
+    while True:
+        if form.get(f"cand_{index}_pick") is None:
+            break
+        name = str(form.get(f"cand_{index}_name") or "").strip()
+        url = str(form.get(f"cand_{index}_url") or "").strip()
+        category = str(form.get(f"cand_{index}_category") or "")
+        if name and url and not await validate_feed_url(url):
+            try:
+                await add_source_api(
+                    SourceIn(name=name, url=url, category=category), user, session
+                )
+                added += 1
+            except HTTPException:
+                pass
+        index += 1
     return RedirectResponse(
         url=f"/news?info=Добавлено лент: {added}", status_code=303
     )
