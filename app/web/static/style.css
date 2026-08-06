@@ -148,7 +148,7 @@ main { padding: 24px 16px 40px; }
 .card h2 { margin: 0 0 14px; font-size: 18px; }
 
 .table { width: 100%; border-collapse: collapse; }
-.table th, .table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.table th, .table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
 .table th { color: var(--muted); font-weight: 600; font-size: 13px; }
 .table tr:hover td { background: var(--panel-2); }
 

@@ -42,7 +42,7 @@
       <tr>
         <td><input type="checkbox" form="check-form" name="ids" value="{{ feed.id }}"></td>
         <td>{{ feed.name }}</td>
-        <td class="muted small">{{ (feed.config or {}).get('url', '') }}</td>
+        <td class="muted small" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ (feed.config or {}).get('url', '') }}">{{ (feed.config or {}).get('url', '') }}</td>
         <td>{{ feed.category or '—' }}</td>
         <td>{{ '%.2f'|format(feed.reputation_score) }}</td>
         <td>
@@ -56,10 +56,10 @@
         </td>
         <td class="muted small" style="white-space:nowrap">
           <label class="feed-toggle" title="При неудаче парсинга (например «Не похоже на RSS») разбирать ленту через LLM">
-            <input type="checkbox" data-source-id="{{ feed.id }}" data-field="use_llm" {% if feed.use_llm %}checked{% endif %}> LLM-разбор
+            <input type="checkbox" data-source-id="{{ feed.id }}" data-field="use_llm" {% if feed.use_llm %}checked{% endif %}> LLM
           </label>
-          <label class="feed-toggle" style="margin-left:10px" title="Обход JS-челленджа антибота через headless-браузер (Playwright)">
-            <input type="checkbox" data-source-id="{{ feed.id }}" data-field="use_browser" {% if feed.use_browser %}checked{% endif %}> Обход антибота
+          <label class="feed-toggle" style="margin-left:8px" title="Обход JS-челленджа антибота через headless-браузер (Playwright)">
+            <input type="checkbox" data-source-id="{{ feed.id }}" data-field="use_browser" {% if feed.use_browser %}checked{% endif %}> Браузер
           </label>
         </td>
         <td>
