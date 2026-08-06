@@ -220,6 +220,12 @@ async def _seed_closes(session, ticker: str, closes: list[float]) -> None:
         )
 
 
+def test_calculate_ema_flat_unknown():
+    # Плоский ряд: EMA_fast == EMA_slow — тренд unknown, а не ложный «down»
+    result = calculate_ema(_candles([100.0] * 60), params={"fast": 2, "slow": 3})
+    assert result.meta["trend"] == "unknown"
+
+
 def test_calculate_macd_flat_unknown():
     # Плоский ряд: MACD == signal == 0 — тренд unknown, а не ложный «down»
     result = calculate_macd(_candles([100.0] * 60))

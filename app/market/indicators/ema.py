@@ -119,7 +119,7 @@ def calculate_ema(
             "latest_slow": round(last_slow, 4) if last_slow is not None else None,
             "trend": (
                 "up" if last_fast is not None and last_slow is not None and last_fast > last_slow
-                else "down" if last_fast is not None and last_slow is not None
+                else "down" if last_fast is not None and last_slow is not None and last_fast < last_slow
                 else "unknown"
             ),
             "candles": len(closes),
