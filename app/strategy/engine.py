@@ -493,8 +493,9 @@ async def generate_strategy(
 
         for s in signals[:10]:
             if not s["weight"]:
-                # Информационные сигналы (вес 0: oi, vp, trend) не сохраняются —
-                # не участвуют в калибровке весов и только засоряют пул evidence.
+                # Нулевой вес: информационные (oi, vp, trend) и новостные
+                # с нулевым влиянием — в калибровке весов не участвуют,
+                # в evidence не сохраняются (иначе шум в пуле).
                 continue
             session.add(
                 EvidenceItem(
