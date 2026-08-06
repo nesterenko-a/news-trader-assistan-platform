@@ -75,6 +75,8 @@ from app.market.oi_data import futures_for_security, nearest_future
 from app.market.indicators.oi import calculate_oi
 from app.market.indicators.registry import REGISTRY
 from app.market.indicators.volume_profile import calculate_volume_profile
+from app.market.indicators.ema import calculate_ema
+from app.market.indicators.macd import calculate_macd
 from app.news.service import load_security_news
 from app.presentation.factories import WebContextFactory
 from app.presentation.view import build_strategy_view
@@ -93,10 +95,48 @@ SIGNAL_LABELS = {
     "short_covering": "Short Covering",
     "bearish_setup": "Bearish Setup",
     "bullish_setup": "Bullish Setup",
+    "cross_up": "Golden Cross",
+    "cross_down": "Death Cross",
+    "hist_positive": "Гистограмма положительная",
+    "hist_negative": "Гистограмма отрицательная",
 }
 
 _web_context_factory = WebContextFactory()
 _moex = MOEXClient()
+
+
+def _build_indicator_charts(
+    series_by_kind: dict[str, list[tuple]], width: int = 900, height: int = 180
+) -> list[dict]:
+    """Линейные графики по сериям значений индикатора (kind -> [(date, value)])."""
+    charts: list[dict] = []
+    for kind, points in series_by_kind.items():
+        valid = [(d, v) for d, v in points if v is not None]
+        if len(valid) < 2:
+            continue
+        vals = [v for _, v in valid]
+        vmin, vmax = min(vals), max(vals)
+        span = (vmax - vmin) or 1.0
+        n = len(valid)
+        coords = []
+        for i, (_, v) in enumerate(valid):
+            x = 10 + i * (width - 20) / (n - 1)
+            y = height - 10 - (v - vmin) / span * (height - 20)
+            coords.append(f"{x:.1f},{y:.1f}")
+        charts.append(
+            {
+                "kind": kind,
+                "points": " ".join(coords),
+                "min": round(vmin, 4),
+                "max": round(vmax, 4),
+                "first_date": valid[0][0].isoformat(),
+                "last_date": valid[-1][0].isoformat(),
+                "width": width,
+                "height": height,
+                "count": n,
+            }
+        )
+    return charts
 
 
 async def _optional_user(
@@ -453,6 +493,9 @@ async def indicators_page(
     to: date | None = Query(None, alias="to"),
     oi_change_threshold_pct: float | None = Query(None, gt=0),
     vp_period: int | None = Query(None, ge=5, le=3650),
+    fast: int | None = Query(None, ge=2, le=500),
+    slow: int | None = Query(None, ge=3, le=500),
+    signal: int | None = Query(None, ge=2, le=100),
     session: AsyncSession = Depends(get_session),
 ):
     """Страница индикаторов: вкладки из реестра (OI, Volume Profile, ...)."""
@@ -509,6 +552,76 @@ async def indicators_page(
                 "from": "", "to": "", "oi_threshold": 1.0, "error": "",
                 "chart_oi": None, "chart_change": None, "chart_volume": None,
                 "signals": [], "params_used": None, "security_name": "",
+            }
+        )
+        return templates.TemplateResponse(request, "indicators.html", context)
+
+    if indicator_name in ("ema", "macd"):
+        ema_error = ""
+        ema_security_name = ""
+        ema_charts: list[dict] = []
+        ema_signals: list[dict] = []
+        ema_meta: dict = {}
+        ema_params = {"fast": fast, "slow": slow, "signal": signal}
+        if ticker:
+            security = await session.scalar(
+                select(Security).where(Security.ticker == ticker.upper())
+            )
+            if security is None:
+                ema_error = "Бумага не найдена."
+            else:
+                ema_security_name = security.name
+                candles = (
+                    await session.scalars(
+                        select(MarketCandle)
+                        .where(MarketCandle.security_id == security.id)
+                        .order_by(MarketCandle.trading_date)
+                    )
+                ).all()
+                candles = candles[-300:]
+                result = (
+                    calculate_ema(candles, params=ema_params)
+                    if indicator_name == "ema"
+                    else calculate_macd(candles, params=ema_params)
+                )
+                ema_meta = result.meta
+                series: dict[str, list[tuple]] = {}
+                for value in result.values:
+                    series.setdefault(value.kind, []).append(
+                        (value.date, value.value)
+                    )
+                ema_charts = _build_indicator_charts(series)
+                ema_signals = [
+                    {
+                        "date": s.date.strftime("%d.%m.%Y"),
+                        "kind": s.kind,
+                        "label": SIGNAL_LABELS.get(s.kind, s.kind),
+                        "severity": s.severity,
+                        "note": s.note,
+                    }
+                    for s in sorted(result.signals, key=lambda s: s.date, reverse=True)
+                ]
+        context.update(
+            {
+                "indicator_name": indicator_name,
+                "indicators_list": indicators_list,
+                "ticker": ticker,
+                "ema_error": ema_error,
+                "ema_security_name": ema_security_name,
+                "ema_charts": ema_charts,
+                "ema_signals": ema_signals,
+                "ema_meta": ema_meta,
+                "ema_params": ema_params,
+                "from": from_.isoformat() if from_ else "",
+                "to": to.isoformat() if to else "",
+                "oi_threshold": 1.0,
+                "error": "",
+                "chart_oi": None,
+                "chart_change": None,
+                "chart_volume": None,
+                "signals": [],
+                "params_used": None,
+                "security_name": "",
             }
         )
         return templates.TemplateResponse(request, "indicators.html", context)

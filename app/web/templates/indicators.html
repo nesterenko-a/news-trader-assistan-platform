@@ -261,6 +261,73 @@
 </section>
 {% endif %}
 
+{% elif indicator_name in ('ema', 'macd') %}
+<p class="muted">{% if indicator_name == 'ema' %}Экспоненциальные скользящие средние (fast/slow) и сигналы пересечения: cross_up (golden cross) / cross_down (death cross).{% else %}MACD: EMA(fast) − EMA(slow), signal, гистограмма; сигналы cross_up/cross_down и смены знака гистограммы.{% endif %}</p>
+<form method="get" action="/indicators" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">
+  <input type="hidden" name="name" value="{{ indicator_name }}">
+  <div>
+    <label class="muted small" style="display:block">Тикер</label>
+    <input type="text" name="ticker" value="{{ ticker }}" autocomplete="off">
+  </div>
+  <div>
+    <label class="muted small" style="display:block">fast</label>
+    <input type="number" name="fast" min="2" max="500" value="{{ ema_params.fast if ema_params.fast else 12 }}">
+  </div>
+  <div>
+    <label class="muted small" style="display:block">slow</label>
+    <input type="number" name="slow" min="3" max="500" value="{{ ema_params.slow if ema_params.slow else 26 }}">
+  </div>
+  {% if indicator_name == 'macd' %}
+  <div>
+    <label class="muted small" style="display:block">signal</label>
+    <input type="number" name="signal" min="2" max="100" value="{{ ema_params.signal if ema_params.signal else 9 }}">
+  </div>
+  {% endif %}
+  <button class="btn" type="submit">Показать</button>
+</form>
+
+{% if ema_error %}<section class="card"><p class="error">{{ ema_error }}</p></section>{% endif %}
+
+{% if ema_charts %}
+<section class="card chart-card" style="margin-top:12px">
+  <div class="chart-head">
+    <h2>{{ 'EMA' if indicator_name == 'ema' else 'MACD' }} — {{ ema_security_name }} ({{ ticker }})</h2>
+    {% if ema_meta.trend == 'up' %}<span class="muted">тренд вверх ↑</span>
+    {% elif ema_meta.trend == 'down' %}<span class="muted">тренд вниз ↓</span>{% endif %}
+  </div>
+  {% for chart in ema_charts %}
+  <svg class="chart" viewBox="0 0 {{ chart.width }} {{ chart.height }}" preserveAspectRatio="none">
+    <polyline points="{{ chart.points }}"/>
+  </svg>
+  <div class="chart-labels">
+    <span>{{ chart.kind }}: {{ chart.min }} – {{ chart.max }}</span>
+    <span>{{ chart.first_date }} → {{ chart.last_date }} ({{ chart.count }} точек)</span>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Сигналы</h2>
+  {% if ema_signals %}
+  <table class="table">
+    <thead><tr><th>Дата</th><th>Сигнал</th><th>Важность</th><th>Трактовка</th></tr></thead>
+    <tbody>
+      {% for s in ema_signals %}
+      <tr>
+        <td>{{ s.date }}</td>
+        <td><b>{{ s.label }}</b></td>
+        <td><span class="run-status {{ 'run-error' if s.severity == 'strong' else 'run-warning' }}">{{ s.severity }}</span></td>
+        <td>{{ s.note }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">{% if ema_error %}Нет данных для расчёта.{% else %}Сигналов не найдено — введите тикер и нажмите «Показать».{% endif %}</p>
+  {% endif %}
+</section>
+
 {% elif indicator_name == 'volume_profile' %}
 <p class="muted">Профиль объёма — распределение объёма торгов по ценовым уровням за период: POC, Value Area (VAH/VAL), HVN, LVN. Работает для акций и фьючерсов.</p>
 <form method="get" action="/indicators" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">

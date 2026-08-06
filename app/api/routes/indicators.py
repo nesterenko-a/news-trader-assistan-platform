@@ -11,6 +11,8 @@ from app.market.indicators.base import IndicatorResult
 from app.market.indicators.oi import calculate_oi
 from app.market.indicators.registry import REGISTRY
 from app.market.indicators.volume_profile import calculate_volume_profile
+from app.market.indicators.ema import calculate_ema
+from app.market.indicators.macd import calculate_macd
 from app.market.moex import MOEXClient
 
 router = APIRouter(prefix="/indicators", tags=["indicators"])
@@ -62,6 +64,9 @@ async def calculate_indicator(
     value_area_pct: float | None = Query(None, gt=0, le=100),
     hvn_factor: float | None = Query(None, gt=1),
     lvn_factor: float | None = Query(None, gt=0, lt=1),
+    fast: int | None = Query(None, ge=2, le=500),
+    slow: int | None = Query(None, ge=3, le=500),
+    signal: int | None = Query(None, ge=2, le=100),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     if name not in REGISTRY:
@@ -116,6 +121,20 @@ async def calculate_indicator(
                 },
             )
         )
+
+    if name in ("ema", "macd"):
+        candle_q = (
+            select(MarketCandle)
+            .where(MarketCandle.security_id == security.id)
+            .order_by(MarketCandle.trading_date)
+        )
+        candles = (await session.scalars(candle_q)).all()
+        if limit is not None:
+            candles = candles[-limit:]
+        params = {"fast": fast, "slow": slow, "signal": signal}
+        if name == "ema":
+            return _result_to_dict(calculate_ema(candles, params=params))
+        return _result_to_dict(calculate_macd(candles, params=params))
     raise HTTPException(status_code=404, detail="Индикатор не найден")
 
 
