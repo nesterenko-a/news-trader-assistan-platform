@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.collectors.rss import DEFAULT_FEEDS
 from app.db.models import Source, UserSource
 
-SOURCE_CATEGORIES = ["финансы", "геополитика", "погода"]
+SOURCE_CATEGORIES = ["биржа", "геополитика", "погода"]
 
 
 def default_feed_dicts() -> list[dict]:

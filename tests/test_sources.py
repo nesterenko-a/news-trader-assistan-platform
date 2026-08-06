@@ -231,7 +231,7 @@ async def test_api_search_parses_llm(session, monkeypatch):
         async def chat(self, system, user_prompt):
             return json.dumps(
                 [
-                    {"name": "Лента А", "url": "https://a.example/rss", "category": "финансы"},
+                    {"name": "Лента А", "url": "https://a.example/rss", "category": "биржа"},
                     {"name": "Лента Б", "url": "https://b.example/rss", "category": "погода"},
                 ]
             )
@@ -244,7 +244,7 @@ async def test_api_search_parses_llm(session, monkeypatch):
     out = await search_sources(FeedSearchIn(query="тема"), user, session)
     assert len(out) == 2
     assert out[0]["ok"] is True
-    assert out[0]["category"] == "финансы"
+    assert out[0]["category"] == "биржа"
 
 
 def test_search_candidates_parse_flexible():

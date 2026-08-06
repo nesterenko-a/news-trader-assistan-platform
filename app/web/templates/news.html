@@ -42,9 +42,22 @@
       <tr>
         <td><input type="checkbox" form="check-form" name="ids" value="{{ feed.id }}"></td>
         <td>{{ feed.name }}</td>
-        <td class="muted small" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ (feed.config or {}).get('url', '') }}">{{ (feed.config or {}).get('url', '') }}</td>
-        <td>{{ feed.category or '—' }}</td>
-        <td>{{ '%.2f'|format(feed.reputation_score) }}</td>
+        <td class="muted small" style="max-width:200px">
+          <input class="feed-field feed-field-url" type="text" value="{{ (feed.config or {}).get('url', '') }}" disabled title="{{ (feed.config or {}).get('url', '') }}">
+        </td>
+        <td>
+          <select class="feed-field feed-field-cat" disabled>
+            {% for cat in categories %}
+            <option value="{{ cat }}" {% if (feed.category or '') == cat %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+            {% if feed.category and feed.category not in categories %}
+            <option value="{{ feed.category }}" selected>{{ feed.category }}</option>
+            {% endif %}
+          </select>
+        </td>
+        <td>
+          <input class="feed-field feed-field-rep" type="number" min="0" max="1" step="0.01" value="{{ '%.2f'|format(feed.reputation_score) }}" disabled>
+        </td>
         <td>
           {% if feed.last_status == 'ok' %}
           <span class="feed-ok" title="Проверено{% if feed.last_checked_at %}: {{ feed.last_checked_at.strftime('%d.%m %H:%M') }}{% endif %}">✔ работает</span>
@@ -62,7 +75,8 @@
             <input type="checkbox" data-source-id="{{ feed.id }}" data-field="use_browser" {% if feed.use_browser %}checked{% endif %}> Браузер
           </label>
         </td>
-        <td>
+        <td style="white-space:nowrap">
+          <button type="button" class="feed-edit" data-source-id="{{ feed.id }}" title="Редактировать" aria-label="Редактировать">✎</button>
           <form method="post" action="/news/rss/remove" class="inline">
             <input type="hidden" name="source_id" value="{{ feed.id }}">
             <button type="submit" class="feed-remove" title="Убрать ленту" aria-label="Убрать ленту">✕</button>
@@ -157,6 +171,31 @@ document.querySelectorAll('.feed-toggle input[type="checkbox"]').forEach(functio
     fetch('/news/rss/toggle', { method: 'POST', body: fd })
       .then(function () { location.reload(); })
       .catch(function () { location.reload(); });
+  });
+});
+document.querySelectorAll('.feed-edit').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var row = btn.closest('tr');
+    var fields = row.querySelectorAll('.feed-field');
+    var editing = !btn.classList.contains('active');
+    if (editing) {
+      fields.forEach(function (f) { f.disabled = false; });
+      btn.classList.add('active');
+      btn.textContent = '\u2713';
+      btn.title = 'Сохранить изменения';
+    } else {
+      var fd = new FormData();
+      fd.append('source_id', btn.getAttribute('data-source-id'));
+      fd.append('url', row.querySelector('.feed-field-url').value);
+      fd.append('category', row.querySelector('.feed-field-cat').value);
+      fd.append('reputation', row.querySelector('.feed-field-rep').value);
+      btn.classList.remove('active');
+      btn.textContent = '\u270E';
+      btn.title = 'Редактировать';
+      fetch('/news/rss/update', { method: 'POST', body: fd })
+        .then(function () { location.reload(); })
+        .catch(function () { location.reload(); });
+    }
   });
 });
 </script>

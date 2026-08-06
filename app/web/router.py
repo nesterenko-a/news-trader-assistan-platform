@@ -1745,6 +1745,52 @@ async def news_rss_toggle(
     return RedirectResponse(url="/news", status_code=303)
 
 
+@router.post("/news/rss/update")
+async def news_rss_update(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    try:
+        source_id = int(str(form.get("source_id") or "0"))
+    except ValueError:
+        source_id = 0
+    url = str(form.get("url") or "").strip()
+    category = str(form.get("category") or "").strip()
+    reputation_raw = str(form.get("reputation") or "").strip()
+    if not url.startswith(("http://", "https://")):
+        return RedirectResponse(url="/news?error=Некорректный URL", status_code=303)
+    try:
+        reputation = float(reputation_raw)
+    except ValueError:
+        return RedirectResponse(url="/news?error=Некорректная репутация", status_code=303)
+    if not 0 <= reputation <= 1:
+        return RedirectResponse(url="/news?error=Репутация должна быть от 0 до 1", status_code=303)
+    source = await session.scalar(
+        select(Source)
+        .join(UserSource, UserSource.source_id == Source.id)
+        .where(UserSource.user_id == user.id, Source.id == source_id)
+    )
+    if source is None:
+        return RedirectResponse(url="/news?error=Источник не найден", status_code=303)
+    if category and category not in SOURCE_CATEGORIES and category != (source.category or ""):
+        return RedirectResponse(url="/news?error=Недопустимая категория", status_code=303)
+    old_url = (source.config or {}).get("url")
+    config = dict(source.config or {})
+    config["url"] = url
+    source.config = config
+    source.category = category or None
+    source.reputation_score = reputation
+    if old_url != url:
+        source.last_status = None
+        source.last_error = None
+    await session.commit()
+    return RedirectResponse(url="/news?info=Лента обновлена", status_code=303)
+
+
 @router.post("/news/rss/check")
 async def news_rss_check(
     request: Request,

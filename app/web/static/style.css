@@ -110,6 +110,36 @@ main { padding: 24px 16px 40px; }
 }
 .feed-remove:hover { background: rgba(229, 72, 77, 0.15); color: var(--red); }
 
+.feed-edit {
+  border: none;
+  background: transparent;
+  color: var(--muted, #999);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  padding: 0;
+  margin-right: 4px;
+}
+.feed-edit:hover { background: rgba(91, 140, 255, 0.15); color: var(--accent); }
+.feed-edit.active { background: rgba(91, 140, 255, 0.18); color: var(--accent); }
+
+.feed-field {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  padding: 2px 4px;
+  border-radius: 4px;
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+}
+.feed-field:disabled { cursor: default; }
+.feed-field:not(:disabled) { border-color: var(--border); background: var(--panel-2); }
+.feed-field-cat { width: auto; }
+
 .sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 .sort-arrow { font-size: 10px; margin-left: 4px; }
 
