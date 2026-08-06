@@ -46,6 +46,22 @@ def test_calculate_ema_insufficient():
     assert "недостаточно данных" in result.meta.get("note", "")
 
 
+def test_ema_skips_none_closes():
+    class Candle:
+        def __init__(self, trading_date, close):
+            self.trading_date = trading_date
+            self.close = close
+
+    start = date(2026, 1, 1)
+    candles = [
+        Candle(start + timedelta(days=i), c)
+        for i, c in enumerate([10.0, 11.0, None, 12.0, 13.0, 14.0, 15.0])
+    ]
+    result = calculate_ema(candles, params={"fast": 2, "slow": 3})
+    assert result.values  # не падает на None-свече
+    assert result.meta["candles"] == 6  # None-свеча исключена
+
+
 def test_ema_cross_down_then_up():
     # fast=2, slow=3: цена растёт, падает, резко растёт -> cross_down затем cross_up
     closes = [10.0, 11.0, 12.0, 13.0, 5.0, 6.0, 7.0, 30.0, 31.0]

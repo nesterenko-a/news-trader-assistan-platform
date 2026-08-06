@@ -123,11 +123,20 @@ async def calculate_indicator(
         )
 
     if name in ("ema", "macd"):
+        if fast is not None and slow is not None and fast >= slow:
+            raise HTTPException(status_code=422, detail="fast должен быть меньше slow")
         candle_q = (
             select(MarketCandle)
-            .where(MarketCandle.security_id == security.id)
+            .where(
+                MarketCandle.security_id == security.id,
+                MarketCandle.close.is_not(None),
+            )
             .order_by(MarketCandle.trading_date)
         )
+        if from_ is not None:
+            candle_q = candle_q.where(MarketCandle.trading_date >= from_)
+        if to is not None:
+            candle_q = candle_q.where(MarketCandle.trading_date <= to)
         candles = (await session.scalars(candle_q)).all()
         if limit is not None:
             candles = candles[-limit:]

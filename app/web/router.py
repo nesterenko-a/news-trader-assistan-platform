@@ -571,36 +571,46 @@ async def indicators_page(
                 ema_error = "Бумага не найдена."
             else:
                 ema_security_name = security.name
-                candles = (
-                    await session.scalars(
+                if fast is not None and slow is not None and fast >= slow:
+                    ema_error = "fast должен быть меньше slow"
+                else:
+                    candle_q = (
                         select(MarketCandle)
-                        .where(MarketCandle.security_id == security.id)
+                        .where(
+                            MarketCandle.security_id == security.id,
+                            MarketCandle.close.is_not(None),
+                        )
                         .order_by(MarketCandle.trading_date)
                     )
-                ).all()
-                candles = candles[-300:]
-                result = (
-                    calculate_ema(candles, params=ema_params)
-                    if indicator_name == "ema"
-                    else calculate_macd(candles, params=ema_params)
-                )
-                ema_meta = result.meta
-                series: dict[str, list[tuple]] = {}
-                for value in result.values:
-                    series.setdefault(value.kind, []).append(
-                        (value.date, value.value)
+                    if from_ is not None:
+                        candle_q = candle_q.where(MarketCandle.trading_date >= from_)
+                    if to is not None:
+                        candle_q = candle_q.where(MarketCandle.trading_date <= to)
+                    candles = (
+                        await session.scalars(candle_q)
+                    ).all()[-300:]
+                    result = (
+                        calculate_ema(candles, params=ema_params)
+                        if indicator_name == "ema"
+                        else calculate_macd(candles, params=ema_params)
                     )
-                ema_charts = _build_indicator_charts(series)
-                ema_signals = [
-                    {
-                        "date": s.date.strftime("%d.%m.%Y"),
-                        "kind": s.kind,
-                        "label": SIGNAL_LABELS.get(s.kind, s.kind),
-                        "severity": s.severity,
-                        "note": s.note,
-                    }
-                    for s in sorted(result.signals, key=lambda s: s.date, reverse=True)
-                ]
+                    ema_meta = result.meta
+                    series: dict[str, list[tuple]] = {}
+                    for value in result.values:
+                        series.setdefault(value.kind, []).append(
+                            (value.date, value.value)
+                        )
+                    ema_charts = _build_indicator_charts(series)
+                    ema_signals = [
+                        {
+                            "date": s.date.strftime("%d.%m.%Y"),
+                            "kind": s.kind,
+                            "label": SIGNAL_LABELS.get(s.kind, s.kind),
+                            "severity": s.severity,
+                            "note": s.note,
+                        }
+                        for s in sorted(result.signals, key=lambda s: s.date, reverse=True)
+                    ]
         context.update(
             {
                 "indicator_name": indicator_name,

@@ -46,8 +46,9 @@ def calculate_ema(
     fast = int(p["fast"])
     slow = int(p["slow"])
 
-    dates = [_candle_date(c) for c in candles]
-    closes = [c.close for c in candles]
+    valid = [(c, c.close) for c in candles if getattr(c, "close", None) is not None]
+    dates = [_candle_date(c) for c, _ in valid]
+    closes = [close for _, close in valid]
 
     fast_series = _ema(closes, fast)
     slow_series = _ema(closes, slow)
