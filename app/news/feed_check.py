@@ -9,6 +9,7 @@ import httpx
 
 MAX_FEED_BYTES = 2 * 1024 * 1024
 HTTP_TIMEOUT = 10.0
+TOTAL_TIMEOUT = 30.0
 MAX_REDIRECTS = 5
 
 
@@ -25,16 +26,22 @@ async def validate_feed_url(url: str) -> str | None:
         return "Неверный URL"
     if host == "localhost" or host.endswith(".localhost"):
         return "Локальные адреса запрещены"
+    try:
+        port = parsed.port or 80
+    except ValueError:
+        return "Неверный порт"
     loop = asyncio.get_running_loop()
     try:
-        infos = await loop.getaddrinfo(host, parsed.port or 80)
+        infos = await loop.getaddrinfo(host, port)
     except OSError:
         return "Не удалось разрешить хост"
     for info in infos:
         try:
-            ip = ipaddress.ip_address(info[4][0])
+            # IPv6 zone-идентификатор (fe80::1%eth0) — проверяем сам адрес
+            ip = ipaddress.ip_address(str(info[4][0]).split("%", 1)[0])
         except ValueError:
-            continue
+            # Fail-closed: нераспознанный адрес не должен проходить проверку
+            return "Некорректный адрес"
         if (
             ip.is_private
             or ip.is_loopback
@@ -59,26 +66,29 @@ async def fetch_feed_bytes(url: str) -> tuple[bytes | None, str]:
         if error:
             return None, error
         try:
-            async with httpx.AsyncClient(
-                timeout=HTTP_TIMEOUT, follow_redirects=False
-            ) as client:
-                async with client.stream("GET", current) as response:
-                    if response.status_code in (301, 302, 303, 307, 308):
-                        location = response.headers.get("location")
-                        if not location:
-                            return None, "Редирект без Location"
-                        current = str(httpx.URL(current).join(location))
-                        continue
-                    if response.status_code != 200:
-                        return None, f"HTTP {response.status_code}"
-                    chunks: list[bytes] = []
-                    size = 0
-                    async for chunk in response.aiter_bytes():
-                        size += len(chunk)
-                        if size > MAX_FEED_BYTES:
-                            return None, "Ответ слишком большой"
-                        chunks.append(chunk)
-                    return b"".join(chunks), "ok"
+            async with asyncio.timeout(TOTAL_TIMEOUT):
+                async with httpx.AsyncClient(
+                    timeout=HTTP_TIMEOUT, follow_redirects=False
+                ) as client:
+                    async with client.stream("GET", current) as response:
+                        if response.status_code in (301, 302, 303, 307, 308):
+                            location = response.headers.get("location")
+                            if not location:
+                                return None, "Редирект без Location"
+                            current = str(httpx.URL(current).join(location))
+                            continue
+                        if response.status_code != 200:
+                            return None, f"HTTP {response.status_code}"
+                        chunks: list[bytes] = []
+                        size = 0
+                        async for chunk in response.aiter_bytes():
+                            size += len(chunk)
+                            if size > MAX_FEED_BYTES:
+                                return None, "Ответ слишком большой"
+                            chunks.append(chunk)
+                        return b"".join(chunks), "ok"
+        except TimeoutError:
+            return None, "Таймаут соединения"
         except httpx.TimeoutException:
             return None, "Таймаут соединения"
         except httpx.HTTPError as exc:

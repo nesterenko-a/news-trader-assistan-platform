@@ -74,6 +74,12 @@ async def test_validate_feed_url_rejects_internal():
     assert await validate_feed_url("http://10.0.0.5/rss") is not None
     assert await validate_feed_url("http://192.168.1.10/rss") is not None
     assert await validate_feed_url("http://[::1]/rss") is not None
+    assert await validate_feed_url("http://[fe80::1]/rss") is not None  # link-local IPv6
+
+
+async def test_validate_feed_url_rejects_bad_port():
+    assert await validate_feed_url("https://example.com:99999/rss") is not None
+    assert await validate_feed_url("https://example.com:abc/rss") is not None
 
 
 async def test_validate_feed_url_accepts_public():
