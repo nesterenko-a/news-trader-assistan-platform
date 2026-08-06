@@ -1,5 +1,5 @@
 from pathlib import Path
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -1728,6 +1728,19 @@ async def news_rss_toggle(
             source.use_llm = on
         elif field == "use_browser":
             source.use_browser = on
+        if on:
+            url = (source.config or {}).get("url") or ""
+            if url:
+                from app.news.feed_check import check_feed
+
+                ok, desc = await check_feed(
+                    url,
+                    use_llm=bool(source.use_llm),
+                    use_browser=bool(source.use_browser),
+                )
+                source.last_status = "ok" if ok else "error"
+                source.last_error = "" if ok else desc
+                source.last_checked_at = datetime.now(timezone.utc)
         await session.commit()
     return RedirectResponse(url="/news", status_code=303)
 

@@ -146,6 +146,10 @@
 <script>
 document.querySelectorAll('.feed-toggle input[type="checkbox"]').forEach(function (cb) {
   cb.addEventListener('change', function () {
+    if (cb.checked && cb.getAttribute('data-field') === 'use_browser') {
+      var cell = cb.closest('td');
+      cell.innerHTML = '<span class="muted" style="white-space:nowrap">Проверяю…</span>';
+    }
     var fd = new FormData();
     fd.append('source_id', cb.getAttribute('data-source-id'));
     fd.append('field', cb.getAttribute('data-field'));
