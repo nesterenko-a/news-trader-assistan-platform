@@ -225,7 +225,7 @@ async def test_engine_trend_signal_down_weakens_buy(session):
         for s in result["signals"]
     )
     assert any("MACD" in r for r in result["risks"])
-    assert "MACD" in result["rationale_summary"]
+    assert "сигнал ослаблен" in result["rationale_summary"]
 
 
 async def test_engine_trend_signal_up_weakens_sell(session):
@@ -240,6 +240,58 @@ async def test_engine_trend_signal_up_weakens_sell(session):
         for s in result["signals"]
     )
     assert any("MACD" in r for r in result["risks"])
+    assert "сигнал ослаблен" in result["rationale_summary"]
+
+
+async def test_engine_trend_agrees_does_not_dampen(session):
+    await seed_graph(session)
+    await _seed_closes(session, "AFLT", [100.0 + 0.02 * i * i for i in range(60)])
+    await _store_news(session, "Аэрофлот", "positive")
+    await session.commit()
+
+    result = await generate_strategy(session, "AFLT", persist=False, use_live_market=False)
+    assert any(
+        s["kind"] == "trend" and s["sentiment"] == "positive"
+        for s in result["signals"]
+    )
+    assert "сигнал ослаблен" not in result["rationale_summary"]
+
+
+async def test_engine_trend_flat_series_unknown(session):
+    await seed_graph(session)
+    await _seed_closes(session, "AFLT", [100.0] * 60)
+    await _store_news(session, "Аэрофлот", "positive")
+    await session.commit()
+
+    result = await generate_strategy(session, "AFLT", persist=False, use_live_market=False)
+    # MACD == signal на плоском ряду — тренд unknown, сигнала нет
+    assert not any(s["kind"] == "trend" for s in result["signals"])
+
+
+async def test_engine_trend_insufficient_candles(session):
+    await seed_graph(session)
+    await _seed_closes(session, "AFLT", [100.0 - i for i in range(10)])
+    await _store_news(session, "Аэрофлот", "positive")
+    await session.commit()
+
+    result = await generate_strategy(session, "AFLT", persist=False, use_live_market=False)
+    assert not any(s["kind"] == "trend" for s in result["signals"])
+
+
+async def test_engine_trend_mixed_close_none(session):
+    await seed_graph(session)
+    closes = [100.0 - 0.02 * i * i for i in range(60)]
+    closes[10] = None
+    closes[25] = None
+    await _seed_closes(session, "AFLT", closes)
+    await _store_news(session, "Аэрофлот", "positive")
+    await session.commit()
+
+    result = await generate_strategy(session, "AFLT", persist=False, use_live_market=False)
+    assert any(
+        s["kind"] == "trend" and s["sentiment"] == "negative"
+        for s in result["signals"]
+    )
 
 
 async def test_engine_no_trend_signal_without_candles(session):

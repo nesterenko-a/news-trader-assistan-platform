@@ -145,7 +145,7 @@ def calculate_macd(
                 "up"
                 if last_macd is not None and last_signal is not None and last_macd > last_signal
                 else "down"
-                if last_macd is not None and last_signal is not None
+                if last_macd is not None and last_signal is not None and last_macd < last_signal
                 else "unknown"
             ),
             "candles": len(closes),
