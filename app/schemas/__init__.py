@@ -258,6 +258,7 @@ class SourceOut(BaseModel):
     last_status: str | None = None
     last_error: str | None = None
     last_checked_at: datetime | None = None
+    use_llm: bool = False
 
 
 class SourceUpdateIn(BaseModel):
@@ -266,6 +267,7 @@ class SourceUpdateIn(BaseModel):
     category: str | None = None
     reputation: float | None = None
     is_active: bool | None = None
+    use_llm: bool | None = None
 
 
 class FeedCheckIn(BaseModel):

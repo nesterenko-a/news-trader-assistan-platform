@@ -1,6 +1,6 @@
 # 20. News Sources Manager — управление источниками новостей
 
-**Статус:** утверждено v1.0  
+**Статус:** утверждено v1.1 (конвейер парсеров и LLM-фолбэк: толерантный HTML/XML-парсер, галочка «LLM-разбор» `use_llm`; правки по замечаниям)  
 **Система:** NewsTrader Assistant
 
 Дизайн-документ функции управления источниками новостей из веб-интерфейса. Реализовано: страница `/news` (вкладка RSS), персональные списки `user_sources`, стандартные ленты при регистрации и кнопка «Вернуть стандартные ленты», API `/v1/sources`, SSRF-защита, автопроверка лент при старте, чтение лент коллектором и монитором из БД.
@@ -71,6 +71,7 @@
 | `last_checked_at` | `DateTime(timezone=True)`, nullable | Время последней проверки |
 | `last_status` | `String(10)`, nullable | `ok` / `error` |
 | `last_error` | `String(500)`, nullable | Текст ошибки проверки |
+| `use_llm` | `Boolean`, default `false` | Включает LLM-разбор при неудаче парсинга (миграция 015) |
 
 Новая таблица `user_sources` (персональные списки):
 
@@ -94,7 +95,7 @@
 |---|---|---|
 | GET | `/v1/sources` | Список **источников пользователя** (из `user_sources`), фильтр `?kind=rss` и `?category=` |
 | POST | `/v1/sources` | Добавить источник **в список пользователя** (kind, name, url/config, category, reputation) + проверка; новая запись создаётся в каталоге `sources` |
-| PUT | `/v1/sources/{id}` | Обновить метаданные источника в каталоге |
+| PUT | `/v1/sources/{id}` | Обновить метаданные источника в каталоге (в т.ч. `use_llm` — галочка «LLM-разбор») |
 | DELETE | `/v1/sources/{id}` | Убрать источник **из списка пользователя** (из каталога не удаляется) |
 | POST | `/v1/sources/check` | Проверить источники (`{ids: [...]}`, пусто = все активные) → статусы |
 | POST | `/v1/sources/search` | LLM-поиск (`{query, kind: "rss"}`) → кандидаты с проверкой |
@@ -121,7 +122,12 @@
 - `scripts/collect_news.py`: `RSSCollector(await get_rss_feeds(session) or DEFAULT_FEEDS)`.
 - `app/notices/monitor.py`: `check_rss` — активные ленты из БД (fallback `RSS_SAMPLE`); `RSS_SAMPLE` обновляется.
 - `app/main.py` (`lifespan`): после инициализации БД — фоновая задача проверки активных лент (не блокирует старт).
-- Общий модуль проверки `app/news/feed_check.py`: `async check_feed(url) -> (ok, error)` — SSRF-валидация + HTTP GET (httpx, 10 с, 2 МБ) + `feedparser.parse`.
+- Общий модуль проверки `app/news/feed_check.py`: `async check_feed(url, use_llm=False) -> (ok, error)` — SSRF-валидация + HTTP GET (httpx, 10 с, 2 МБ) + парсинг конвейером.
+
+**Конвейер парсинга лент (реализовано, `app/news/feed_parsers.py`):**
+- Штатный парсер — `feedparser`; если записей не извлечено, применяется толерантный HTML/XML-парсер на базе `html.parser` (stdlib) — переживает невалидный XML (битые сущности, незакрытые теги, HTML внутри description) и собирает `item`/`entry`-блоки.
+- `check_feed` и коллектор используют `parse_feed(data) -> FeedParseResult(entries, parser, error)`; имя парсера, извлёкшего записи, логируется.
+- **LLM-фолбэк (реализовано):** если конвейер не извлёк записей и у источника включена галочка **«LLM-разбор»** (`sources.use_llm`), контент отдаётся LLM (DeepSeek, `app/news/llm_parse.py`) с промптом «извлеки новостные записи в JSON». Статус проверки: `ok (LLM)`; коллектор помечает «N записей через LLM».
 
 ## 10. Безопасность
 

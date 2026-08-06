@@ -47,6 +47,7 @@ def _source_out(source: Source) -> dict:
         "last_status": source.last_status,
         "last_error": source.last_error,
         "last_checked_at": source.last_checked_at,
+        "use_llm": bool(source.use_llm),
     }
 
 
@@ -159,6 +160,8 @@ async def update_source(
         source.reputation_score = payload.reputation
     if payload.is_active is not None:
         source.is_active = payload.is_active
+    if payload.use_llm is not None:
+        source.use_llm = payload.use_llm
     if payload.name is not None:
         new_name = payload.name.strip()
         if not new_name:
@@ -207,7 +210,9 @@ async def check_sources(
     else:
         sources = await user_sources(session, user.id, kind="rss")
     urls = [(s, (s.config or {}).get("url") or "") for s in sources]
-    results = await asyncio.gather(*(check_feed(u) for _, u in urls))
+    results = await asyncio.gather(
+        *(check_feed(u, use_llm=bool(s.use_llm)) for s, u in urls)
+    )
     for (source, _), (ok, error) in zip(urls, results):
         await _mark_checked(source, ok, error)
     await session.commit()

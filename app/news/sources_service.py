@@ -78,7 +78,11 @@ async def restore_default_sources(session: AsyncSession, user_id: int) -> int:
 
 
 async def get_rss_feeds(session: AsyncSession) -> list[dict]:
-    """Активные RSS-ленты из каталога (для коллектора); [] если пусто."""
+    """Активные RSS-ленты из каталога (для коллектора); [] если пусто.
+
+    Каждая лента: {name, url, reputation, category, use_llm} — use_llm включает
+    LLM-разбор при неудаче штатного парсинга.
+    """
     rows = await session.scalars(
         select(Source).where(Source.kind == "rss", Source.is_active.is_(True))
     )
@@ -93,6 +97,7 @@ async def get_rss_feeds(session: AsyncSession) -> list[dict]:
                 "url": url,
                 "reputation": source.reputation_score,
                 "category": source.category or "",
+                "use_llm": bool(source.use_llm),
             }
         )
     return feeds

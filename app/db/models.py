@@ -169,6 +169,7 @@ class Source(Base):
     )
     last_status: Mapped[str | None] = mapped_column(String(10), nullable=True)
     last_error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    use_llm: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class UserSource(Base):

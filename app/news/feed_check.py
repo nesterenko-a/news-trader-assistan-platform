@@ -96,15 +96,28 @@ async def fetch_feed_bytes(url: str) -> tuple[bytes | None, str]:
     return None, "Слишком много редиректов"
 
 
-async def check_feed(url: str) -> tuple[bool, str]:
-    """Проверяет ленту: (ok, описание). ok=False при любой ошибке."""
+async def check_feed(url: str, use_llm: bool = False) -> tuple[bool, str]:
+    """Проверяет ленту: (ok, описание). ok=False при любой ошибке.
+
+    Парсинг — конвейером (feedparser → толерантный HTML/XML-парсер,
+    см. app.news.feed_parsers). Если записи не извлечены и use_llm=True —
+    дополнительно пробуется LLM-разбор контента.
+    """
+    from app.news.feed_parsers import parse_feed
+    from app.news.llm_parse import parse_feed_with_llm
+
     data, error = await fetch_feed_bytes(url)
     if data is None:
         return False, error
-    parsed = feedparser.parse(data)
-    if parsed.get("bozo") and not parsed.entries:
-        reason = parsed.get("bozo_exception")
-        return False, f"Не похоже на RSS: {type(reason).__name__ if reason else 'parse error'}"
-    if not parsed.entries:
-        return False, "В ленте нет записей"
-    return True, "ok"
+    result = parse_feed(data)
+    if result.entries:
+        return True, "ok"
+    if use_llm:
+        try:
+            entries = await parse_feed_with_llm(data)
+        except Exception:
+            entries = []
+        if entries:
+            return True, "ok (LLM)"
+        return False, f"Не похоже на RSS: {result.error or 'LLM не извлёк записи'}"
+    return False, f"Не похоже на RSS: {result.error or 'parse error'}"

@@ -1,6 +1,6 @@
 # 07. Модель данных
 
-**Статус:** утверждено v1.15  
+**Статус:** утверждено v1.16  
 **Система:** NewsTrader Assistant
 
 Описание сущностей системы и их взаимосвязей. Модель представлена концептуально, без привязки к конкретной СУБД (см. [06-architecture.md](./06-architecture.md)).
@@ -121,7 +121,12 @@
 | kind | enum | agency / rss / site / telegram / webhook / official |
 | reputation_score | float | Оценка достоверности 0..1 |
 | is_active | bool | Включён ли сбор |
-| config | json | Параметры подключения |
+| config | json | Параметры подключения (для RSS — `{"url": ...}`) |
+| category | string | Категория из фиксированного списка |
+| last_checked_at | datetime | Время последней проверки |
+| last_status | string | `ok` / `error` |
+| last_error | string | Текст ошибки проверки |
+| use_llm | bool | Включает LLM-разбор ленты при неудаче парсинга |
 
 ### 2.4. Entity (сущность) и Influence (связь влияния)
 

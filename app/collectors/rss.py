@@ -70,18 +70,29 @@ class RSSCollector:
                 parsed = feedparser.parse(feed["url"])
             except Exception:
                 continue
-            articles.extend(_parsed_entries(feed, parsed))
+            entries = [
+                {
+                    "title": e.get("title", ""),
+                    "link": e.get("link", ""),
+                    "description": e.get("summary", "")
+                    or e.get("description", ""),
+                    "published": e.get("published", ""),
+                }
+                for e in parsed.entries
+            ]
+            articles.extend(_entries_to_articles(feed, entries))
         return articles
 
 
-def _parsed_entries(feed: dict, parsed) -> list[RawArticle]:
+
+def _entries_to_articles(feed: dict, entries: list[dict]) -> list[RawArticle]:
     articles: list[RawArticle] = []
-    for entry in parsed.entries:
-        title = entry.get("title", "").strip()
+    for entry in entries:
+        title = (entry.get("title") or "").strip()
         if not title:
             continue
-        text = entry.get("summary", "") or entry.get("description", "") or ""
-        link = entry.get("link", "").strip()
+        text = (entry.get("description") or "")[:4000]
+        link = (entry.get("link") or "").strip()
         published = _parse_date(entry.get("published", ""))
         articles.append(
             RawArticle(
@@ -97,7 +108,14 @@ def _parsed_entries(feed: dict, parsed) -> list[RawArticle]:
 
 async def fetch_rss_feeds(feeds: list[dict]) -> list[RawArticle]:
     """Безопасный асинхронный сбор: фетч с SSRF-валидацией на каждом хопе,
-    таймаутом 10 с и лимитом 2 МБ; ленты с ошибками пропускаются."""
+    таймаутом 10 с и лимитом 2 МБ; ленты с ошибками пропускаются.
+
+    Парсинг — конвейером (feedparser → толерантный HTML/XML-парсер); если
+    записи не извлечены и у ленты включён use_llm — пробуется LLM-разбор.
+    """
+    from app.news.feed_parsers import parse_feed
+    from app.news.llm_parse import parse_feed_with_llm
+
     results = await asyncio.gather(
         *(fetch_feed_bytes(feed["url"]) for feed in feeds)
     )
@@ -106,6 +124,19 @@ async def fetch_rss_feeds(feeds: list[dict]) -> list[RawArticle]:
         if data is None:
             print(f"  лента {feed['name']}: {error}", flush=True)
             continue
-        parsed = feedparser.parse(data)
-        articles.extend(_parsed_entries(feed, parsed))
+        result = parse_feed(data)
+        entries = result.entries
+        if not entries and feed.get("use_llm"):
+            try:
+                entries = await parse_feed_with_llm(data)
+            except Exception:
+                entries = []
+            if entries:
+                print(f"  лента {feed['name']}: {len(entries)} записей через LLM", flush=True)
+        if not entries and result.error:
+            print(
+                f"  лента {feed['name']}: не распознана ({result.error})",
+                flush=True,
+            )
+        articles.extend(_entries_to_articles(feed, entries))
     return articles

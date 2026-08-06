@@ -54,6 +54,14 @@
           {% endif %}
         </td>
         <td>
+          <form method="post" action="/news/rss/toggle-llm" class="inline">
+            <input type="hidden" name="source_id" value="{{ feed.id }}">
+            <label class="muted small" title="При неудаче парсинга (например «Не похоже на RSS») разбирать ленту через LLM">
+              <input type="checkbox" name="use_llm" {% if feed.use_llm %}checked{% endif %} onchange="this.form.submit()"> LLM-разбор
+            </label>
+          </form>
+        </td>
+        <td>
           <form method="post" action="/news/rss/remove" class="inline">
             <input type="hidden" name="source_id" value="{{ feed.id }}">
             <button type="submit" class="btn btn-small">Убрать</button>

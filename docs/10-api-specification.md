@@ -1,6 +1,6 @@
 # 10. Спецификация API
 
-**Статус:** утверждено v1.15  
+**Статус:** утверждено v1.16  
 **Система:** NewsTrader Assistant
 
 Программный интерфейс системы. Спецификация концептуальная; точные схемы запросов/ответов фиксируются на этапе разработки (например, в формате OpenAPI) и должны соответствовать этому документу.
@@ -232,7 +232,7 @@ GET /v1/indicators/oi?ticker=W4V6&from=2026-07-20&to=2026-08-05
 
 Управление персональным списком RSS-лент пользователя (см. [20-news-sources-manager.md](./20-news-sources-manager.md)). Все эндпоинты требуют авторизации (Bearer или cookie `nt_token`).
 
-- `GET /v1/sources[?kind=rss][&category=...]` — список источников пользователя (из `user_sources`): `id`, `name`, `kind`, `url`, `category`, `reputation`, `is_active`, `last_status` (`ok`/`error`), `last_error`, `last_checked_at`.
+- `GET /v1/sources[?kind=rss][&category=...]` — список источников пользователя (из `user_sources`): `id`, `name`, `kind`, `url`, `category`, `reputation`, `is_active`, `last_status` (`ok`/`error`), `last_error`, `last_checked_at`, `use_llm`.
 - `POST /v1/sources` — добавить источник в список пользователя (`{name, url, kind: "rss", category, reputation}`); запись создаётся в каталоге `sources` при необходимости, выполняется проверка работоспособности. Ошибки: `400` — невалидный URL/категория/SSRF, `401`.
 - `PUT /v1/sources/{id}` — обновить метаданные источника (`{name?, url?, category?, reputation?, is_active?}`).
 - `DELETE /v1/sources/{id}` — убрать источник из списка пользователя (из каталога не удаляется).
