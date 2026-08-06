@@ -1,6 +1,6 @@
 # 10. Спецификация API
 
-**Статус:** утверждено v1.14  
+**Статус:** утверждено v1.15  
 **Система:** NewsTrader Assistant
 
 Программный интерфейс системы. Спецификация концептуальная; точные схемы запросов/ответов фиксируются на этапе разработки (например, в формате OpenAPI) и должны соответствовать этому документу.
@@ -202,7 +202,7 @@
 
 - `GET /v1/indicators` — список доступных индикаторов (имя, описание, параметры по умолчанию, сложность).
 - `GET /v1/indicators/futures[?q=...]` — все фьючерсы срочного рынка MOEX (поля: `secid`, `shortname`, `assetcode`, `lastdeldate`, `prevopenposition`); `q` — фильтр по коду/названию/базовому активу. Ответ кэшируется на 1 час (источник — ISS `engines/futures/markets/forts/securities.json`).
-- `GET /v1/indicators/{name}?ticker=...` — расчёт индикатора. Параметры: `ticker` (обязательный; для OI — код фьючерса SECID, например W4V6), `from`/`to` (диапазон дат), `limit` (ограничение числа свечей), параметры индикатора (для OI: `oi_change_threshold_pct`, `price_change_threshold_pct`; для Volume Profile: `period` — число дней (по умолчанию 60), `bins` — число ценовых баров, `value_area_pct` — % объёма Value Area, `hvn_factor`/`lvn_factor` — пороги узлов высокого/низкого объёма).
+- `GET /v1/indicators/{name}?ticker=...` — расчёт индикатора. Параметры: `ticker` (обязательный; для OI — код фьючерса SECID, например W4V6), `from`/`to` (диапазон дат), `limit` (ограничение числа свечей), параметры индикатора (для OI: `oi_change_threshold_pct`, `price_change_threshold_pct`; для Volume Profile: `period` — число дней (по умолчанию 60), `bins` — число ценовых баров, `value_area_pct` — % объёма Value Area, `hvn_factor`/`lvn_factor` — пороги узлов высокого/низкого объёма; для EMA: `fast`/`slow` (по умолчанию 12/26); для MACD: `fast`/`slow`/`signal` (по умолчанию 12/26/9)).
 
 Пример — OI для фьючерса W4V6:
 

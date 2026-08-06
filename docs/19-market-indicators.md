@@ -1,6 +1,6 @@
 # 19. Биржевые индикаторы — модули, ТЗ и roadmap
 
-**Статус:** утверждено v1.11 (правило отображения индикаторов на `/indicators`: вкладки из реестра; раздел Volume Profile на странице; правки по замечаниям)  
+**Статус:** утверждено v1.12 (реализованы индикаторы EMA §8.1 и MACD §8.2: модули, реестр/API, веб-вкладки; правки по замечаниям)  
 **Система:** NewsTrader Assistant
 **Связанные документы:** [04-functional-requirements.md](./04-functional-requirements.md) (FR-04-02), [07-data-model.md](./07-data-model.md) (`MarketCandle`), [09-strategy-engine.md](./09-strategy-engine.md), [10-api-specification.md](./10-api-specification.md), [12-roadmap.md](./12-roadmap.md), [14-web-interface.md](./14-web-interface.md), [17-quickstart.md](./17-quickstart.md)
 
@@ -207,6 +207,8 @@ class IndicatorResult:
 
 ### 8.1. EMA — экспоненциальная скользящая средняя
 
+**Статус:** реализован (модуль `app/market/indicators/ema.py`, реестр/API `/v1/indicators/ema`, веб-вкладка; параметры `fast`/`slow`; сигналы `cross_up`/`cross_down`).
+
 **Обоснование:** базовая СС с большим весом свежих цен; «кирпич» для MACD и Боллинджера; сейчас в проекте только SMA.
 
 **Формула:** α = 2 / (N+1); seed: EMA первых N значений = SMA(N); далее EMAₜ = Cₜ·α + EMAₜ₋₁·(1−α).
@@ -220,6 +222,8 @@ class IndicatorResult:
 **Roadmap:** 1) модуль + тесты; 2) валидация на данных MOEX; 3) реестр/API; 4) веб; 5) интеграция в движок стратегий (EMA50/200 как техсигналы); 6) документация и статус.
 
 ### 8.2. MACD — схождение/расхождение скользящих средних
+
+**Статус:** реализован (модуль `app/market/indicators/macd.py`, реестр/API `/v1/indicators/macd`, веб-вкладка; параметры `fast`/`slow`/`signal`; сигналы `cross_up`/`cross_down`, `hist_positive`/`hist_negative`).
 
 **Обоснование:** закрывает P0 FR-04-02; классический тренд-осциллятор, используется в стратегиях как фильтр направления.
 
