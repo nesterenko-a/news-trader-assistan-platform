@@ -2,11 +2,11 @@
 
 Файл для AI-агентов, работающих с проектом **NewsTrader Assistant** — ассистент для торговли ценными бумагами на основе новостного фона и цепочек рыночных связей (knowledge graph).
 
-Полная спецификация проекта — в `docs/` (начните с `docs/README.md`; комплект из 19 документов, текущая версия v1.68). Правила работы — в `docs/16-working-process.md` — **обязательны к выполнению**.
+Полная спецификация проекта — в `docs/` (начните с `docs/README.md`; комплект из 19 документов, текущая версия v1.75). Правила работы — в `docs/16-working-process.md` — **обязательны к выполнению**.
 
 ## Стек
 
-Python 3.13+ (в `.venv` — 3.14.6) · FastAPI · SQLAlchemy 2 (async) · PostgreSQL 13.3 (Docker) · Liquibase · DeepSeek LLM (OpenAI-совместимый) · MOEX ISS · python-telegram-bot · telethon · Jinja2. Windows + PowerShell. Тесты — pytest (`asyncio_mode=auto`) на SQLite.
+Python 3.13+ (в `.venv` — 3.13.7) · FastAPI · SQLAlchemy 2 (async) · PostgreSQL 13.3 (Docker) · Liquibase · DeepSeek LLM (OpenAI-совместимый) · MOEX ISS · python-telegram-bot · telethon · Jinja2. Windows + PowerShell. Тесты — pytest (`asyncio_mode=auto`) на SQLite.
 
 ## Запуск и проверки
 
@@ -28,6 +28,7 @@ Python 3.13+ (в `.venv` — 3.14.6) · FastAPI · SQLAlchemy 2 (async) · Postg
 | Ежедневный конвейер | `.venv\Scripts\python.exe -m scripts.daily_pipeline` |
 | Обработать алерты | `.venv\Scripts\python.exe -m scripts.process_alerts` |
 | Обновить цены | `.venv\Scripts\python.exe -m scripts.update_prices --days N` (или `--from YYYY-MM-DD`) |
+| Обновить OI фьючерсов | `.venv\Scripts\python.exe -m scripts.update_oi --ticker SECID --days N` (или `--all`, `--from YYYY-MM-DD`) |
 | Калибровка порогов | `.venv\Scripts\python.exe -m scripts.calibrate` |
 | Калибровка весов факторов | `.venv\Scripts\python.exe -m scripts.calibrate_weights` |
 | Бэктест | `.venv\Scripts\python.exe -m scripts.backtest` |
@@ -40,7 +41,7 @@ Python 3.13+ (в `.venv` — 3.14.6) · FastAPI · SQLAlchemy 2 (async) · Postg
 - `app/` — основной код:
   - `api/`, `web/` — REST API и веб-интерфейс (FastAPI, Jinja2, шаблоны в `web/templates`); `web/middleware.py` — DatabaseGuardMiddleware
   - `bot/` — Telegram-бот
-  - `collectors/`, `news/`, `llm/`, `market/` — сбор данных, анализ новостей, DeepSeek LLM, MOEX ISS
+  - `collectors/`, `news/`, `llm/`, `market/` — сбор данных, анализ новостей, DeepSeek LLM, MOEX ISS (`market/` включает `indicators/` — реестр индикаторов `registry.py` + Volume Profile; `oi_data.py` — данные OI, лежит в `market/`)
   - `graph/`, `strategy/`, `macro/` — knowledge graph, движок стратегий, макро-индикаторы
   - `alerts/`, `notices/`, `feedback/`, `paper/` — алерты цен, монитор здоровья (Attention), обратная связь, бумажная торговля
   - `presentation/` — общая фабрика `StrategyView` (web + Telegram)
@@ -48,7 +49,7 @@ Python 3.13+ (в `.venv` — 3.14.6) · FastAPI · SQLAlchemy 2 (async) · Postg
   - `db/` — SQLAlchemy-модели; `schemas/` — Pydantic-схемы; `config.py` — pydantic-settings
 - `scripts/` — утилиты и лаунчеры (+ `.bat`)
 - `tests/` — pytest (SQLite)
-- `docs/` — документация (версионируется, v1.68)
+- `docs/` — документация (версионируется, v1.75)
 - `liquibase/` — ченджлоги БД (`changelogs/NNN_*.xml` + `changelog-master.xml`)
 - `docker/` — docker-compose (Postgres + Liquibase)
 
@@ -74,4 +75,6 @@ Python 3.13+ (в `.venv` — 3.14.6) · FastAPI · SQLAlchemy 2 (async) · Postg
 
 ## Notes
 
-(Заметки — дополнять по ходу работы.)
+- Документация: комплект **v1.75** (инициализирован 2026-08; версии: 07 — v1.15, 12 — v1.28, 13 — v1.30, 14 — v1.36, 19 — v1.11, остальные см. шапки).
+- Roadmap (12): этап 0 завершён; этап 1 — срезы 1–6 (авторизация, watchlist, портфель, история, алерты + push в Telegram, макрокалендарь, feedback, Telegram-источник, бэктест «на момент T»); этап 2 — начат (paper trading, контраргументы/риски, веса факторов, OI, Volume Profile).
+- `/indicators` строится из реестра `app/market/indicators/registry.py`: новый индикатор в реестре автоматически получает вкладку.
