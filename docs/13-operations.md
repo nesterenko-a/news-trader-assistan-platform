@@ -1,6 +1,6 @@
 # 13. Инфраструктура и эксплуатация
 
-**Статус:** утверждено v1.30  
+**Статус:** утверждено v1.31  
 **Система:** NewsTrader Assistant
 
 Практическое руководство: как запускается система, как управлять схемой БД, как работает планировщик сбора новостей и какие утилиты доступны.
@@ -27,7 +27,9 @@ docker compose -f docker/docker-compose.yml up -d db
 
 Каждый ченджсет содержит precondition `tableExists/indexExists` с `onFail="MARK_RAN"`, поэтому при применении к существующей базе изменения помечаются выполненными без потери данных.
 
-**Применить миграции:**
+**Автозапуск при старте приложения (реализовано):** при запуске веб-приложения (`scripts/run_app.py`, `uvicorn app.main:app`) и Telegram-бота (`scripts/run_bot.py`) автоматически вызывается `run_migrations()` (`app/db/migrations.py`): если БД — PostgreSQL, запускается `docker compose -f docker/docker-compose.yml up migrations` (Liquibase сам проверяет `databasechangelog` и применяет только новые миграции; контейнер БД поднимается автоматически через `depends_on`). Логи в терминале приложения: `[migrations] Проверка миграций Liquibase (PostgreSQL)...`, затем вывод Liquibase и `[migrations] Миграции проверены и применены (Liquibase: успешно)`. Если docker недоступен или миграции завершились ошибкой — печатается `[migrations] ПРЕДУПРЕЖДЕНИЕ: ...` с командой ручного запуска, приложение продолжает старт. Для SQLite (тесты, smoke) миграции пропускаются (лог «БД не PostgreSQL»).
+
+**Применить миграции вручную:**
 ```
 docker compose -f docker/docker-compose.yml up migrations
 ```

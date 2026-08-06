@@ -43,6 +43,9 @@ async def _check_feeds_background() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     settings = get_settings()
+    from app.db.migrations import run_migrations
+
+    run_migrations()
     try:
         if settings.auto_create_schema:
             await init_db()
