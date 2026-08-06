@@ -15,16 +15,17 @@ class RawArticle:
 
 
 DEFAULT_FEEDS = [
-    {"name": "РБК", "url": "https://rssexport.rbc.ru/exports/full/rbc/news.rss", "reputation": 0.8},
-    {"name": "Интерфакс", "url": "https://www.interfax.ru/rss.asp", "reputation": 0.8},
-    {"name": "ТАСС", "url": "https://tass.ru/rss/v2.xml", "reputation": 0.8},
-    {"name": "Коммерсантъ", "url": "https://www.kommersant.ru/RSS/news.xml", "reputation": 0.75},
-    {"name": "Ведомости", "url": "https://www.vedomosti.ru/rss/news", "reputation": 0.8},
-    {"name": "Прайм", "url": "https://1prime.ru/export/rss2/index.xml", "reputation": 0.8},
-    {"name": "Forbes Россия", "url": "https://www.forbes.ru/feed", "reputation": 0.75},
-    {"name": "БКС Экспресс", "url": "https://bcs-express.ru/rss/news", "reputation": 0.7},
-    {"name": "Финам", "url": "https://www.finam.ru/rss/", "reputation": 0.7},
-    {"name": "Smart-lab", "url": "https://smart-lab.ru/rss/", "reputation": 0.65},
+    # РБК закрыл старый rssexport (404), канонический адрес отдаёт 401 ботам (Qrator) — лента честно помечается красной в менеджере источников.
+    {"name": "РБК", "url": "https://www.rbc.ru/rss/", "reputation": 0.8, "category": "финансы"},
+    {"name": "Интерфакс", "url": "https://www.interfax.ru/rss.asp", "reputation": 0.8, "category": "финансы"},
+    {"name": "ТАСС", "url": "https://tass.ru/rss/v2.xml", "reputation": 0.8, "category": "финансы"},
+    {"name": "Коммерсантъ", "url": "https://www.kommersant.ru/RSS/news.xml", "reputation": 0.75, "category": "финансы"},
+    {"name": "Ведомости", "url": "https://www.vedomosti.ru/rss/news", "reputation": 0.8, "category": "финансы"},
+    {"name": "Прайм", "url": "https://1prime.ru/export/rss2/index.xml", "reputation": 0.8, "category": "финансы"},
+    {"name": "Forbes Россия", "url": "https://www.forbes.ru/feed", "reputation": 0.75, "category": "финансы"},
+    {"name": "БКС Экспресс", "url": "https://bcs-express.ru/rss/news", "reputation": 0.7, "category": "финансы"},
+    {"name": "Финам", "url": "https://www.finam.ru/rss/", "reputation": 0.7, "category": "финансы"},
+    {"name": "Smart-lab", "url": "https://smart-lab.ru/rss/", "reputation": 0.65, "category": "финансы"},
 ]
 
 

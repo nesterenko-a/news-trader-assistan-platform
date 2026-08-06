@@ -13,6 +13,7 @@ from app.db.models import (
     Article,
     MacroEvent,
     MarketCandle,
+    Source,
     Strategy,
     SystemNotice,
 )
@@ -24,7 +25,7 @@ MOEX_CHECK_URL = (
     "?iss.meta=off&limit=1"
 )
 RSS_SAMPLE = [
-    "https://rssexport.rbc.ru/exports/full/rbc/news.rss",
+    "https://www.rbc.ru/rss/",
     "https://www.interfax.ru/rss.asp",
 ]
 DISK_MIN_FREE = 500 * 1024 * 1024
@@ -123,9 +124,21 @@ async def check_moex() -> str | None:
 async def check_rss() -> str | None:
     import httpx
 
+    urls = list(RSS_SAMPLE)
+    try:
+        async with SessionLocal() as session:
+            rows = await session.scalars(
+                select(Source).where(Source.kind == "rss", Source.is_active.is_(True))
+            )
+            db_urls = [(s.config or {}).get("url") for s in rows]
+            if db_urls:
+                urls = db_urls
+    except Exception:
+        pass
+
     results = []
     async with httpx.AsyncClient(timeout=5, follow_redirects=True) as client:
-        for url in RSS_SAMPLE:
+        for url in urls[:5]:
             try:
                 response = await client.get(url)
                 results.append(response.status_code)

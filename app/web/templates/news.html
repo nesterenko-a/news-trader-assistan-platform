@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Новости — источники{% endblock %}
+{% block content %}
+<h1>Новости — источники</h1>
+
+{% if error %}<div class="notice notice-error">{{ error }}</div>{% endif %}
+{% if info %}<div class="notice notice-info">{{ info }}</div>{% endif %}
+
+<div class="tabs">
+  <a class="tab tab-active" href="/news?tab=rss">RSS-ленты</a>
+  <a class="tab tab-disabled" href="#">Telegram <span class="muted">(в планах)</span></a>
+  <a class="tab tab-disabled" href="#">Сайты <span class="muted">(в планах)</span></a>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h2>Мои ленты</h2>
+    <form method="post" action="/news/rss/check" class="inline">
+      <button type="submit" class="btn">Проверить все</button>
+    </form>
+    <form method="post" action="/news/rss/restore" class="inline">
+      <button type="submit" class="btn">Вернуть стандартные ленты</button>
+    </form>
+  </div>
+
+  {% if feeds %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th></th>
+        <th>Имя</th>
+        <th>URL</th>
+        <th>Категория</th>
+        <th>Репутация</th>
+        <th>Статус</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for feed in feeds %}
+      <tr>
+        <td><input type="checkbox" form="check-form" name="ids" value="{{ feed.id }}"></td>
+        <td>{{ feed.name }}</td>
+        <td class="muted small">{{ (feed.config or {}).get('url', '') }}</td>
+        <td>{{ feed.category or '—' }}</td>
+        <td>{{ '%.2f'|format(feed.reputation_score) }}</td>
+        <td>
+          {% if feed.last_status == 'ok' %}
+          <span class="feed-ok" title="Проверено{% if feed.last_checked_at %}: {{ feed.last_checked_at.strftime('%d.%m %H:%M') }}{% endif %}">✔ работает</span>
+          {% elif feed.last_status == 'error' %}
+          <span class="feed-err" title="{{ feed.last_error }}">✘ {{ feed.last_error or 'ошибка' }}</span>
+          {% else %}
+          <span class="muted">не проверена</span>
+          {% endif %}
+        </td>
+        <td>
+          <form method="post" action="/news/rss/remove" class="inline">
+            <input type="hidden" name="source_id" value="{{ feed.id }}">
+            <button type="submit" class="btn btn-small">Убрать</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <form method="post" action="/news/rss/check" id="check-form">
+    <button type="submit" class="btn">Проверить выбранные</button>
+  </form>
+  {% else %}
+  <p class="muted">Лент пока нет. Добавьте ленту вручную, найдите через ИИ или верните стандартные.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Добавить ленту вручную</h2>
+  <form method="post" action="/news/rss/add" class="form">
+    <div class="form-row">
+      <input type="text" name="name" placeholder="Название (например, Lenta.ru)" required>
+      <input type="url" name="url" placeholder="https://example.com/rss" required>
+      <select name="category">
+        <option value="">другое</option>
+        {% for cat in categories %}
+        <option value="{{ cat }}">{{ cat }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn">Добавить и проверить</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Найти ленты через ИИ</h2>
+  <form method="post" action="/news/rss/search" class="form">
+    <div class="form-row">
+      <input type="text" name="query" placeholder="Тема: например, металлургия, ставки ЦБ, погода…" required>
+      <button type="submit" class="btn">Найти</button>
+    </div>
+  </form>
+
+  {% if candidates %}
+  <h3>Кандидаты{% if query %}: «{{ query }}»{% endif %}</h3>
+  <form method="post" action="/news/rss/add-selected">
+    <table class="table">
+      <thead>
+        <tr><th></th><th>Имя</th><th>URL</th><th>Категория</th><th>Статус</th></tr>
+      </thead>
+      <tbody>
+        {% for cand in candidates %}
+        <tr>
+          <td>
+            <input type="checkbox" name="cand_name" value="{{ cand.name }}" {% if not cand.ok %}disabled{% endif %}>
+            <input type="hidden" name="cand_url" value="{{ cand.url }}">
+            <input type="hidden" name="cand_category" value="{{ cand.category }}">
+          </td>
+          <td>{{ cand.name }}</td>
+          <td class="muted small">{{ cand.url }}</td>
+          <td>{{ cand.category or '—' }}</td>
+          <td>
+            {% if cand.ok %}<span class="feed-ok">✔ работает</span>
+            {% else %}<span class="feed-err">✘ {{ cand.error }}</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <button type="submit" class="btn">Добавить выбранные</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

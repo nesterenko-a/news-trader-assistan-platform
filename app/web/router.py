@@ -49,10 +49,27 @@ from app.db.models import (
     PortfolioPosition,
     ScriptRun,
     Security,
+    Source,
     Strategy,
     User,
+    UserSource,
     WatchlistItem,
 )
+from app.news.sources_service import (
+    SOURCE_CATEGORIES,
+    add_default_sources_for_user,
+    restore_default_sources,
+    user_sources,
+)
+from app.api.routes.sources import (
+    add_source as add_source_api,
+    check_sources as check_sources_api,
+    remove_source as remove_source_api,
+    restore_defaults as restore_defaults_api,
+    search_sources as search_sources_api,
+)
+from app.news.feed_check import validate_feed_url
+from app.schemas import FeedCheckIn, FeedSearchIn, SourceIn
 from app.market.moex import MOEXClient
 from app.market.oi_data import futures_for_security, nearest_future
 from app.market.indicators.oi import calculate_oi
@@ -796,6 +813,7 @@ async def register_post(
     user = User(username=username, password_hash=hash_password(password))
     session.add(user)
     await session.flush()
+    await add_default_sources_for_user(session, user.id)
     token = await create_session(session, user)
     response = RedirectResponse(url="/", status_code=303)
     response.set_cookie("nt_token", token, httponly=True)
@@ -1489,3 +1507,173 @@ async def portfolio_remove(
             if not recorded:
                 await session.commit()
     return RedirectResponse(url="/portfolio", status_code=303)
+
+
+@router.get("/news")
+async def news_page(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    feeds = await user_sources(session, user.id, kind="rss")
+    context = await _base_context(session, user)
+    context.update(
+        {
+            "feeds": feeds,
+            "categories": SOURCE_CATEGORIES,
+            "error": request.query_params.get("error", ""),
+            "info": request.query_params.get("info", ""),
+            "candidates": [],
+        }
+    )
+    return templates.TemplateResponse(request, "news.html", context)
+
+
+@router.post("/news/rss/add")
+async def news_rss_add(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    name = str(form.get("name") or "").strip()
+    url = str(form.get("url") or "").strip()
+    category = str(form.get("category") or "")
+    if not name or not url:
+        return RedirectResponse(url="/news?error=Заполните имя и URL", status_code=303)
+    if category not in SOURCE_CATEGORIES and category != "":
+        return RedirectResponse(url="/news?error=Недопустимая категория", status_code=303)
+    err = validate_feed_url(url)
+    if err:
+        return RedirectResponse(url=f"/news?error={err}", status_code=303)
+    try:
+        await add_source_api(SourceIn(name=name, url=url, category=category), user, session)
+    except HTTPException as exc:
+        return RedirectResponse(url=f"/news?error={exc.detail}", status_code=303)
+    return RedirectResponse(url="/news", status_code=303)
+
+
+@router.post("/news/rss/remove")
+async def news_rss_remove(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    try:
+        source_id = int(str(form.get("source_id") or "0"))
+    except ValueError:
+        source_id = 0
+    try:
+        await remove_source_api(source_id, user, session)
+    except HTTPException:
+        pass
+    return RedirectResponse(url="/news", status_code=303)
+
+
+@router.post("/news/rss/check")
+async def news_rss_check(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    ids = []
+    for value in form.getlist("ids"):
+        try:
+            ids.append(int(str(value)))
+        except ValueError:
+            continue
+    try:
+        await check_sources_api(FeedCheckIn(ids=ids), user, session)
+    except HTTPException:
+        return RedirectResponse(url="/news?error=Не удалось проверить ленты", status_code=303)
+    return RedirectResponse(
+        url=f"/news?info=Проверено лент: {len(ids) if ids else 'все'}", status_code=303
+    )
+
+
+@router.post("/news/rss/restore")
+async def news_rss_restore(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    added = await restore_defaults_api(user, session)
+    return RedirectResponse(
+        url=f"/news?info=Добавлено стандартных лент: {added}", status_code=303
+    )
+
+
+@router.post("/news/rss/search")
+async def news_rss_search(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    query = str(form.get("query") or "").strip()
+    if not query:
+        return RedirectResponse(url="/news?error=Введите тему для поиска", status_code=303)
+    try:
+        candidates = await search_sources_api(FeedSearchIn(query=query), user, session)
+    except HTTPException as exc:
+        return RedirectResponse(url=f"/news?error={exc.detail}", status_code=303)
+    feeds = await user_sources(session, user.id, kind="rss")
+    context = await _base_context(session, user)
+    context.update(
+        {
+            "feeds": feeds,
+            "categories": SOURCE_CATEGORIES,
+            "error": "",
+            "info": "",
+            "candidates": candidates,
+            "query": query,
+        }
+    )
+    return templates.TemplateResponse(request, "news.html", context)
+
+
+@router.post("/news/rss/add-selected")
+async def news_rss_add_selected(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    names = form.getlist("cand_name")
+    urls = form.getlist("cand_url")
+    cats = form.getlist("cand_category")
+    added = 0
+    for name, url, category in zip(names, urls, cats):
+        name = str(name).strip()
+        url = str(url).strip()
+        category = str(category or "")
+        if not name or not url:
+            continue
+        if validate_feed_url(url):
+            continue
+        try:
+            await add_source_api(
+                SourceIn(name=name, url=url, category=category), user, session
+            )
+            added += 1
+        except HTTPException:
+            continue
+    return RedirectResponse(
+        url=f"/news?info=Добавлено лент: {added}", status_code=303
+    )

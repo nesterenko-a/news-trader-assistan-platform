@@ -18,5 +18,6 @@
     <include file="changelogs/011_system_notices.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/012_market_open_positions.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/013_security_futures.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/014_news_sources_manager.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

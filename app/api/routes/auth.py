@@ -11,6 +11,7 @@ from app.auth import (
 )
 from app.db.connection import get_session
 from app.db.models import User
+from app.news.sources_service import add_default_sources_for_user
 from app.schemas import AuthOut, LoginIn, RegisterIn, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -39,6 +40,7 @@ async def register(
     user = User(username=username, password_hash=hash_password(payload.password))
     session.add(user)
     await session.flush()
+    await add_default_sources_for_user(session, user.id)
     token = await create_session(session, user)
     return {"token": token, "username": user.username}
 

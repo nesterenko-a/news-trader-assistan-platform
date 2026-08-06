@@ -237,3 +237,53 @@ class MacroEventOut(BaseModel):
     market_wide: bool
     description: str
     tickers: list[str] = []
+
+
+class SourceIn(BaseModel):
+    name: str
+    url: str
+    kind: str = "rss"
+    category: str = ""
+    reputation: float = 0.5
+
+
+class SourceOut(BaseModel):
+    id: int
+    name: str
+    kind: str
+    url: str | None = None
+    category: str = ""
+    reputation: float
+    is_active: bool
+    last_status: str | None = None
+    last_error: str | None = None
+    last_checked_at: datetime | None = None
+
+
+class SourceUpdateIn(BaseModel):
+    name: str | None = None
+    url: str | None = None
+    category: str | None = None
+    reputation: float | None = None
+    is_active: bool | None = None
+
+
+class FeedCheckIn(BaseModel):
+    ids: list[int] = []
+
+
+class FeedSearchIn(BaseModel):
+    query: str
+    kind: str = "rss"
+
+
+class FeedCandidateOut(BaseModel):
+    name: str
+    url: str
+    category: str = ""
+    ok: bool
+    error: str = ""
+
+
+class RestoreDefaultsOut(BaseModel):
+    added: int

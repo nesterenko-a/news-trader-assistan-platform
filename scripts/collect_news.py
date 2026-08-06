@@ -12,6 +12,7 @@ from app.db.models import Article
 from app.llm.analyzer import ArticleAnalyzer
 from app.llm.client import LLMClient
 from app.news.ingest import ensure_sources, filter_candidates, ingest_candidates
+from app.news.sources_service import get_rss_feeds
 
 MAX_PER_FEED = 30
 
@@ -26,15 +27,15 @@ def _parse_since(args) -> datetime | None:
     return None
 
 
-def _rss_sources() -> list[dict]:
+def _rss_sources(feeds: list[dict]) -> list[dict]:
     return [
         {
             "name": feed["name"],
             "kind": "rss",
-            "reputation": feed["reputation"],
+            "reputation": feed.get("reputation", 0.5),
             "config": {"url": feed["url"]},
         }
-        for feed in DEFAULT_FEEDS
+        for feed in feeds
     ]
 
 
@@ -49,10 +50,11 @@ async def collect_news(
 ) -> int:
     client = LLMClient.from_settings()
     analyzer = ArticleAnalyzer(client)
-    source_ids, reputation = await ensure_sources(session, _rss_sources())
+    feeds = await get_rss_feeds(session) or DEFAULT_FEEDS
+    source_ids, reputation = await ensure_sources(session, _rss_sources(feeds))
 
     print("Загрузка лент RSS...", flush=True)
-    raw_articles = RSSCollector(DEFAULT_FEEDS).fetch()
+    raw_articles = RSSCollector(feeds).fetch()
     candidates = await filter_candidates(
         session,
         raw_articles,
