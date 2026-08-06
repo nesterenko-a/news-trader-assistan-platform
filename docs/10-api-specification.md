@@ -1,6 +1,6 @@
 # 10. Спецификация API
 
-**Статус:** утверждено v1.13  
+**Статус:** утверждено v1.14  
 **Система:** NewsTrader Assistant
 
 Программный интерфейс системы. Спецификация концептуальная; точные схемы запросов/ответов фиксируются на этапе разработки (например, в формате OpenAPI) и должны соответствовать этому документу.
@@ -227,6 +227,18 @@ GET /v1/indicators/oi?ticker=W4V6&from=2026-07-20&to=2026-08-05
 Сигналы OI (поле `kind`): `strong_bull` / `strong_bear` (цена и OI движутся в одну сторону — сильные), `bearish_setup` / `bullish_setup` (цена без изменений, OI растёт/падает — подготовка к движению), `long_liquidation` / `short_covering` (цена и OI движутся в разные стороны — закрытие позиций). Трактовки (`note`) содержат стрелки направления: ↑ — рост, ↓ — падение, → — без изменений.
 
 Индикатор **Volume Profile** (`GET /v1/indicators/volume_profile?ticker=AFLT&period=60`): `meta` содержит `nodes` — список узлов профиля (`price`, `volume`, `is_poc`, `in_value_area`, `is_hvn`, `is_lvn`), а также `poc`, `vah`, `val`, `from`/`to`, `candles`; `signals` — `poc`, `value_area`, `hvn`, `lvn` (см. [19-market-indicators.md](./19-market-indicators.md) §8.13).
+
+### 3.9. Источники новостей (RSS)
+
+Управление персональным списком RSS-лент пользователя (см. [20-news-sources-manager.md](./20-news-sources-manager.md)). Все эндпоинты требуют авторизации (Bearer или cookie `nt_token`).
+
+- `GET /v1/sources[?kind=rss][&category=...]` — список источников пользователя (из `user_sources`): `id`, `name`, `kind`, `url`, `category`, `reputation`, `is_active`, `last_status` (`ok`/`error`), `last_error`, `last_checked_at`.
+- `POST /v1/sources` — добавить источник в список пользователя (`{name, url, kind: "rss", category, reputation}`); запись создаётся в каталоге `sources` при необходимости, выполняется проверка работоспособности. Ошибки: `400` — невалидный URL/категория/SSRF, `401`.
+- `PUT /v1/sources/{id}` — обновить метаданные источника (`{name?, url?, category?, reputation?, is_active?}`).
+- `DELETE /v1/sources/{id}` — убрать источник из списка пользователя (из каталога не удаляется).
+- `POST /v1/sources/check` — проверить ленты (`{ids: [...]}`, пусто = все): обновляет `last_status`/`last_error`/`last_checked_at`, возвращает обновлённые записи.
+- `POST /v1/sources/search` — LLM-поиск новых лент (`{query, kind: "rss"}`): DeepSeek генерирует до 8 кандидатов (название, URL, категория), каждый проверяется HTTP-запросом; возвращает `[{name, url, category, ok, error}]` (не добавляет в список).
+- `POST /v1/sources/restore-defaults` — вернуть стандартные ленты (`DEFAULT_FEEDS`) в список пользователя; ответ `{added: N}`.
 
 ## 4. Webhook для алертов (исходящие)
 
