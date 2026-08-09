@@ -457,6 +457,14 @@ def _build_net_bars(
                 }
             )
 
+    # Сетка нижней панели: уровни −scale … +scale (нулевая линия выделена отдельно)
+    net_grid = [(_ny(v), f"{v:g}") for v in (-scale, -scale / 2, 0, scale / 2, scale)]
+    # Сетка верхней панели (цена)
+    close_grid: list[tuple[float, float, str]] = []
+    if close_vals:
+        for v in (low, (low + high) / 2, high):
+            close_grid.append((10, _cy(v), f"{v:g}"))
+
     idxs = sorted({round(i * (n - 1) / 4) for i in range(5)}) if n > 1 else [0]
     date_ticks = [(_x(i), sampled[i][0].strftime("%d.%m")) for i in idxs]
     net_ticks = [
@@ -471,6 +479,8 @@ def _build_net_bars(
         "zero_y": round(zero_y, 1),
         "net_scale": round(scale, 2),
         "net_ticks": net_ticks,
+        "net_grid": net_grid,
+        "close_grid": close_grid,
         "date_ticks": date_ticks,
         "first_date": sampled[0][0].isoformat(),
         "last_date": sampled[-1][0].isoformat(),

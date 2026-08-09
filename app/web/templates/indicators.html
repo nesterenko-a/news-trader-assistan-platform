@@ -108,12 +108,14 @@
   <div class="chart-head"><h2>Нетто-позиции по группам клиентов (long − short)</h2></div>
   <svg class="chart" viewBox="0 0 {{ chart_groups_net.width }} {{ chart_groups_net.height }}" preserveAspectRatio="none">
     <text x="14" y="14" class="chart-axis">Цена</text>
+    {% for x, y, label in chart_groups_net.close_grid %}<line x1="{{ x }}" y1="{{ y }}" x2="{{ chart_groups_net.width - 10 }}" y2="{{ y }}" class="chart-grid"/>{% endfor %}
     {% for seg in chart_groups_net.close_segments %}<polyline points="{{ seg }}" style="stroke:#e67e22"/>{% endfor %}
     {% for x, y, label in chart_groups_net.close_ticks %}<text x="{{ x }}" y="{{ y }}" class="chart-axis" style="text-anchor:end;fill:#e67e22">{{ label }}</text>{% endfor %}
+    {% for y, label in chart_groups_net.net_grid %}<line x1="10" y1="{{ y }}" x2="{{ chart_groups_net.width - 10 }}" y2="{{ y }}" class="chart-grid"/>{% endfor %}
     {% for r in chart_groups_net.net_rects %}
     <rect x="{{ r.x }}" y="{{ r.y }}" width="{{ r.w }}" height="{{ r.h }}" class="net-bar {{ 'net-ph' if r.group == 'ph' else 'net-jur' }}"/>
     {% endfor %}
-    <line x1="10" y1="{{ chart_groups_net.zero_y }}" x2="{{ chart_groups_net.width - 10 }}" y2="{{ chart_groups_net.zero_y }}" style="stroke:#999;stroke-width:1;stroke-dasharray:4,4"/>
+    <line x1="10" y1="{{ chart_groups_net.zero_y }}" x2="{{ chart_groups_net.width - 10 }}" y2="{{ chart_groups_net.zero_y }}" class="net-zero"/>
     {% for x, y, label in chart_groups_net.net_ticks %}<text x="{{ x }}" y="{{ y }}" class="chart-axis" style="text-anchor:start">{{ label }}</text>{% endfor %}
     <text x="14" y="{{ chart_groups_net.height - 22 }}" class="chart-axis">Нетто (long − short)</text>
     {% for x, label in chart_groups_net.date_ticks %}<text x="{{ x }}" y="{{ chart_groups_net.height - 4 }}" class="chart-axis">{{ label }}</text>{% endfor %}

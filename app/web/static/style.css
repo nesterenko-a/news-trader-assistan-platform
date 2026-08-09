@@ -250,6 +250,8 @@ main { padding: 24px 16px 40px; }
 .net-bar { opacity: 0.85; }
 .net-ph { fill: #3b82f6; }
 .net-jur { fill: #e67e22; }
+.chart-grid { stroke: var(--border, #2c3750); stroke-width: 1; stroke-dasharray: 3, 5; }
+.net-zero { stroke: #f1c40f; stroke-width: 1.6; stroke-dasharray: 8, 4; }
 
 .news-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
 .news-item:last-child { border-bottom: 0; }
