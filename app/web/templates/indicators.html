@@ -105,33 +105,60 @@
 
 {% if chart_groups %}
 <section class="card chart-card">
-  <div class="chart-head"><h2>OI по группам клиентов (длинные позиции)</h2></div>
-  <svg class="chart" viewBox="0 0 {{ chart_groups.width }} {{ chart_groups.height }}" preserveAspectRatio="none">
-    {% for seg in chart_groups.oi_segments %}<polyline points="{{ seg }}" style="stroke:#3b82f6"/>{% endfor %}
-    {% for seg in chart_groups.close_segments %}<polyline points="{{ seg }}" style="stroke:#e67e22"/>{% endfor %}
-    {% for x, label in chart_groups.date_ticks %}<text x="{{ x }}" y="{{ chart_groups.height - 4 }}" class="chart-axis">{{ label }}</text>{% endfor %}
-    {% for x, y, label in chart_groups.oi_ticks %}<text x="{{ x }}" y="{{ y }}" class="chart-axis" style="text-anchor:start">{{ label }}</text>{% endfor %}
-    {% for x, y, label in chart_groups.close_ticks %}<text x="{{ x }}" y="{{ y }}" class="chart-axis" style="text-anchor:end;fill:#e67e22">{{ label }}</text>{% endfor %}
-  </svg>
-  <div class="chart-legend">
-    <span class="legend-item"><i class="legend-dot" style="background:#3b82f6"></i> Физики (long)</span>
-    <span class="legend-item"><i class="legend-dot" style="background:#e67e22"></i> Юрики (long)</span>
+  <div class="chart-head">
+    <h2>OI по группам клиентов</h2>
+    <div class="seg" id="cg-toggle">
+      <label class="seg-item seg-active"><input type="radio" name="cg-side" value="long" checked>Длинные</label>
+      <label class="seg-item"><input type="radio" name="cg-side" value="short">Короткие</label>
+    </div>
   </div>
+  <div id="cg-long">
+    <svg class="chart" viewBox="0 0 {{ chart_groups.width }} {{ chart_groups.height }}" preserveAspectRatio="none">
+      {% for seg in chart_groups.oi_segments %}<polyline points="{{ seg }}" style="stroke:#3b82f6"/>{% endfor %}
+      {% for seg in chart_groups.close_segments %}<polyline points="{{ seg }}" style="stroke:#e67e22"/>{% endfor %}
+      {% for x, label in chart_groups.date_ticks %}<text x="{{ x }}" y="{{ chart_groups.height - 4 }}" class="chart-axis">{{ label }}</text>{% endfor %}
+      {% for x, y, label in chart_groups.oi_ticks %}<text x="{{ x }}" y="{{ y }}" class="chart-axis" style="text-anchor:start">{{ label }}</text>{% endfor %}
+      {% for x, y, label in chart_groups.close_ticks %}<text x="{{ x }}" y="{{ y }}" class="chart-axis" style="text-anchor:end;fill:#e67e22">{{ label }}</text>{% endfor %}
+    </svg>
+    <div class="chart-legend">
+      <span class="legend-item"><i class="legend-dot" style="background:#3b82f6"></i> Физики (длинные)</span>
+      <span class="legend-item"><i class="legend-dot" style="background:#e67e22"></i> Юрики (длинные)</span>
+    </div>
+  </div>
+  {% if chart_groups_short %}
+  <div id="cg-short" style="display:none">
+    <svg class="chart" viewBox="0 0 {{ chart_groups_short.width }} {{ chart_groups_short.height }}" preserveAspectRatio="none">
+      {% for seg in chart_groups_short.oi_segments %}<polyline points="{{ seg }}" style="stroke:#3b82f6"/>{% endfor %}
+      {% for seg in chart_groups_short.close_segments %}<polyline points="{{ seg }}" style="stroke:#e67e22"/>{% endfor %}
+      {% for x, label in chart_groups_short.date_ticks %}<text x="{{ x }}" y="{{ chart_groups_short.height - 4 }}" class="chart-axis">{{ label }}</text>{% endfor %}
+      {% for x, y, label in chart_groups_short.oi_ticks %}<text x="{{ x }}" y="{{ y }}" class="chart-axis" style="text-anchor:start">{{ label }}</text>{% endfor %}
+      {% for x, y, label in chart_groups_short.close_ticks %}<text x="{{ x }}" y="{{ y }}" class="chart-axis" style="text-anchor:end;fill:#e67e22">{{ label }}</text>{% endfor %}
+    </svg>
+    <div class="chart-legend">
+      <span class="legend-item"><i class="legend-dot" style="background:#3b82f6"></i> Физики (короткие)</span>
+      <span class="legend-item"><i class="legend-dot" style="background:#e67e22"></i> Юрики (короткие)</span>
+    </div>
+  </div>
+  {% endif %}
 </section>
 
 <section class="card">
   <div class="chart-head"><h2>Открытые позиции по группам клиентов</h2></div>
-  <table class="table">
+  <table class="table" id="cg-table">
     <thead>
       <tr>
-        <th>Дата</th><th>Физ long</th><th>Физ short</th><th>Физ нетто</th>
-        <th>Юр long</th><th>Юр short</th><th>Юр нетто</th>
+        <th class="sortable" data-sort="date">Дата<span class="sort-arrow"></span></th>
+        <th>Физ long</th><th>Физ short</th>
+        <th class="sortable" data-sort="ph_net">Физ нетто<span class="sort-arrow"></span></th>
+        <th>Юр long</th><th>Юр short</th>
+        <th class="sortable" data-sort="ju_net">Юр нетто<span class="sort-arrow"></span></th>
         <th>Сумма</th><th>Доля физ, %</th><th>Спред (юр−физ)</th>
       </tr>
     </thead>
     <tbody>
       {% for g in client_groups %}
-      <tr class="{{ 'opposite' if (g.physical.net > 0) != (g.juridical.net > 0) }}">
+      <tr class="{{ 'opposite' if (g.physical.net > 0) != (g.juridical.net > 0) }}"
+          data-date="{{ g.date.isoformat() }}" data-ph-net="{{ g.physical.net }}" data-ju-net="{{ g.juridical.net }}">
         <td>{{ g.date.strftime("%d.%m.%Y") }}</td>
         <td>{{ g.physical.long }}</td>
         <td>{{ g.physical.short }}</td>
@@ -145,9 +172,66 @@
       </tr>
       {% endfor %}
     </tbody>
+    {% if client_groups_totals %}
+    <tfoot>
+      <tr>
+        <td><b>Итого</b></td>
+        <td><b>{{ client_groups_totals.physical_long }}</b></td>
+        <td><b>{{ client_groups_totals.physical_short }}</b></td>
+        <td class="{{ 'pos' if client_groups_totals.physical_net >= 0 else 'neg' }}"><b>{{ client_groups_totals.physical_net }}</b></td>
+        <td><b>{{ client_groups_totals.juridical_long }}</b></td>
+        <td><b>{{ client_groups_totals.juridical_short }}</b></td>
+        <td class="{{ 'pos' if client_groups_totals.juridical_net >= 0 else 'neg' }}"><b>{{ client_groups_totals.juridical_net }}</b></td>
+        <td><b>{{ client_groups_totals.summary }}</b></td>
+        <td>{{ client_groups_totals.physical_share_pct if client_groups_totals.physical_share_pct is not none else '—' }}</td>
+        <td>—</td>
+      </tr>
+    </tfoot>
+    {% endif %}
   </table>
   <p class="muted small">Подсветка строки — нетто физиков и юриков имеют разные знаки (противоположные ставки). Данные — по базовому активу (все фьючерсы на него), за завершённый торговый день (см. docs/19 §8.14).</p>
 </section>
+<script>
+(function () {
+  var toggle = document.getElementById('cg-toggle');
+  var long = document.getElementById('cg-long');
+  var short = document.getElementById('cg-short');
+  if (toggle && long && short) {
+    toggle.addEventListener('change', function () {
+      var side = toggle.querySelector('input:checked').value;
+      long.style.display = side === 'long' ? '' : 'none';
+      short.style.display = side === 'short' ? '' : 'none';
+      toggle.querySelectorAll('.seg-item').forEach(function (li) {
+        li.classList.toggle('seg-active', li.querySelector('input').checked);
+      });
+    });
+  }
+  var table = document.getElementById('cg-table');
+  if (table) {
+    var rows = Array.prototype.slice.call(table.querySelectorAll('tbody tr'));
+    var sortKey = 'date', sortDir = -1;
+    function renderSort() {
+      table.querySelectorAll('.sort-arrow').forEach(function (a) { a.textContent = ''; });
+      var arrow = table.querySelector('th[data-sort="' + sortKey + '"] .sort-arrow');
+      if (arrow) arrow.textContent = sortDir === 1 ? '▲' : '▼';
+      rows.sort(function (a, b) {
+        var av = a.getAttribute('data-' + sortKey), bv = b.getAttribute('data-' + sortKey);
+        var cmp = sortKey === 'date' ? (av < bv ? -1 : av > bv ? 1 : 0) : (parseFloat(av) - parseFloat(bv));
+        return cmp * sortDir;
+      });
+      rows.forEach(function (row) { table.querySelector('tbody').appendChild(row); });
+    }
+    table.querySelectorAll('th[data-sort]').forEach(function (th) {
+      th.addEventListener('click', function () {
+        var key = th.getAttribute('data-sort');
+        sortDir = key === sortKey ? -sortDir : -1;
+        sortKey = key;
+        renderSort();
+      });
+    });
+  }
+})();
+</script>
 {% endif %}
 
 <section class="card">

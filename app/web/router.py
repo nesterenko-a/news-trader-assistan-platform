@@ -736,6 +736,8 @@ async def indicators_page(
     chart_volume = None
     client_groups: list[dict] = []
     chart_groups = None
+    chart_groups_short = None
+    client_groups_totals: dict = {}
     signals: list[dict] = []
     params_used = None
     security_name = ""
@@ -819,6 +821,36 @@ async def indicators_page(
                         for g in client_groups
                     ]
                 )
+                chart_groups_short = _build_dual_chart(
+                    [
+                        (
+                            g["date"],
+                            (g.get("physical") or {}).get("short"),
+                            (g.get("juridical") or {}).get("short"),
+                        )
+                        for g in client_groups
+                    ]
+                )
+                totals = {}
+                if client_groups:
+                    def _sum(key):
+                        return sum(g.get(key) or 0 for g in client_groups)
+
+                    totals = {
+                        "physical_long": _sum("physical_long"),
+                        "physical_short": _sum("physical_short"),
+                        "physical_net": _sum("physical_net"),
+                        "juridical_long": _sum("juridical_long"),
+                        "juridical_short": _sum("juridical_short"),
+                        "juridical_net": _sum("juridical_net"),
+                        "summary": _sum("summary"),
+                    }
+                    total_summary = totals["summary"]
+                    totals["physical_share_pct"] = (
+                        round(totals["physical_long"] * 100.0 / total_summary, 1)
+                        if total_summary
+                        else None
+                    )
                 ordered_signals = sorted(
                     result.signals, key=lambda s: s.date, reverse=True
                 )
@@ -850,6 +882,8 @@ async def indicators_page(
             "chart_volume": chart_volume,
             "client_groups": client_groups,
             "chart_groups": chart_groups,
+            "chart_groups_short": chart_groups_short,
+            "client_groups_totals": client_groups_totals,
             "signals": signals,
             "params_used": params_used,
             "security_name": security_name,
