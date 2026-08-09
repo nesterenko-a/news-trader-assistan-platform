@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+
+    <changeSet id="0170-market-open-positions-client-groups" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="market_open_positions_client_groups"/>
+            </not>
+        </preConditions>
+        <createTable tableName="market_open_positions_client_groups">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="security_id" type="bigint">
+                <constraints foreignKeyName="fk_mopcg_security_id" references="securities(id)"/>
+            </column>
+            <column name="trading_date" type="date">
+                <constraints nullable="false"/>
+            </column>
+            <column name="client_group" type="varchar(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="long_pos" type="bigint" defaultValueNumeric="0"/>
+            <column name="short_pos" type="bigint" defaultValueNumeric="0"/>
+            <column name="net_pos" type="bigint" defaultValueNumeric="0"/>
+            <column name="participants" type="integer" defaultValueNumeric="0"/>
+            <column name="summary" type="bigint" defaultValueNumeric="0"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="0171-mopcg-unique" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="ix_mopcg_security_date_group"/>
+            </not>
+        </preConditions>
+        <addUniqueConstraint tableName="market_open_positions_client_groups" columnNames="security_id, trading_date, client_group" constraintName="ix_mopcg_security_date_group"/>
+    </changeSet>
+
+    <changeSet id="0172-mopcg-date-index" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="ix_mopcg_trading_date"/>
+            </not>
+        </preConditions>
+        <createIndex indexName="ix_mopcg_trading_date" tableName="market_open_positions_client_groups">
+            <column name="trading_date"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

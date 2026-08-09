@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Integer,
     String,
     Table,
     Text,
@@ -333,6 +334,28 @@ class MarketOpenPosition(Base):
     open_position: Mapped[int] = mapped_column(BigInteger, default=0)
     open_position_value: Mapped[float | None] = mapped_column(nullable=True)
     source: Mapped[str] = mapped_column(String(20), default="iss")
+
+
+class MarketOpenPositionClientGroup(Base):
+    """Открытые позиции фьючерса по группам клиентов (физ/юр лица)."""
+
+    __tablename__ = "market_open_positions_client_groups"
+    __table_args__ = (
+        UniqueConstraint(
+            "security_id", "trading_date", "client_group",
+            name="ix_mopcg_security_date_group",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    security_id: Mapped[int] = mapped_column(ForeignKey("securities.id"), index=True)
+    trading_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    client_group: Mapped[str] = mapped_column(String(20), nullable=False)  # physical | juridical
+    long_pos: Mapped[int] = mapped_column(BigInteger, default=0)
+    short_pos: Mapped[int] = mapped_column(BigInteger, default=0)
+    net_pos: Mapped[int] = mapped_column(BigInteger, default=0)
+    participants: Mapped[int] = mapped_column(Integer, default=0)
+    summary: Mapped[int] = mapped_column(BigInteger, default=0)
 
 
 class PaperAccount(Base):

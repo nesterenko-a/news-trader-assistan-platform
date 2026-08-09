@@ -3,7 +3,12 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import MarketCandle, MarketOpenPosition, Security
+from app.db.models import (
+    MarketCandle,
+    MarketOpenPosition,
+    MarketOpenPositionClientGroup,
+    Security,
+)
 from app.market.indicators.oi import calculate_oi
 from app.market.moex import MOEXClient
 
@@ -60,8 +65,15 @@ async def sync_security_oi(
     days: int | None = None,
     since: date | None = None,
     futures_meta: dict[str, dict] | None = None,
+    client_groups_cache: dict | None = None,
 ) -> int:
-    """Скачивает историю открытых позиций фьючерса с ISS и сохраняет в market_open_positions."""
+    """Скачивает историю открытых позиций фьючерса с ISS и сохраняет в market_open_positions.
+
+    Помимо общего OI сохраняет свечи цен и, если у фьючерса известен assetcode
+    (код базового актива), — открытые позиции по группам клиентов (физ/юр лица)
+    из сервиса OpenOptionService (см. docs/19 §8.14). client_groups_cache —
+    общий кэш {(assetcode, date): dict} между вызовами (для --all не дублирует запросы).
+    """
     ticker = ticker.upper()
 
     if since is not None:
@@ -85,6 +97,47 @@ async def sync_security_oi(
         assetcode=meta.get("assetcode"),
         lastdeldate=meta.get("lastdeldate"),
     )
+
+    cache = client_groups_cache if client_groups_cache is not None else {}
+    assetcode = security.assetcode
+    if assetcode:
+        client = MOEXClient()
+        for row in rows:
+            key = (assetcode, row["date"])
+            data = cache.get(key)
+            if data is None:
+                try:
+                    data = await client.fetch_open_positions_client_groups(
+                        assetcode, row["date"]
+                    )
+                except Exception:
+                    data = None
+                cache[key] = data
+            if data is None:
+                continue
+            for group in ("physical", "juridical"):
+                existing = await session.scalar(
+                    select(MarketOpenPositionClientGroup).where(
+                        MarketOpenPositionClientGroup.security_id == security.id,
+                        MarketOpenPositionClientGroup.trading_date == row["date"],
+                        MarketOpenPositionClientGroup.client_group == group,
+                    )
+                )
+                long_pos = data.get(f"{group}_long") or 0
+                short_pos = data.get(f"{group}_short") or 0
+                if existing is None:
+                    session.add(
+                        MarketOpenPositionClientGroup(
+                            security_id=security.id,
+                            trading_date=row["date"],
+                            client_group=group,
+                            long_pos=long_pos,
+                            short_pos=short_pos,
+                            net_pos=long_pos - short_pos,
+                            participants=data.get(f"{group}_participants") or 0,
+                            summary=data.get("summary") or 0,
+                        )
+                    )
 
     inserted = 0
     for row in rows:
@@ -129,6 +182,57 @@ async def sync_security_oi(
 
     await session.commit()
     return inserted
+
+
+async def client_groups_series(
+    session: AsyncSession,
+    security_id: int,
+    from_date: date | None = None,
+    till_date: date | None = None,
+) -> list[dict]:
+    """Ряды открытых позиций по группам клиентов (физ/юр) + метрики.
+
+    Возвращает список по датам: long/short/net групп, сумма, доля физиков (%),
+    спред нетто «юр − физ» (см. docs/19 §8.14).
+    """
+    q = select(MarketOpenPositionClientGroup).where(
+        MarketOpenPositionClientGroup.security_id == security_id
+    )
+    if from_date is not None:
+        q = q.where(MarketOpenPositionClientGroup.trading_date >= from_date)
+    if till_date is not None:
+        q = q.where(MarketOpenPositionClientGroup.trading_date <= till_date)
+    q = q.order_by(MarketOpenPositionClientGroup.trading_date)
+    rows = (await session.scalars(q)).all()
+
+    by_date: dict[date, dict] = {}
+    for r in rows:
+        d = by_date.setdefault(r.trading_date, {})
+        d[r.client_group] = {
+            "long": r.long_pos,
+            "short": r.short_pos,
+            "net": r.net_pos,
+            "participants": r.participants,
+        }
+        d["summary"] = r.summary
+
+    out = []
+    for d, groups in sorted(by_date.items()):
+        ph = groups.get("physical") or {"long": 0, "short": 0, "net": 0}
+        ju = groups.get("juridical") or {"long": 0, "short": 0, "net": 0}
+        summary = groups.get("summary") or 0
+        share = round(ph["long"] * 100.0 / summary, 1) if summary else None
+        out.append(
+            {
+                "date": d,
+                "physical": ph,
+                "juridical": ju,
+                "summary": summary,
+                "physical_share_pct": share,
+                "net_spread": ju["net"] - ph["net"],
+            }
+        )
+    return out
 
 
 async def futures_for_security(

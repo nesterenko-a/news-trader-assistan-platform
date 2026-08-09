@@ -82,6 +82,55 @@ class MOEXClient:
         )
         return [(c["date"], c["close"]) for c in candles]
 
+    async def fetch_open_positions_client_groups(
+        self, assetcode: str, trade_date: date
+    ) -> dict | None:
+        """Открытые позиции по группам клиентов (физ/юр) на дату.
+
+        Сервис сайта MOEX (вкладка «Открытые позиции» контракта):
+        GET /api/contract/OpenOptionService/{ДД.ММ.ГГГГ}/F/{ASSETCODE}/json.
+        Агрегация — по базовому активу (все фьючерсы на актив).
+        Возвращает dict или None при неудаче/пустом ответе.
+        """
+        url = (
+            "https://www.moex.com/api/contract/OpenOptionService/"
+            f"{trade_date.strftime('%d.%m.%Y')}/F/{assetcode}/json"
+        )
+        headers = {"Referer": "https://www.moex.com/"}
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(url, headers=headers)
+            resp.raise_for_status()
+            payload = resp.json()
+        if not isinstance(payload, list) or not payload:
+            return None
+
+        def _num(value, is_float: bool = False) -> float | None:
+            if value is None:
+                return None
+            cleaned = str(value).replace("\u00a0", "").replace(" ", "").replace(",", ".")
+            try:
+                return float(cleaned) if is_float else float(cleaned)
+            except ValueError:
+                return None
+
+        def _int(value) -> int | None:
+            n = _num(value)
+            return int(n) if n is not None else None
+
+        totals = payload[0]
+        participants = payload[3] if len(payload) > 3 else {}
+        return {
+            "date": trade_date,
+            "physical_long": _int(totals.get("PhysicalLong")),
+            "physical_short": _int(totals.get("PhysicalShort")),
+            "juridical_long": _int(totals.get("JuridicalLong")),
+            "juridical_short": _int(totals.get("JuridicalShort")),
+            "summary": _int(totals.get("Summary")),
+            "physical_participants": _int(participants.get("PhysicalLong")) or 0,
+            "juridical_participants": _int(participants.get("JuridicalLong")) or 0,
+            "participants_summary": _int(participants.get("Summary")) or 0,
+        }
+
     async def fetch_open_positions(
         self,
         ticker: str,

@@ -6,7 +6,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.connection import get_session
-from app.db.models import MarketCandle, MarketOpenPosition, Security
+from app.db.models import (
+    MarketCandle,
+    MarketOpenPosition,
+    MarketOpenPositionClientGroup,
+    Security,
+)
 from app.market.indicators.base import IndicatorResult
 from app.market.indicators.oi import calculate_oi
 from app.market.indicators.registry import REGISTRY
@@ -17,6 +22,7 @@ from app.market.indicators.support_resistance import (
 from app.market.indicators.ema import calculate_ema
 from app.market.indicators.macd import calculate_macd
 from app.market.moex import MOEXClient
+from app.market.oi_data import client_groups_series
 
 router = APIRouter(prefix="/indicators", tags=["indicators"])
 
@@ -74,6 +80,7 @@ async def calculate_indicator(
     fractal_k: int | None = Query(None, ge=1, le=10),
     min_touches: int | None = Query(None, ge=1, le=20),
     cluster_tolerance_atr: float | None = Query(None, gt=0, le=1),
+    client_groups: int | None = Query(None, ge=0, le=1),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     if name not in REGISTRY:
@@ -93,7 +100,7 @@ async def calculate_indicator(
         )
 
     if name == "oi":
-        return _result_to_dict(
+        result = _result_to_dict(
             await _calculate_oi(
                 session,
                 security,
@@ -106,6 +113,11 @@ async def calculate_indicator(
                 },
             )
         )
+        if client_groups:
+            result["meta"]["client_groups"] = await _oi_client_groups(
+                session, security.id, from_, to
+            )
+        return result
 
     if name == "volume_profile":
         candle_q = (
@@ -178,6 +190,25 @@ async def calculate_indicator(
             return _result_to_dict(calculate_ema(candles, params=params))
         return _result_to_dict(calculate_macd(candles, params=params))
     raise HTTPException(status_code=404, detail="Индикатор не найден")
+
+
+async def _oi_client_groups(
+    session: AsyncSession,
+    security_id: int,
+    from_date: date | None,
+    till_date: date | None,
+) -> list[dict]:
+    """Ряды открытых позиций по группам клиентов (физ/юр) + метрики.
+
+    Возвращает список по датам: long/short/net групп, сумма, доля физиков (%),
+    спред нетто «юр − физ» (см. docs/19 §8.14).
+    """
+    series = await client_groups_series(
+        session, security_id, from_date, till_date
+    )
+    return [
+        {**item, "date": item["date"].isoformat()} for item in series
+    ]
 
 
 async def _calculate_oi(

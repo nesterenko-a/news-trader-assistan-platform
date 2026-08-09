@@ -61,9 +61,12 @@ async def main() -> None:
             flush=True,
         )
         total = 0
+        client_groups_cache: dict = {}
         for i, ticker in enumerate(tickers, 1):
             inserted = await sync_security_oi(
-                session, ticker, since=since, futures_meta=futures_meta
+                session, ticker, since=since,
+                futures_meta=futures_meta,
+                client_groups_cache=client_groups_cache,
             )
             total += inserted
             print(f"  [{i}/{len(tickers)}] {ticker}: +{inserted} записей OI", flush=True)

@@ -71,7 +71,11 @@ from app.api.routes.sources import (
 from app.news.feed_check import validate_feed_url
 from app.schemas import FeedCheckIn, FeedSearchIn, SourceIn
 from app.market.moex import MOEXClient
-from app.market.oi_data import futures_for_security, nearest_future
+from app.market.oi_data import (
+    client_groups_series,
+    futures_for_security,
+    nearest_future,
+)
 from app.market.indicators.oi import calculate_oi
 from app.market.indicators.registry import REGISTRY
 from app.market.indicators.volume_profile import calculate_volume_profile
@@ -730,6 +734,8 @@ async def indicators_page(
     chart_oi = None
     chart_change = None
     chart_volume = None
+    client_groups: list[dict] = []
+    chart_groups = None
     signals: list[dict] = []
     params_used = None
     security_name = ""
@@ -800,6 +806,19 @@ async def indicators_page(
                 chart_volume = _build_volume_bars(
                     [(d, volume_by_date.get(d)) for d in dates]
                 )
+                client_groups = await client_groups_series(
+                    session, security.id, from_, to
+                )
+                chart_groups = _build_dual_chart(
+                    [
+                        (
+                            g["date"],
+                            (g.get("physical") or {}).get("long"),
+                            (g.get("juridical") or {}).get("long"),
+                        )
+                        for g in client_groups
+                    ]
+                )
                 ordered_signals = sorted(
                     result.signals, key=lambda s: s.date, reverse=True
                 )
@@ -829,6 +848,8 @@ async def indicators_page(
             "chart_oi": chart_oi,
             "chart_change": chart_change,
             "chart_volume": chart_volume,
+            "client_groups": client_groups,
+            "chart_groups": chart_groups,
             "signals": signals,
             "params_used": params_used,
             "security_name": security_name,

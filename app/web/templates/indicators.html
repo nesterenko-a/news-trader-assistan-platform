@@ -103,6 +103,53 @@
 </section>
 {% endif %}
 
+{% if chart_groups %}
+<section class="card chart-card">
+  <div class="chart-head"><h2>OI по группам клиентов (длинные позиции)</h2></div>
+  <svg class="chart" viewBox="0 0 {{ chart_groups.width }} {{ chart_groups.height }}" preserveAspectRatio="none">
+    {% for seg in chart_groups.oi_segments %}<polyline points="{{ seg }}" style="stroke:#3b82f6"/>{% endfor %}
+    {% for seg in chart_groups.close_segments %}<polyline points="{{ seg }}" style="stroke:#e67e22"/>{% endfor %}
+    {% for x, label in chart_groups.date_ticks %}<text x="{{ x }}" y="{{ chart_groups.height - 4 }}" class="chart-axis">{{ label }}</text>{% endfor %}
+    {% for x, y, label in chart_groups.oi_ticks %}<text x="{{ x }}" y="{{ y }}" class="chart-axis" style="text-anchor:start">{{ label }}</text>{% endfor %}
+    {% for x, y, label in chart_groups.close_ticks %}<text x="{{ x }}" y="{{ y }}" class="chart-axis" style="text-anchor:end;fill:#e67e22">{{ label }}</text>{% endfor %}
+  </svg>
+  <div class="chart-legend">
+    <span class="legend-item"><i class="legend-dot" style="background:#3b82f6"></i> Физики (long)</span>
+    <span class="legend-item"><i class="legend-dot" style="background:#e67e22"></i> Юрики (long)</span>
+  </div>
+</section>
+
+<section class="card">
+  <div class="chart-head"><h2>Открытые позиции по группам клиентов</h2></div>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Дата</th><th>Физ long</th><th>Физ short</th><th>Физ нетто</th>
+        <th>Юр long</th><th>Юр short</th><th>Юр нетто</th>
+        <th>Сумма</th><th>Доля физ, %</th><th>Спред (юр−физ)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for g in client_groups %}
+      <tr class="{{ 'opposite' if (g.physical.net > 0) != (g.juridical.net > 0) }}">
+        <td>{{ g.date.strftime("%d.%m.%Y") }}</td>
+        <td>{{ g.physical.long }}</td>
+        <td>{{ g.physical.short }}</td>
+        <td class="{{ 'pos' if g.physical.net >= 0 else 'neg' }}">{{ g.physical.net }}</td>
+        <td>{{ g.juridical.long }}</td>
+        <td>{{ g.juridical.short }}</td>
+        <td class="{{ 'pos' if g.juridical.net >= 0 else 'neg' }}">{{ g.juridical.net }}</td>
+        <td>{{ g.summary }}</td>
+        <td>{{ g.physical_share_pct if g.physical_share_pct is not none else '—' }}</td>
+        <td class="{{ 'pos' if g.net_spread >= 0 else 'neg' }}">{{ g.net_spread }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small">Подсветка строки — нетто физиков и юриков имеют разные знаки (противоположные ставки). Данные — по базовому активу (все фьючерсы на него), за завершённый торговый день (см. docs/19 §8.14).</p>
+</section>
+{% endif %}
+
 <section class="card">
   <h2>Как читать сигналы «цена × OI»</h2>
 

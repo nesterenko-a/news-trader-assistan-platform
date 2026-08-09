@@ -178,3 +178,51 @@ async def test_sync_oi_also_updates_prices(oi_session, monkeypatch):
     assert candle.close == 104.0 and candle.high == 105.0
     op = await oi_session.scalar(select(MarketOpenPosition))
     assert op is not None and op.open_position == 500
+
+
+async def test_sync_oi_client_groups(oi_session, monkeypatch):
+    """sync_security_oi сохраняет OI по группам клиентов (физ/юр) по assetcode (п.3)."""
+    from datetime import date, timedelta
+    from app.market.moex import MOEXClient
+
+    rows = [
+        {
+            "date": date.today() - timedelta(days=1),
+            "open": 100.0, "high": 105.0, "low": 99.0, "close": 104.0,
+            "volume": 1000,
+            "open_position": 500, "open_position_value": 52000.0,
+            "shortname": "WHEAT-10.26",
+        }
+    ]
+    groups = {
+        "date": date.today() - timedelta(days=1),
+        "physical_long": 28410, "physical_short": 17634,
+        "juridical_long": 828, "juridical_short": 11604,
+        "summary": 58476,
+        "physical_participants": 1072, "juridical_participants": 5,
+        "participants_summary": 1244,
+    }
+
+    async def fake_fetch(self, ticker, from_date, till_date):
+        return rows
+
+    async def fake_groups(self, assetcode, trade_date):
+        return groups
+
+    monkeypatch.setattr(MOEXClient, "fetch_open_positions", fake_fetch)
+    monkeypatch.setattr(MOEXClient, "fetch_open_positions_client_groups", fake_groups)
+    await oi_data.sync_security_oi(
+        oi_session, "W4V6", days=5,
+        futures_meta={"W4V6": {"assetcode": "WHEAT", "lastdeldate": None}},
+    )
+
+    from app.db.models import MarketOpenPositionClientGroup
+
+    recs = (await oi_session.scalars(select(MarketOpenPositionClientGroup))).all()
+    assert len(recs) == 2
+    by_group = {r.client_group: r for r in recs}
+    ph = by_group["physical"]
+    ju = by_group["juridical"]
+    assert ph.long_pos == 28410 and ph.short_pos == 17634 and ph.net_pos == 10776
+    assert ju.long_pos == 828 and ju.short_pos == 11604 and ju.net_pos == -10776
+    assert ph.participants == 1072 and ju.participants == 5
