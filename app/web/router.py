@@ -272,12 +272,12 @@ def _build_dual_chart(
         (_x(i), sampled[i][0].strftime("%d.%m")) for i in idxs
     ]
     oi_ticks = [
-        (8, _y(oi_scale, v), f"{v:g}") for v in _axis_ticks(oi_scale["low"], oi_scale["high"])
+        (8, _y(oi_scale, v), f"{v:.2f}") for v in _axis_ticks(oi_scale["low"], oi_scale["high"])
     ]
     close_ticks = []
     if close_scale:
         close_ticks = [
-            (width - 8, _y(close_scale, v), f"{v:g}")
+            (width - 8, _y(close_scale, v), f"{v:.2f}")
             for v in _axis_ticks(close_scale["low"], close_scale["high"])
         ]
     return {
@@ -420,7 +420,7 @@ def _build_net_bars(
         if points:
             close_segments.append(" ".join(points))
         close_ticks = [
-            (width - 8, _cy(v), f"{v:g}")
+            (width - 8, _cy(v), f"{v:.2f}")
             for v in (low, (low + high) / 2, high)
         ]
 
@@ -458,7 +458,7 @@ def _build_net_bars(
             )
 
     # Сетка нижней панели: уровни −scale … +scale (нулевая линия выделена отдельно)
-    net_grid = [(_ny(v), f"{v:g}") for v in (-scale, -scale / 2, 0, scale / 2, scale)]
+    net_grid = [(_ny(v), f"{v:.2f}") for v in (-scale, -scale / 2, 0, scale / 2, scale)]
     # Сетка верхней панели (цена)
     close_grid: list[tuple[float, float, str]] = []
     if close_vals:
@@ -468,7 +468,7 @@ def _build_net_bars(
     idxs = sorted({round(i * (n - 1) / 4) for i in range(5)}) if n > 1 else [0]
     date_ticks = [(_x(i), sampled[i][0].strftime("%d.%m")) for i in idxs]
     net_ticks = [
-        (8, _ny(v), f"{v:g}") for v in (-scale, 0, scale)
+        (8, _ny(v), f"{v:.2f}") for v in (-scale, 0, scale)
     ]
     return {
         "width": width,
