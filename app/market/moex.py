@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date, timedelta
 
 import httpx
@@ -19,6 +20,22 @@ def _cursor_total(data: dict, block: str = "history") -> int | None:
     record = dict(zip(columns, rows[0]))
     total = record.get("TOTAL")
     return int(total) if total is not None else None
+
+
+def candles_url(
+    ticker: str, security_type: str = "stock", base_url: str | None = None
+) -> str:
+    """URL свечей MOEX ISS: акции — TQBR, фьючерсы — срочный рынок forts
+    (без доски: доски разные — RFUD, FORTS и др., MOEX ищет сам)."""
+    base = (base_url or "https://iss.moex.com/iss").rstrip("/")
+    if security_type == "futures":
+        engine_market = "engines/futures/markets/forts"
+    else:
+        engine_market = "engines/stock/markets/shares/boards/TQBR"
+    return (
+        f"{base}/{engine_market}/"
+        f"securities/{ticker}/candles.json"
+    )
 
 
 class MOEXClient:
@@ -222,11 +239,9 @@ class MOEXClient:
         from_date: date,
         till_date: date,
         interval: int = 24,
+        security_type: str = "stock",
     ) -> list[dict]:
-        url = (
-            f"{self.base_url}/engines/stock/markets/shares/boards/TQBR/"
-            f"securities/{ticker}/candles.json"
-        )
+        url = candles_url(ticker, security_type, self.base_url)
         params = {
             "iss.only": "candles",
             "candles.columns": "begin,open,high,low,close,volume",
@@ -241,8 +256,20 @@ class MOEXClient:
             params["start"] = str(start)
             params["limit"] = str(page_size)
             async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.get(url, params=params)
-                resp.raise_for_status()
+                # MOEX ISS иногда отвечает 302/5xx при троттлинге — ретраи
+                resp = None
+                for attempt in range(6):
+                    resp = await client.get(url, params=params)
+                    if resp.status_code == 200:
+                        break
+                    if resp.status_code in (301, 302, 429, 500, 502, 503, 504):
+                        await asyncio.sleep(2 + 3 * attempt)
+                        continue
+                    resp.raise_for_status()
+                if resp is None or resp.status_code != 200:
+                    if resp is not None:
+                        resp.raise_for_status()
+                    continue
                 data = resp.json()
 
             block = data.get("candles", {})

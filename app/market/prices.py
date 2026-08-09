@@ -26,6 +26,7 @@ async def sync_security_prices(
         ticker,
         from_date=from_date,
         till_date=date.today(),
+        security_type=security.security_type,
     )
 
     inserted = 0
