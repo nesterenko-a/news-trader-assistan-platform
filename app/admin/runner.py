@@ -312,6 +312,15 @@ async def run_script_task(run_id: int, script_key: str, param_values: dict | Non
                 await notify_script_failed(title, exit_code)
             except Exception:
                 pass
+        elif status == "success":
+            try:
+                from app.db.connection import SessionLocal
+                from app.notices.service import resolve_script_run_notices
+
+                async with SessionLocal() as session:
+                    await resolve_script_run_notices(session)
+            except Exception:
+                pass
         global _active_run_id
         _active_run_id = None
 

@@ -1383,6 +1383,7 @@ def _run_progress(output: str | None) -> dict | None:
 async def admin_run_detail(
     request: Request,
     run_id: int,
+    partial: bool = False,
     session: AsyncSession = Depends(get_session),
 ):
     user = await _optional_user(request, session)
@@ -1400,7 +1401,8 @@ async def admin_run_detail(
             "progress": _run_progress(run.output),
         }
     )
-    return templates.TemplateResponse(request, "admin_run.html", context)
+    template = "admin_run_partial.html" if partial else "admin_run.html"
+    return templates.TemplateResponse(request, template, context)
 
 
 @router.get("/paper")

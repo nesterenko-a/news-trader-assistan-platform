@@ -3,12 +3,9 @@
 {% block title %}Запуск #{{ run.id }} — NewsTrader Assistant{% endblock %}
 
 {% block content %}
-{% if running %}<meta http-equiv="refresh" content="3">{% endif %}
-
 <section class="card">
   <div class="security-head">
     <h1>{{ script_title }} <span class="muted">#{{ run.id }}</span></h1>
-    <span class="run-status run-{{ run.status }}">{{ {'running': 'выполняется…', 'success': 'успех', 'failed': 'ошибка'}[run.status] }}</span>
   </div>
   <p class="muted">
     Запущен: {{ run.started_at.strftime("%d.%m.%Y %H:%M:%S") }}
@@ -17,22 +14,24 @@
   </p>
   {% if run.params %}<p class="muted">Параметры: {{ run.params }}</p>{% endif %}
 
-  {% if progress %}
-  <h2>Прогресс</h2>
-  <div style="background:#e9ecef;border-radius:6px;height:14px;overflow:hidden;margin:8px 0">
-    <div style="width:{{ progress.pct }}%;background:#2f7d32;height:100%;transition:width .5s"></div>
+  <div id="run-live">
+    {% include "admin_run_partial.html" %}
   </div>
-  <p class="muted small">
-    Загружено: {{ progress.done }} из {{ progress.total }}
-    · осталось: {{ progress.remaining }}
-    · {{ progress.pct }}%
-  </p>
-  {% endif %}
-
-  <h2>Вывод</h2>
-  {% if running %}<p class="muted small">Лог обновляется автоматически каждые 3 секунды.</p>{% endif %}
-  <pre class="run-output">{{ run.output or "(лог пока пуст — скрипт ещё выполняется)" }}</pre>
 
   <p><a class="btn" href="/admin">← К списку запусков</a></p>
 </section>
+{% if running %}
+<script>
+(function pollRun() {
+  fetch('/admin/runs/{{ run.id }}?partial=1')
+    .then(function (r) { return r.text(); })
+    .then(function (html) {
+      var live = document.getElementById('run-live');
+      if (live) live.innerHTML = html;
+      if (html.indexOf('run-running') !== -1) setTimeout(pollRun, 3000);
+    })
+    .catch(function () { setTimeout(pollRun, 3000); });
+})();
+</script>
+{% endif %}
 {% endblock %}

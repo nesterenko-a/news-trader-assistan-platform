@@ -35,7 +35,7 @@
       <tr>
         <td><a href="/securities/{{ p.ticker }}">{{ p.ticker }}</a></td>
         <td>{{ p.name }}</td>
-        <td>{{ p.quantity }}</td>
+        <td>{{ p.quantity|int }}</td>
         <td>{{ "%.2f"|format(p.avg_price) }}</td>
         <td>{{ "%.2f"|format(p.current_price) if p.current_price else "—" }}</td>
         <td>{{ "%.2f"|format(p.market_value) if p.market_value else "—" }}</td>

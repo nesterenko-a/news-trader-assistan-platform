@@ -75,7 +75,7 @@
       {% for p in view.positions %}
       <tr>
         <td><a href="/securities/{{ p.ticker }}">{{ p.ticker }}</a></td>
-        <td>{{ "%.2f"|format(p.quantity) }}</td>
+        <td>{{ p.quantity|int }}</td>
         <td>{{ "%.2f"|format(p.entry_price) }}</td>
         <td>{{ "%.2f"|format(p.current_price) if p.current_price else "—" }}</td>
         <td>{{ "%.2f"|format(p.market_value) if p.market_value else "—" }}</td>
@@ -115,7 +115,7 @@
         <td>{{ t.ts.strftime("%d.%m.%Y %H:%M") }}</td>
         <td><a href="/securities/{{ t.ticker }}">{{ t.ticker }}</a></td>
         <td>{{ {'open': 'покупка', 'close': 'продажа'}[t.side] }}</td>
-        <td>{{ "%.2f"|format(t.quantity) }}</td>
+        <td>{{ t.quantity|int }}</td>
         <td>{{ "%.2f"|format(t.price) }}</td>
       </tr>
       {% endfor %}

@@ -285,4 +285,11 @@ async def run_monitor(interval: int = MONITOR_INTERVAL_SECONDS) -> None:
                     error = f"{type(exc).__name__}: {exc}"[:300]
                 await _apply_result(name, error, level)
                 _last_run[name] = now
+        try:
+            from app.notices.service import resolve_script_run_notices
+
+            async with SessionLocal() as session:
+                await resolve_script_run_notices(session)
+        except Exception:
+            pass
         await asyncio.sleep(interval)
