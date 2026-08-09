@@ -844,7 +844,7 @@ async def indicators_page(
     chart_volume = None
     client_groups: list[dict] = []
     chart_groups_net = None
-    client_groups_totals: dict = {}
+    totals: dict = {}
     signals: list[dict] = []
     params_used = None
     security_name = ""
