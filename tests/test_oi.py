@@ -125,3 +125,56 @@ def test_values_and_meta():
     assert kinds == {"oi", "oi_change_pct"}
     assert res.meta["candles"] == 2
     assert res.params["oi_change_threshold_pct"] == 1.0
+
+
+import pytest_asyncio
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from app.db.models import Base, Security
+from app.market import oi_data
+
+
+@pytest_asyncio.fixture
+async def oi_session():
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as store:
+        yield store
+    await engine.dispose()
+
+
+async def test_sync_oi_also_updates_prices(oi_session, monkeypatch):
+    """sync_security_oi сохраняет и открытые позиции, и свечи цен (п.1)."""
+    from datetime import date, timedelta
+    from app.market.moex import MOEXClient
+
+    rows = [
+        {
+            "date": date.today() - timedelta(days=1),
+            "open": 100.0, "high": 105.0, "low": 99.0, "close": 104.0,
+            "volume": 1000,
+            "open_position": 500, "open_position_value": 52000.0,
+            "shortname": "WHEAT-10.26",
+        }
+    ]
+
+    async def fake_fetch(self, ticker, from_date, till_date):
+        return rows
+
+    monkeypatch.setattr(MOEXClient, "fetch_open_positions", fake_fetch)
+    inserted = await oi_data.sync_security_oi(oi_session, "W4V6", days=5)
+    assert inserted == 1
+
+    security = await oi_session.scalar(
+        select(Security).where(Security.ticker == "W4V6")
+    )
+    assert security is not None
+    from app.db.models import MarketCandle, MarketOpenPosition
+
+    candle = await oi_session.scalar(select(MarketCandle))
+    assert candle is not None
+    assert candle.close == 104.0 and candle.high == 105.0
+    op = await oi_session.scalar(select(MarketOpenPosition))
+    assert op is not None and op.open_position == 500

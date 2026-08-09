@@ -60,6 +60,9 @@
   <svg class="chart" viewBox="0 0 {{ chart_oi.width }} {{ chart_oi.height }}" preserveAspectRatio="none">
     {% for seg in chart_oi.oi_segments %}<polyline points="{{ seg }}"/>{% endfor %}
     {% for seg in chart_oi.close_segments %}<polyline points="{{ seg }}" style="stroke:#e67e22"/>{% endfor %}
+    {% for x, label in chart_oi.date_ticks %}<text x="{{ x }}" y="{{ chart_oi.height - 4 }}" class="chart-axis">{{ label }}</text>{% endfor %}
+    {% for x, y, label in chart_oi.oi_ticks %}<text x="{{ x }}" y="{{ y }}" class="chart-axis" style="text-anchor:start">{{ label }}</text>{% endfor %}
+    {% for x, y, label in chart_oi.close_ticks %}<text x="{{ x }}" y="{{ y }}" class="chart-axis" style="text-anchor:end;fill:#e67e22">{{ label }}</text>{% endfor %}
   </svg>
   <div class="chart-legend">
     <span class="legend-item"><i class="legend-dot" style="background:var(--accent)"></i> OI — открытые позиции (контр.)</span>
@@ -72,6 +75,7 @@
   </div>
 </section>
 
+{% if chart_change %}
 <section class="card chart-card">
   <div class="chart-head"><h2>Изменение OI, %</h2></div>
   <svg class="chart" viewBox="0 0 {{ chart_change.width }} {{ chart_change.height }}" preserveAspectRatio="none">
@@ -83,6 +87,7 @@
     <span>макс. ΔOI: ±{{ chart_change.max_abs }}%</span>
   </div>
 </section>
+{% endif %}
 
 {% if chart_volume %}
 <section class="card chart-card">

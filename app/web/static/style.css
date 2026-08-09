@@ -169,6 +169,7 @@ main { padding: 24px 16px 40px; }
   border-radius: 8px;
   margin-top: 12px;
 }
+.chart-axis { font-size: 10px; fill: var(--muted, #8b97ad); }
 .chart polyline {
   fill: none;
   stroke: var(--accent);

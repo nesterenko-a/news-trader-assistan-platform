@@ -224,12 +224,20 @@ def _chart_scale(
     return {"low": low, "high": high}, segments
 
 
+def _axis_ticks(low: float, high: float, n: int = 5) -> list[float]:
+    """n равномерных значений между low и high для шкалы оси."""
+    return [low + (high - low) * i / (n - 1) for i in range(n)]
+
+
 def _build_dual_chart(
     series: list[tuple[date, float | None, float | None]],
     width: int = 900,
     height: int = 280,
 ) -> dict | None:
-    """Две линии на одной шкале времени: (дата, oi, close) — OI и цена."""
+    """Две линии на одной шкале времени: (дата, oi, close) — OI и цена.
+
+    Возвращает также метки осей: даты по X, значения OI и цены по Y.
+    """
     if not series:
         return None
     step = max(1, len(series) // MAX_CHART_POINTS)
@@ -242,6 +250,32 @@ def _build_dual_chart(
     )
     if oi_scale is None:
         return None
+
+    n = len(sampled)
+
+    def _x(i: int) -> float:
+        return round(10 + i * (width - 20) / (n - 1 if n > 1 else 1), 1)
+
+    def _y(scale: dict, v: float) -> float:
+        return round(
+            10 + (scale["high"] - v) / (scale["high"] - scale["low"])
+            * (height - 20),
+            1,
+        )
+
+    idxs = sorted({round(i * (n - 1) / 4) for i in range(5)}) if n > 1 else [0]
+    date_ticks = [
+        (_x(i), sampled[i][0].strftime("%d.%m")) for i in idxs
+    ]
+    oi_ticks = [
+        (8, _y(oi_scale, v), f"{v:g}") for v in _axis_ticks(oi_scale["low"], oi_scale["high"])
+    ]
+    close_ticks = []
+    if close_scale:
+        close_ticks = [
+            (width - 8, _y(close_scale, v), f"{v:g}")
+            for v in _axis_ticks(close_scale["low"], close_scale["high"])
+        ]
     return {
         "oi_segments": oi_segments,
         "close_segments": close_segments,
@@ -251,6 +285,9 @@ def _build_dual_chart(
         "max_close": round(close_scale["high"], 2) if close_scale else None,
         "first_date": sampled[0][0].isoformat(),
         "last_date": sampled[-1][0].isoformat(),
+        "date_ticks": date_ticks,
+        "oi_ticks": oi_ticks,
+        "close_ticks": close_ticks,
         "width": width,
         "height": height,
     }
