@@ -252,6 +252,10 @@ main { padding: 24px 16px 40px; }
 .net-jur { fill: #e67e22; }
 .chart-grid { stroke: var(--border, #2c3750); stroke-width: 1; stroke-dasharray: 3, 5; }
 .net-zero { stroke: #f1c40f; stroke-width: 1.6; stroke-dasharray: 8, 4; }
+.delta { white-space: nowrap; font-weight: 600; }
+.delta-up { color: var(--green, #2f7d32); }
+.delta-down { color: var(--red, #c0392b); }
+.delta-flat { color: var(--muted, #8b97ad); }
 
 .news-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
 .news-item:last-child { border-bottom: 0; }

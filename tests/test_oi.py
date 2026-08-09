@@ -226,3 +226,50 @@ async def test_sync_oi_client_groups(oi_session, monkeypatch):
     assert ph.long_pos == 28410 and ph.short_pos == 17634 and ph.net_pos == 10776
     assert ju.long_pos == 828 and ju.short_pos == 11604 and ju.net_pos == -10776
     assert ph.participants == 1072 and ju.participants == 5
+
+
+def test_delta_level():
+    from app.market.oi_data import _delta_level
+
+    cases = [
+        (None, "−"), (0.5, "−"), (1.9, "−"), (2.0, "↑"), (4.9, "↑"),
+        (5.0, "↑↑"), (9.9, "↑↑"), (10.0, "↑↑↑"), (25.0, "↑↑↑"),
+        (-1.0, "−"), (-2.0, "↓"), (-4.9, "↓"), (-5.0, "↓↓"),
+        (-9.9, "↓↓"), (-10.0, "↓↓↓"), (-30.0, "↓↓↓"),
+    ]
+    for pct, expected in cases:
+        level, arrows, cls = _delta_level(pct)
+        assert arrows == expected, f"{pct}: {arrows} != {expected}"
+
+
+async def test_client_groups_series_delta(oi_session):
+    """Δ OI день-к-дню: первая дата — «−», далее по порогам."""
+    from app.db.models import Security, MarketOpenPositionClientGroup
+    from datetime import date, timedelta
+    from app.market.oi_data import client_groups_series
+
+    sec = Security(ticker="W4V6", name="Пшеница", security_type="futures", assetcode="WHEAT")
+    oi_session.add(sec)
+    await oi_session.flush()
+
+    base = date(2026, 8, 3)
+    # 1-й день: ph long+short = 100 → 2-й день 105 (рост 5% → ↑↑)
+    data = [
+        (base, 60, 40, 30, 20),
+        (base + timedelta(days=1), 65, 40, 30, 20),  # ph 105 vs 100 = +5% → ↑↑; юр 50→50 → −
+    ]
+    for i, (d, phl, phs, jul, jus) in enumerate(data):
+        for group, long, short in (("physical", phl, phs), ("juridical", jul, jus)):
+            oi_session.add(MarketOpenPositionClientGroup(
+                security_id=sec.id, trading_date=d, client_group=group,
+                long_pos=long, short_pos=short, net_pos=long - short,
+                participants=0, summary=100 + i,
+            ))
+    await oi_session.commit()
+
+    series = await client_groups_series(oi_session, sec.id)
+    assert len(series) == 2
+    assert series[0]["delta"]["physical"]["arrows"] == "−"
+    d2 = series[1]["delta"]["physical"]
+    assert d2["arrows"] == "↑↑" and d2["pct"] == 5.0, d2
+    assert series[1]["delta"]["juridical"]["arrows"] == "−"  # 51→51

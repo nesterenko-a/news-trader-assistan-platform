@@ -137,7 +137,7 @@
         <th class="sortable" data-sort="ph_net">Физ нетто<span class="sort-arrow"></span></th>
         <th>Юр long</th><th>Юр short</th>
         <th class="sortable" data-sort="ju_net">Юр нетто<span class="sort-arrow"></span></th>
-        <th>Сумма</th><th>Доля физ, %</th><th>Спред (юр−физ)</th>
+        <th>Сумма</th><th>Доля физ, %</th><th>Спред (юр−физ)</th><th>Δ OI</th>
       </tr>
     </thead>
     <tbody>
@@ -154,6 +154,10 @@
         <td>{{ g.summary }}</td>
         <td>{{ g.physical_share_pct if g.physical_share_pct is not none else '—' }}</td>
         <td class="{{ 'pos' if g.net_spread >= 0 else 'neg' }}">{{ g.net_spread }}</td>
+        <td>
+          <span class="{{ 'delta ' + g.delta.physical.cls }}" title="Физики: {% if g.delta.physical.pct is not none %}{{ '%+.1f'|format(g.delta.physical.pct) }}% к пред. дню{% else %}нет данных{% endif %}">Физ {{ g.delta.physical.arrows }}</span><br>
+          <span class="{{ 'delta ' + g.delta.juridical.cls }}" title="Юрики: {% if g.delta.juridical.pct is not none %}{{ '%+.1f'|format(g.delta.juridical.pct) }}% к пред. дню{% else %}нет данных{% endif %}">Юр {{ g.delta.juridical.arrows }}</span>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
@@ -169,6 +173,7 @@
         <td class="{{ 'pos' if client_groups_totals.juridical_net >= 0 else 'neg' }}"><b>{{ client_groups_totals.juridical_net }}</b></td>
         <td><b>{{ client_groups_totals.summary }}</b></td>
         <td>{{ client_groups_totals.physical_share_pct if client_groups_totals.physical_share_pct is not none else '—' }}</td>
+        <td>—</td>
         <td>—</td>
       </tr>
     </tfoot>

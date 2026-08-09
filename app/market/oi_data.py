@@ -184,6 +184,28 @@ async def sync_security_oi(
     return inserted
 
 
+def _delta_level(pct: float | None) -> tuple[str, str, str]:
+    """(level, arrows, css) для Δ OI день-к-дню (см. docs/19 §8.14.1).
+
+    Пороги: ≥10 ↑↑↑ · 5–10 ↑↑ · 2–5 ↑ · −2…2 − · −5…−2 ↓ · −10…−5 ↓↓ · ≤−10 ↓↓↓
+    """
+    if pct is None:
+        return "flat", "−", "delta-flat"
+    if pct >= 10:
+        return "strong_up", "↑↑↑", "delta-up"
+    if pct >= 5:
+        return "up_up", "↑↑", "delta-up"
+    if pct >= 2:
+        return "up", "↑", "delta-up"
+    if pct > -2:
+        return "flat", "−", "delta-flat"
+    if pct > -5:
+        return "down", "↓", "delta-down"
+    if pct > -10:
+        return "down_down", "↓↓", "delta-down"
+    return "strong_down", "↓↓↓", "delta-down"
+
+
 async def client_groups_series(
     session: AsyncSession,
     security_id: int,
@@ -217,11 +239,30 @@ async def client_groups_series(
         d["summary"] = r.summary
 
     out = []
+    prev: dict | None = None
     for d, groups in sorted(by_date.items()):
         ph = groups.get("physical") or {"long": 0, "short": 0, "net": 0}
         ju = groups.get("juridical") or {"long": 0, "short": 0, "net": 0}
         summary = groups.get("summary") or 0
         share = round(ph["long"] * 100.0 / summary, 1) if summary else None
+
+        # Δ OI день-к-дню (см. docs/19 §8.14.1)
+        def _delta(cur: dict, prev_cur: dict | None) -> dict:
+            if prev_cur is None:
+                return {"pct": None, "level": "flat", "arrows": "−", "cls": "delta-flat"}
+            cur_oi = (cur.get("long") or 0) + (cur.get("short") or 0)
+            prev_oi = (prev_cur.get("long") or 0) + (prev_cur.get("short") or 0)
+            if prev_oi <= 0:
+                return {"pct": None, "level": "flat", "arrows": "−", "cls": "delta-flat"}
+            pct = (cur_oi - prev_oi) * 100.0 / prev_oi
+            level, arrows, cls = _delta_level(pct)
+            return {"pct": round(pct, 1), "level": level, "arrows": arrows, "cls": cls}
+
+        prev_ph = prev.get("physical") if prev else None
+        prev_ju = prev.get("juridical") if prev else None
+        delta_ph = _delta(ph, prev_ph)
+        delta_ju = _delta(ju, prev_ju)
+
         out.append(
             {
                 "date": d,
@@ -230,8 +271,10 @@ async def client_groups_series(
                 "summary": summary,
                 "physical_share_pct": share,
                 "net_spread": ju["net"] - ph["net"],
+                "delta": {"physical": delta_ph, "juridical": delta_ju},
             }
         )
+        prev = {"physical": ph, "juridical": ju}
     return out
 
 
