@@ -137,7 +137,7 @@
         <th class="sortable" data-sort="ph_net">Физ нетто<span class="sort-arrow"></span></th>
         <th>Юр long</th><th>Юр short</th>
         <th class="sortable" data-sort="ju_net">Юр нетто<span class="sort-arrow"></span></th>
-        <th>Сумма</th><th>Доля физ, %</th><th>Спред (юр−физ)</th><th>Δ OI</th>
+        <th>Сумма</th><th>Доля физ, %</th><th>Спред (юр−физ)</th><th>Δ OI<span class="tooltip" tabindex="0" aria-label="Справка: Δ OI"><span class="tooltip-icon">?</span><span class="tooltip-text">Динамика открытых позиций группы к предыдущему дню. Показаны: общий (long+short), отдельно длинные (L) и короткие (S). Стрелки: ↑↑↑ ≥ +10%, ↑↑ +5…+10%, ↑ +2…+5%, − до ±2%, ↓ −5…−2%, ↓↓ −10…−5%, ↓↓↓ ≤ −10%. Точные проценты — при наведении на строку.</span></span></th>
       </tr>
     </thead>
     <tbody>
@@ -155,8 +155,10 @@
         <td>{{ g.physical_share_pct if g.physical_share_pct is not none else '—' }}</td>
         <td class="{{ 'pos' if g.net_spread >= 0 else 'neg' }}">{{ g.net_spread }}</td>
         <td>
-          <span class="{{ 'delta ' + g.delta.physical.cls }}" title="Физики: {% if g.delta.physical.pct is not none %}{{ '%+.1f'|format(g.delta.physical.pct) }}% к пред. дню{% else %}нет данных{% endif %}">Физ {{ g.delta.physical.arrows }}</span><br>
-          <span class="{{ 'delta ' + g.delta.juridical.cls }}" title="Юрики: {% if g.delta.juridical.pct is not none %}{{ '%+.1f'|format(g.delta.juridical.pct) }}% к пред. дню{% else %}нет данных{% endif %}">Юр {{ g.delta.juridical.arrows }}</span>
+          <span class="{{ 'delta ' + g.delta.physical.total.cls }}"
+                title="Физики: общ {{ '%+.1f'|format(g.delta.physical.total.pct) if g.delta.physical.total.pct is not none else '—' }}% · long {{ '%+.1f'|format(g.delta.physical.long.pct) if g.delta.physical.long.pct is not none else '—' }}% · short {{ '%+.1f'|format(g.delta.physical.short.pct) if g.delta.physical.short.pct is not none else '—' }}% к пред. дню">Физ {{ g.delta.physical.total.arrows }} <span class="delta-sub">L {{ g.delta.physical.long.arrows }} · S {{ g.delta.physical.short.arrows }}</span></span><br>
+          <span class="{{ 'delta ' + g.delta.juridical.total.cls }}"
+                title="Юрики: общ {{ '%+.1f'|format(g.delta.juridical.total.pct) if g.delta.juridical.total.pct is not none else '—' }}% · long {{ '%+.1f'|format(g.delta.juridical.long.pct) if g.delta.juridical.long.pct is not none else '—' }}% · short {{ '%+.1f'|format(g.delta.juridical.short.pct) if g.delta.juridical.short.pct is not none else '—' }}% к пред. дню">Юр {{ g.delta.juridical.total.arrows }} <span class="delta-sub">L {{ g.delta.juridical.long.arrows }} · S {{ g.delta.juridical.short.arrows }}</span></span>
         </td>
       </tr>
       {% endfor %}

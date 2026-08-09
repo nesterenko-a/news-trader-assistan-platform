@@ -247,11 +247,15 @@ async def client_groups_series(
         share = round(ph["long"] * 100.0 / summary, 1) if summary else None
 
         # Δ OI день-к-дню (см. docs/19 §8.14.1)
-        def _delta(cur: dict, prev_cur: dict | None) -> dict:
+        def _delta(cur: dict, prev_cur: dict | None, metric: str) -> dict:
             if prev_cur is None:
                 return {"pct": None, "level": "flat", "arrows": "−", "cls": "delta-flat"}
-            cur_oi = (cur.get("long") or 0) + (cur.get("short") or 0)
-            prev_oi = (prev_cur.get("long") or 0) + (prev_cur.get("short") or 0)
+            if metric == "total":
+                cur_oi = (cur.get("long") or 0) + (cur.get("short") or 0)
+                prev_oi = (prev_cur.get("long") or 0) + (prev_cur.get("short") or 0)
+            else:
+                cur_oi = cur.get(metric) or 0
+                prev_oi = prev_cur.get(metric) or 0
             if prev_oi <= 0:
                 return {"pct": None, "level": "flat", "arrows": "−", "cls": "delta-flat"}
             pct = (cur_oi - prev_oi) * 100.0 / prev_oi
@@ -260,8 +264,16 @@ async def client_groups_series(
 
         prev_ph = prev.get("physical") if prev else None
         prev_ju = prev.get("juridical") if prev else None
-        delta_ph = _delta(ph, prev_ph)
-        delta_ju = _delta(ju, prev_ju)
+
+        def _group_deltas(cur: dict, prev_cur: dict | None) -> dict:
+            return {
+                "total": _delta(cur, prev_cur, "total"),
+                "long": _delta(cur, prev_cur, "long"),
+                "short": _delta(cur, prev_cur, "short"),
+            }
+
+        delta_ph = _group_deltas(ph, prev_ph)
+        delta_ju = _group_deltas(ju, prev_ju)
 
         out.append(
             {

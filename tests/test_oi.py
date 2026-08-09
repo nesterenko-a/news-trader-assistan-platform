@@ -269,7 +269,10 @@ async def test_client_groups_series_delta(oi_session):
 
     series = await client_groups_series(oi_session, sec.id)
     assert len(series) == 2
-    assert series[0]["delta"]["physical"]["arrows"] == "−"
-    d2 = series[1]["delta"]["physical"]
+    assert series[0]["delta"]["physical"]["total"]["arrows"] == "−"
+    d2 = series[1]["delta"]["physical"]["total"]
     assert d2["arrows"] == "↑↑" and d2["pct"] == 5.0, d2
-    assert series[1]["delta"]["juridical"]["arrows"] == "−"  # 51→51
+    # long 60→65 = +8.3% → ↑↑; short 40→40 = 0% → −
+    assert series[1]["delta"]["physical"]["long"]["arrows"] == "↑↑"
+    assert series[1]["delta"]["physical"]["short"]["arrows"] == "−"
+    assert series[1]["delta"]["juridical"]["total"]["arrows"] == "−"  # 50→50
