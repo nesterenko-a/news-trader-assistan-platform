@@ -117,7 +117,6 @@
     {% endfor %}
     <line x1="10" y1="{{ chart_groups_net.zero_y }}" x2="{{ chart_groups_net.width - 10 }}" y2="{{ chart_groups_net.zero_y }}" class="net-zero"/>
     {% for x, y, label in chart_groups_net.net_ticks %}<text x="{{ x }}" y="{{ y }}" class="chart-axis" style="text-anchor:start">{{ label }}</text>{% endfor %}
-    <text x="14" y="{{ chart_groups_net.height - 22 }}" class="chart-axis">Нетто (long − short)</text>
     {% for x, label in chart_groups_net.date_ticks %}<text x="{{ x }}" y="{{ chart_groups_net.height - 4 }}" class="chart-axis">{{ label }}</text>{% endfor %}
   </svg>
   <div class="chart-legend">
