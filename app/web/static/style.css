@@ -247,6 +247,9 @@ main { padding: 24px 16px 40px; }
 .pos { color: var(--green); }
 .neg { color: var(--red); }
 .opposite { background: rgba(91, 140, 255, 0.07); }
+.net-bar { opacity: 0.85; }
+.net-ph { fill: #3b82f6; }
+.net-jur { fill: #e67e22; }
 
 .news-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
 .news-item:last-child { border-bottom: 0; }

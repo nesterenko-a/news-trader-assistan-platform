@@ -369,6 +369,114 @@ def _build_change_bars(
     }
 
 
+def _build_net_bars(
+    series: list[tuple[date, float | None, float | None]],
+    close_series: list[tuple[date, float | None]],
+    width: int = 900,
+    height: int = 320,
+) -> dict | None:
+    """COT-график нетто-позиций групп (long − short) под ценой.
+
+    Верхняя панель — линия цены close; нижняя — группированные столбцы
+    нетто-позиций физиков (net_ph) и юриков (net_jur) вокруг нулевой оси
+    (пересечение нуля = смена перевеса группы). Канон COT-визуализации.
+    """
+    if not series:
+        return None
+    step = max(1, len(series) // MAX_CHART_POINTS)
+    sampled = series[::step]
+    n = len(sampled)
+    top_h = 110
+    bottom_top = top_h + 26
+    bottom_h = height - bottom_top - 14
+
+    def _x(i: int) -> float:
+        return round(10 + i * (width - 20) / (n - 1 if n > 1 else 1), 1)
+
+    # --- верхняя панель: цена ---
+    close_segments: list[str] = []
+    close_ticks: list[tuple[float, float, str]] = []
+    close_vals = [c for _, c in close_series if c is not None]
+    if close_vals:
+        low, high = min(close_vals), max(close_vals)
+        span = high - low or 1.0
+        pad = span * 0.08
+        low -= pad
+        high += pad
+
+        def _cy(v: float) -> float:
+            return round(8 + (high - v) / (high - low) * (top_h - 16), 1)
+
+        points: list[str] = []
+        for i, (_, c) in enumerate(close_series[:n] or close_series):
+            if i >= n:
+                break
+            if c is None:
+                if points:
+                    close_segments.append(" ".join(points))
+                    points = []
+                continue
+            points.append(f"{_x(i)},{_cy(c)}")
+        if points:
+            close_segments.append(" ".join(points))
+        close_ticks = [
+            (width - 8, _cy(v), f"{v:g}")
+            for v in (low, (low + high) / 2, high)
+        ]
+
+    # --- нижняя панель: нетто-позиции ---
+    net_vals = [a for _, a, b in sampled if a is not None] + [
+        b for _, a, b in sampled if b is not None
+    ]
+    max_abs = max((abs(v) for v in net_vals), default=0.0) or 1.0
+    scale = max_abs * 1.12
+    mid = bottom_top + bottom_h / 2
+
+    def _ny(v: float) -> float:
+        return round(mid - v / scale * (bottom_h / 2 - 6), 1)
+
+    zero_y = _ny(0)
+    bar_width = max(2.0, (width - 20) / n * 0.32)
+    rects: list[dict] = []
+    for i, (_, a, b) in enumerate(sampled):
+        x = _x(i)
+        for group, v in (("ph", a), ("jur", b)):
+            if v is None:
+                continue
+            y = _ny(v)
+            h = abs(zero_y - y)
+            if h < 0.4:
+                continue
+            rects.append(
+                {
+                    "x": round(x - bar_width * 1.5 + (0 if group == "ph" else bar_width), 1),
+                    "y": round(min(y, zero_y), 1),
+                    "w": round(bar_width, 1),
+                    "h": round(h, 1),
+                    "group": group,
+                }
+            )
+
+    idxs = sorted({round(i * (n - 1) / 4) for i in range(5)}) if n > 1 else [0]
+    date_ticks = [(_x(i), sampled[i][0].strftime("%d.%m")) for i in idxs]
+    net_ticks = [
+        (8, _ny(v), f"{v:g}") for v in (-scale, 0, scale)
+    ]
+    return {
+        "width": width,
+        "height": height,
+        "close_segments": close_segments,
+        "close_ticks": close_ticks,
+        "net_rects": rects,
+        "zero_y": round(zero_y, 1),
+        "net_scale": round(scale, 2),
+        "net_ticks": net_ticks,
+        "date_ticks": date_ticks,
+        "first_date": sampled[0][0].isoformat(),
+        "last_date": sampled[-1][0].isoformat(),
+    }
+
+
 def _build_volume_bars(
     pairs: list[tuple[date, float | None]],
     width: int = 900,
@@ -735,8 +843,7 @@ async def indicators_page(
     chart_change = None
     chart_volume = None
     client_groups: list[dict] = []
-    chart_groups_physical = None
-    chart_groups_juridical = None
+    chart_groups_net = None
     client_groups_totals: dict = {}
     signals: list[dict] = []
     params_used = None
@@ -811,25 +918,16 @@ async def indicators_page(
                 client_groups = await client_groups_series(
                     session, security.id, from_, to
                 )
-                chart_groups_physical = _build_dual_chart(
+                chart_groups_net = _build_net_bars(
                     [
                         (
                             g["date"],
-                            (g.get("physical") or {}).get("long"),
-                            (g.get("physical") or {}).get("short"),
+                            (g.get("physical") or {}).get("net"),
+                            (g.get("juridical") or {}).get("net"),
                         )
                         for g in client_groups
-                    ]
-                )
-                chart_groups_juridical = _build_dual_chart(
-                    [
-                        (
-                            g["date"],
-                            (g.get("juridical") or {}).get("long"),
-                            (g.get("juridical") or {}).get("short"),
-                        )
-                        for g in client_groups
-                    ]
+                    ],
+                    [(g["date"], close_by_date.get(g["date"])) for g in client_groups],
                 )
                 totals = {}
                 if client_groups:
@@ -883,8 +981,7 @@ async def indicators_page(
             "chart_change": chart_change,
             "chart_volume": chart_volume,
             "client_groups": client_groups,
-            "chart_groups_physical": chart_groups_physical,
-            "chart_groups_juridical": chart_groups_juridical,
+            "chart_groups_net": chart_groups_net,
             "client_groups_totals": totals,
             "signals": signals,
             "params_used": params_used,

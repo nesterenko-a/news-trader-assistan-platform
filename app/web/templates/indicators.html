@@ -103,43 +103,27 @@
 </section>
 {% endif %}
 
-{% if chart_groups_physical %}
+{% if chart_groups_net %}
 <section class="card chart-card">
-  <div class="chart-head">
-    <h2>OI по группам клиентов</h2>
-    <div class="seg" id="cg-toggle">
-      <label class="seg-item seg-active"><input type="radio" name="cg-side" value="physical" checked>Физики</label>
-      <label class="seg-item"><input type="radio" name="cg-side" value="juridical">Юрики</label>
-    </div>
+  <div class="chart-head"><h2>Нетто-позиции по группам клиентов (long − short)</h2></div>
+  <svg class="chart" viewBox="0 0 {{ chart_groups_net.width }} {{ chart_groups_net.height }}" preserveAspectRatio="none">
+    <text x="14" y="14" class="chart-axis">Цена</text>
+    {% for seg in chart_groups_net.close_segments %}<polyline points="{{ seg }}" style="stroke:#e67e22"/>{% endfor %}
+    {% for x, y, label in chart_groups_net.close_ticks %}<text x="{{ x }}" y="{{ y }}" class="chart-axis" style="text-anchor:end;fill:#e67e22">{{ label }}</text>{% endfor %}
+    {% for r in chart_groups_net.net_rects %}
+    <rect x="{{ r.x }}" y="{{ r.y }}" width="{{ r.w }}" height="{{ r.h }}" class="net-bar {{ 'net-ph' if r.group == 'ph' else 'net-jur' }}"/>
+    {% endfor %}
+    <line x1="10" y1="{{ chart_groups_net.zero_y }}" x2="{{ chart_groups_net.width - 10 }}" y2="{{ chart_groups_net.zero_y }}" style="stroke:#999;stroke-width:1;stroke-dasharray:4,4"/>
+    {% for x, y, label in chart_groups_net.net_ticks %}<text x="{{ x }}" y="{{ y }}" class="chart-axis" style="text-anchor:start">{{ label }}</text>{% endfor %}
+    <text x="14" y="{{ chart_groups_net.height - 22 }}" class="chart-axis">Нетто (long − short)</text>
+    {% for x, label in chart_groups_net.date_ticks %}<text x="{{ x }}" y="{{ chart_groups_net.height - 4 }}" class="chart-axis">{{ label }}</text>{% endfor %}
+  </svg>
+  <div class="chart-legend">
+    <span class="legend-item"><i class="legend-dot" style="background:#3b82f6"></i> Физики (нетто)</span>
+    <span class="legend-item"><i class="legend-dot" style="background:#e67e22"></i> Юрики (нетто)</span>
+    <span class="legend-item"><i class="legend-dot" style="background:#e67e22"></i> Цена (верх)</span>
   </div>
-  <div id="cg-physical">
-    <svg class="chart" viewBox="0 0 {{ chart_groups_physical.width }} {{ chart_groups_physical.height }}" preserveAspectRatio="none">
-      {% for seg in chart_groups_physical.oi_segments %}<polyline points="{{ seg }}" style="stroke:#3b82f6"/>{% endfor %}
-      {% for seg in chart_groups_physical.close_segments %}<polyline points="{{ seg }}" style="stroke:#e67e22"/>{% endfor %}
-      {% for x, label in chart_groups_physical.date_ticks %}<text x="{{ x }}" y="{{ chart_groups_physical.height - 4 }}" class="chart-axis">{{ label }}</text>{% endfor %}
-      {% for x, y, label in chart_groups_physical.oi_ticks %}<text x="{{ x }}" y="{{ y }}" class="chart-axis" style="text-anchor:start">{{ label }}</text>{% endfor %}
-      {% for x, y, label in chart_groups_physical.close_ticks %}<text x="{{ x }}" y="{{ y }}" class="chart-axis" style="text-anchor:end;fill:#e67e22">{{ label }}</text>{% endfor %}
-    </svg>
-    <div class="chart-legend">
-      <span class="legend-item"><i class="legend-dot" style="background:#3b82f6"></i> Физики — длинные</span>
-      <span class="legend-item"><i class="legend-dot" style="background:#e67e22"></i> Физики — короткие</span>
-    </div>
-  </div>
-  {% if chart_groups_juridical %}
-  <div id="cg-juridical" style="display:none">
-    <svg class="chart" viewBox="0 0 {{ chart_groups_juridical.width }} {{ chart_groups_juridical.height }}" preserveAspectRatio="none">
-      {% for seg in chart_groups_juridical.oi_segments %}<polyline points="{{ seg }}" style="stroke:#3b82f6"/>{% endfor %}
-      {% for seg in chart_groups_juridical.close_segments %}<polyline points="{{ seg }}" style="stroke:#e67e22"/>{% endfor %}
-      {% for x, label in chart_groups_juridical.date_ticks %}<text x="{{ x }}" y="{{ chart_groups_juridical.height - 4 }}" class="chart-axis">{{ label }}</text>{% endfor %}
-      {% for x, y, label in chart_groups_juridical.oi_ticks %}<text x="{{ x }}" y="{{ y }}" class="chart-axis" style="text-anchor:start">{{ label }}</text>{% endfor %}
-      {% for x, y, label in chart_groups_juridical.close_ticks %}<text x="{{ x }}" y="{{ y }}" class="chart-axis" style="text-anchor:end;fill:#e67e22">{{ label }}</text>{% endfor %}
-    </svg>
-    <div class="chart-legend">
-      <span class="legend-item"><i class="legend-dot" style="background:#3b82f6"></i> Юрики — длинные</span>
-      <span class="legend-item"><i class="legend-dot" style="background:#e67e22"></i> Юрики — короткие</span>
-    </div>
-  </div>
-  {% endif %}
+  <p class="muted small">Нетто = длинные − короткие: столбцы выше нуля — перевес длинных, ниже — перевес коротких; пересечение нуля — смена настроений группы. Зеркальность столбцов — тождество OI: лонг одной группы ≈ шорт другой.</p>
 </section>
 
 <section class="card">
@@ -193,19 +177,6 @@
 </section>
 <script>
 (function () {
-  var toggle = document.getElementById('cg-toggle');
-  var phys = document.getElementById('cg-physical');
-  var jur = document.getElementById('cg-juridical');
-  if (toggle && phys && jur) {
-    toggle.addEventListener('change', function () {
-      var side = toggle.querySelector('input:checked').value;
-      phys.style.display = side === 'physical' ? '' : 'none';
-      jur.style.display = side === 'juridical' ? '' : 'none';
-      toggle.querySelectorAll('.seg-item').forEach(function (li) {
-        li.classList.toggle('seg-active', li.querySelector('input').checked);
-      });
-    });
-  }
   var table = document.getElementById('cg-table');
   if (table) {
     var rows = Array.prototype.slice.call(table.querySelectorAll('tbody tr'));
