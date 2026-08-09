@@ -833,17 +833,19 @@ async def indicators_page(
                 )
                 totals = {}
                 if client_groups:
-                    def _sum(key):
-                        return sum(g.get(key) or 0 for g in client_groups)
+                    def _sum(side: str, key: str) -> int:
+                        return sum(
+                            (g.get(side) or {}).get(key, 0) for g in client_groups
+                        )
 
                     totals = {
-                        "physical_long": _sum("physical_long"),
-                        "physical_short": _sum("physical_short"),
-                        "physical_net": _sum("physical_net"),
-                        "juridical_long": _sum("juridical_long"),
-                        "juridical_short": _sum("juridical_short"),
-                        "juridical_net": _sum("juridical_net"),
-                        "summary": _sum("summary"),
+                        "physical_long": _sum("physical", "long"),
+                        "physical_short": _sum("physical", "short"),
+                        "physical_net": _sum("physical", "net"),
+                        "juridical_long": _sum("juridical", "long"),
+                        "juridical_short": _sum("juridical", "short"),
+                        "juridical_net": _sum("juridical", "net"),
+                        "summary": sum(g.get("summary") or 0 for g in client_groups),
                     }
                     total_summary = totals["summary"]
                     totals["physical_share_pct"] = (
@@ -883,7 +885,7 @@ async def indicators_page(
             "client_groups": client_groups,
             "chart_groups": chart_groups,
             "chart_groups_short": chart_groups_short,
-            "client_groups_totals": client_groups_totals,
+            "client_groups_totals": totals,
             "signals": signals,
             "params_used": params_used,
             "security_name": security_name,
