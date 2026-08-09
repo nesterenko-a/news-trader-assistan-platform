@@ -735,8 +735,8 @@ async def indicators_page(
     chart_change = None
     chart_volume = None
     client_groups: list[dict] = []
-    chart_groups = None
-    chart_groups_short = None
+    chart_groups_physical = None
+    chart_groups_juridical = None
     client_groups_totals: dict = {}
     signals: list[dict] = []
     params_used = None
@@ -811,21 +811,21 @@ async def indicators_page(
                 client_groups = await client_groups_series(
                     session, security.id, from_, to
                 )
-                chart_groups = _build_dual_chart(
+                chart_groups_physical = _build_dual_chart(
                     [
                         (
                             g["date"],
                             (g.get("physical") or {}).get("long"),
-                            (g.get("juridical") or {}).get("long"),
+                            (g.get("physical") or {}).get("short"),
                         )
                         for g in client_groups
                     ]
                 )
-                chart_groups_short = _build_dual_chart(
+                chart_groups_juridical = _build_dual_chart(
                     [
                         (
                             g["date"],
-                            (g.get("physical") or {}).get("short"),
+                            (g.get("juridical") or {}).get("long"),
                             (g.get("juridical") or {}).get("short"),
                         )
                         for g in client_groups
@@ -883,8 +883,8 @@ async def indicators_page(
             "chart_change": chart_change,
             "chart_volume": chart_volume,
             "client_groups": client_groups,
-            "chart_groups": chart_groups,
-            "chart_groups_short": chart_groups_short,
+            "chart_groups_physical": chart_groups_physical,
+            "chart_groups_juridical": chart_groups_juridical,
             "client_groups_totals": totals,
             "signals": signals,
             "params_used": params_used,
