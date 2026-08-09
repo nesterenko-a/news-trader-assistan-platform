@@ -8,7 +8,7 @@
   <p class="muted">Позиции с переоценкой по текущим ценам MOEX.</p>
 
   <form class="inline-add" method="post" action="/api-portfolio-add">
-    <input type="text" name="ticker" placeholder="Тикер" required>
+    <input type="text" name="ticker" placeholder="Тикер" list="tickers-datalist" autocomplete="off" required>
     <input type="number" name="quantity" placeholder="Количество" step="any" min="0" required>
     <input type="number" name="avg_price" placeholder="Средняя цена входа" step="any" min="0" required>
     <button type="submit">Добавить позицию</button>

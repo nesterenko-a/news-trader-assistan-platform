@@ -61,6 +61,7 @@
   <footer class="wrap footer">
     Материалы носят информационный характер и не являются инвестиционной рекомендацией.
   </footer>
+  <datalist id="tickers-datalist" data-source="tickers"></datalist>
   <script>
     function closeDropdowns() {
       document.querySelectorAll(".menu-dropdown.open").forEach(function (m) {
@@ -160,6 +161,41 @@
 
     loadNotices();
     setInterval(loadNotices, 10000);
+
+    window._securitiesCache = null;
+    function renderTickerLists(lists) {
+      lists.forEach(function (dl) {
+        var filter = dl.getAttribute('data-filter');
+        var opts = window._securitiesCache.filter(function (s) {
+          if (filter === 'stocks') return s.security_type !== 'futures';
+          if (filter === 'futures') return s.security_type === 'futures';
+          return true;
+        });
+        dl.innerHTML = '';
+        opts.forEach(function (s) {
+          var o = document.createElement('option');
+          o.value = s.ticker;
+          o.label = s.name;
+          dl.appendChild(o);
+        });
+      });
+    }
+    function fillTickerDatalist() {
+      var lists = document.querySelectorAll('datalist[data-source="tickers"]');
+      if (!lists.length) return;
+      if (window._securitiesCache === null) {
+        fetch('/v1/securities')
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            window._securitiesCache = data || [];
+            renderTickerLists(lists);
+          })
+          .catch(function () {});
+        return;
+      }
+      renderTickerLists(lists);
+    }
+    fillTickerDatalist();
   </script>
 </body>
 </html>

@@ -7,9 +7,10 @@
   <h1>Аналитика на основе новостного фона</h1>
   <p>Стратегия по ценной бумаге строится из свежих новостей и цепочек влияния между отраслями экономики.</p>
   <form class="search" action="/securities" method="get">
-    <input type="text" name="ticker" placeholder="Тикер, например AFLT" autofocus>
+    <input type="text" name="ticker" placeholder="Тикер, например AFLT" list="index-tickers-datalist" autocomplete="off" autofocus>
     <button type="submit">Анализировать</button>
   </form>
+  <datalist id="index-tickers-datalist" data-source="tickers" data-filter="{{ current_type }}"></datalist>
 </section>
 
 <section class="card">
