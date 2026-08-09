@@ -75,6 +75,7 @@ from app.market.oi_data import futures_for_security, nearest_future
 from app.market.indicators.oi import calculate_oi
 from app.market.indicators.registry import REGISTRY
 from app.market.indicators.volume_profile import calculate_volume_profile
+from app.market.indicators.support_resistance import calculate_support_resistance
 from app.market.indicators.ema import calculate_ema
 from app.market.indicators.macd import calculate_macd
 from app.news.service import load_security_news
@@ -496,6 +497,7 @@ async def indicators_page(
     fast: int | None = Query(None, ge=2, le=500),
     slow: int | None = Query(None, ge=3, le=500),
     signal: int | None = Query(None, ge=2, le=100),
+    sr_window: int | None = Query(None, ge=10, le=500),
     session: AsyncSession = Depends(get_session),
 ):
     """Страница индикаторов: вкладки из реестра (OI, Volume Profile, ...)."""
@@ -634,6 +636,55 @@ async def indicators_page(
                 "signals": [],
                 "params_used": None,
                 "security_name": "",
+            }
+        )
+        return templates.TemplateResponse(request, "indicators.html", context)
+
+    if indicator_name == "support_resistance":
+        sr_window_used = sr_window if sr_window is not None else 20
+        sr = None
+        sr_signals: list[dict] = []
+        sr_error = ""
+        sr_security_name = ""
+        if ticker:
+            security = await session.scalar(
+                select(Security).where(Security.ticker == ticker.upper())
+            )
+            if security is None:
+                sr_error = "Бумага не найдена."
+            else:
+                sr_security_name = security.name
+                candle_q = (
+                    select(MarketCandle)
+                    .where(
+                        MarketCandle.security_id == security.id,
+                        MarketCandle.close.is_not(None),
+                    )
+                    .order_by(MarketCandle.trading_date)
+                )
+                candles = (await session.scalars(candle_q)).all()[-max(sr_window_used * 3, 90):]
+                sr_result = calculate_support_resistance(
+                    candles, params={"window": sr_window_used}
+                )
+                sr = sr_result.meta if sr_result.meta.get("levels") else None
+                sr_signals = [
+                    {"kind": s.kind, "severity": s.severity, "note": s.note}
+                    for s in sr_result.signals
+                ]
+        context.update(
+            {
+                "indicator_name": indicator_name,
+                "indicators_list": indicators_list,
+                "ticker": ticker,
+                "sr": sr,
+                "sr_window": sr_window_used,
+                "sr_options": [10, 20, 30, 50, 100],
+                "sr_signals": sr_signals,
+                "sr_error": sr_error,
+                "sr_security_name": sr_security_name,
+                "from": "", "to": "", "oi_threshold": 1.0, "error": "",
+                "chart_oi": None, "chart_change": None, "chart_volume": None,
+                "signals": [], "params_used": None, "security_name": "",
             }
         )
         return templates.TemplateResponse(request, "indicators.html", context)

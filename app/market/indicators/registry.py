@@ -4,6 +4,9 @@ from app.market.indicators.volume_profile import (
 )
 from app.market.indicators.ema import DEFAULT_PARAMS as EMA_DEFAULT_PARAMS
 from app.market.indicators.macd import DEFAULT_PARAMS as MACD_DEFAULT_PARAMS
+from app.market.indicators.support_resistance import (
+    DEFAULT_PARAMS as SUPPORT_RESISTANCE_DEFAULT_PARAMS,
+)
 
 REGISTRY: dict[str, dict] = {
     "ema": {
@@ -44,6 +47,17 @@ REGISTRY: dict[str, dict] = {
         ),
         "params": VOLUME_PROFILE_DEFAULT_PARAMS,
         "complexity": "medium",
+        "markets": ["stocks", "futures"],
+    },
+    "support_resistance": {
+        "title": "Поддержка/сопротивление",
+        "description": (
+            "Уровни поддержки и сопротивления (pivot points + локальные "
+            "экстремумы + кластеризация по ATR); сигналы bounce (отскок) "
+            "и breakout (пробой)"
+        ),
+        "params": SUPPORT_RESISTANCE_DEFAULT_PARAMS,
+        "complexity": "hard",
         "markets": ["stocks", "futures"],
     },
 }

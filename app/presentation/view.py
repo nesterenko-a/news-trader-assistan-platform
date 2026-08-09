@@ -6,6 +6,7 @@ KIND_LABELS = {
     "oi": "OI (фьючерс)",
     "vp": "профиль объёма",
     "trend": "MACD (тренд)",
+    "sr": "уровни S/R",
 }
 
 
@@ -73,7 +74,7 @@ def build_strategy_view(
                 kind_label=KIND_LABELS.get(kind, kind),
                 sentiment=signal["sentiment"],
                 weight=round(signal["weight"], 3),
-                weight_str="—" if kind in ("oi", "vp", "trend") else f"{signal['weight']:+.3f}",
+                weight_str="—" if kind in ("oi", "vp", "trend", "sr") else f"{signal['weight']:+.3f}",
                 path=" → ".join(signal["path"]),
             )
         )

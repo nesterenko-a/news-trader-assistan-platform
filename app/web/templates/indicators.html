@@ -398,6 +398,72 @@
 {% else %}
 <p class="muted">Введите тикер (например AFLT) и нажмите «Показать».</p>
 {% endif %}
+
+{% elif indicator_name == 'support_resistance' %}
+<p class="muted">Уровни поддержки и сопротивления: pivot points + локальные экстремумы (фракталы) + кластеризация по ATR; сила уровня — по числу касаний. Сигналы: пробой (breakout) и отскок (bounce).</p>
+<form method="get" action="/indicators" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">
+  <input type="hidden" name="name" value="support_resistance">
+  <div>
+    <label class="muted small" style="display:block">Тикер</label>
+    <input type="text" name="ticker" value="{{ ticker }}" list="tickers-datalist" autocomplete="off">
+  </div>
+  <div>
+    <label class="muted small" style="display:block">Окно</label>
+    <select name="sr_window" onchange="this.form.submit()">
+      {% for opt in sr_options %}
+      <option value="{{ opt }}" {% if opt == sr_window %}selected{% endif %}>{{ {10: '10', 20: '20', 30: '30', 50: '50', 100: '100'}.get(opt, opt) }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button class="btn" type="submit">Показать</button>
+</form>
+
+{% if sr_error %}<section class="card"><p class="error">{{ sr_error }}</p></section>{% endif %}
+
+{% if sr %}
+<section class="card chart-card" style="margin-top:12px">
+  <div class="chart-head">
+    <h2>Уровни — {{ sr_security_name }} ({{ ticker }})</h2>
+  </div>
+  <p class="muted small">За {{ sr.candles }} торговых дней ({{ sr.from }} → {{ sr.to }}). ATR ≈ {{ sr.atr }} · последнее закрытие {{ sr.last_close }}.</p>
+  <table class="table">
+    <thead><tr><th>Цена</th><th>Тип</th><th>Сила</th><th>Касаний</th></tr></thead>
+    <tbody>
+      {% for lv in sr.levels %}
+      <tr>
+        <td><b>{{ lv.price }}</b></td>
+        <td>{{ 'Сопротивление' if lv.kind == 'resistance' else 'Поддержка' }}</td>
+        <td><span class="run-status {{ 'run-error' if lv.strength == 'strong' else 'run-warning' }}">{{ lv.strength }}</span></td>
+        <td>{{ lv.touches }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small">Pivot: P={{ sr.pivot.p }} · R1={{ sr.pivot.r1 }} · R2={{ sr.pivot.r2 }} · S1={{ sr.pivot.s1 }} · S2={{ sr.pivot.s2 }}</p>
+</section>
+
+<section class="card">
+  <h2>Сигналы</h2>
+  {% if sr_signals %}
+  <table class="table">
+    <thead><tr><th>Сигнал</th><th>Важность</th><th>Трактовка</th></tr></thead>
+    <tbody>
+      {% for s in sr_signals %}
+      <tr>
+        <td><b>{{ s.kind }}</b></td>
+        <td><span class="run-status run-warning">предупреждение</span></td>
+        <td>{{ s.note }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Сигналов пробоя/отскока нет — цена не пересекала уровни на последней свече.</p>
+  {% endif %}
+</section>
+{% else %}
+<p class="muted">Введите тикер (например AFLT) и нажмите «Показать».</p>
+{% endif %}
 {% endif %}
 
 <script>

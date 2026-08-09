@@ -341,3 +341,34 @@ async def test_engine_volume_profile_signal(session):
     vp_signals = [s for s in result["signals"] if s["kind"] == "vp"]
     assert vp_signals
     assert "POC" in vp_signals[0]["path"][0]
+
+
+async def test_engine_support_resistance_signal(session):
+    """Уровни S/R попадают в «Сигналы» движка (kind='sr', вес 0)."""
+    await seed_graph(session)
+    stock = await session.scalar(select(Security).where(Security.ticker == "LKOH"))
+    oil_id = await resolve_entity_id(session, "Нефть")
+    await session.execute(
+        security_entity.insert().values(security_id=stock.id, entity_id=oil_id)
+    )
+    # Боковик с вариациями (фракталы образуются), 60 свечей
+    start = date.today() - timedelta(days=60)
+    for i in range(60):
+        d = start + timedelta(days=i)
+        base = 100 + (i % 10)
+        session.add(
+            MarketCandle(
+                security_id=stock.id, trading_date=d,
+                open=base - 1, high=base + 2, low=base - 2, close=base, volume=1000,
+            )
+        )
+    await session.commit()
+    await _store_news(session, "Нефть", "positive")
+    await session.commit()
+
+    result = await generate_strategy(
+        session, "LKOH", persist=False, use_live_market=False
+    )
+    sr_signals = [s for s in result["signals"] if s["kind"] == "sr"]
+    assert sr_signals, "должен появиться сигнал kind='sr'"
+    assert "R" in sr_signals[0]["path"][0] or "S" in sr_signals[0]["path"][0]

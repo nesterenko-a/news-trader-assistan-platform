@@ -11,6 +11,9 @@ from app.market.indicators.base import IndicatorResult
 from app.market.indicators.oi import calculate_oi
 from app.market.indicators.registry import REGISTRY
 from app.market.indicators.volume_profile import calculate_volume_profile
+from app.market.indicators.support_resistance import (
+    calculate_support_resistance,
+)
 from app.market.indicators.ema import calculate_ema
 from app.market.indicators.macd import calculate_macd
 from app.market.moex import MOEXClient
@@ -67,6 +70,10 @@ async def calculate_indicator(
     fast: int | None = Query(None, ge=2, le=500),
     slow: int | None = Query(None, ge=3, le=500),
     signal: int | None = Query(None, ge=2, le=100),
+    window: int | None = Query(None, ge=10, le=500),
+    fractal_k: int | None = Query(None, ge=1, le=10),
+    min_touches: int | None = Query(None, ge=1, le=20),
+    cluster_tolerance_atr: float | None = Query(None, gt=0, le=1),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     if name not in REGISTRY:
@@ -118,6 +125,30 @@ async def calculate_indicator(
                     "value_area_pct": value_area_pct,
                     "hvn_factor": hvn_factor,
                     "lvn_factor": lvn_factor,
+                },
+            )
+        )
+
+    if name == "support_resistance":
+        candle_q = (
+            select(MarketCandle)
+            .where(
+                MarketCandle.security_id == security.id,
+                MarketCandle.close.is_not(None),
+            )
+            .order_by(MarketCandle.trading_date)
+        )
+        candles = (await session.scalars(candle_q)).all()
+        if limit is not None:
+            candles = candles[-limit:]
+        return _result_to_dict(
+            calculate_support_resistance(
+                candles,
+                params={
+                    "window": window,
+                    "fractal_k": fractal_k,
+                    "min_touches": min_touches,
+                    "cluster_tolerance_atr": cluster_tolerance_atr,
                 },
             )
         )

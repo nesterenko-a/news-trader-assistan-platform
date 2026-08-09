@@ -20,6 +20,9 @@ from app.graph.service import (
     security_entity_ids,
 )
 from app.market.indicators import rsi, sma, volatility
+from app.market.indicators.support_resistance import (
+    calculate_support_resistance,
+)
 from app.market.indicators.volume_profile import calculate_volume_profile
 from app.market.indicators.macd import calculate_macd
 from app.market.oi_data import latest_oi_signal, nearest_future
@@ -438,6 +441,73 @@ async def generate_strategy(
                     "тренд по MACD вверх — сигнал ослаблен"
                     if not indicator_note
                     else f"{indicator_note}; тренд по MACD вверх — сигнал ослаблен"
+                )
+
+    # Поддержка/сопротивление: уровни как информирующий сигнал и
+    # сдерживающий фактор «цена у уровня» (ТЗ §8.11).
+    sr_meta = calculate_support_resistance(
+        trend_candles, params={"window": 20}
+    ).meta
+    sr_levels = sr_meta.get("levels") or []
+    if sr_levels:
+        signals.append(
+            {
+                "entity": "Уровни S/R",
+                "snippet": "",
+                "url": "",
+                "sentiment": "neutral",
+                "kind": "sr",
+                "path": [
+                    " · ".join(
+                        f"{'R' if lv['kind'] == 'resistance' else 'S'}{lv['price']:.2f}"
+                        for lv in sr_levels[:4]
+                    )
+                ],
+                "weight": 0.0,
+            }
+        )
+        last_close = trend_candles[-1].close if trend_candles else None
+        if last_close is not None:
+            tol = max(0.25 * sr_meta.get("atr", 0.0), last_close * 0.01)
+            near_res = next(
+                (
+                    lv
+                    for lv in sr_levels
+                    if lv["kind"] == "resistance"
+                    and abs(lv["price"] - last_close) <= tol
+                ),
+                None,
+            )
+            near_sup = next(
+                (
+                    lv
+                    for lv in sr_levels
+                    if lv["kind"] == "support"
+                    and abs(lv["price"] - last_close) <= tol
+                ),
+                None,
+            )
+            if near_res and net_score > 0:
+                net_score *= 0.9
+                indicator_note = (
+                    f"цена {last_close:.2f} у сопротивления "
+                    f"{near_res['price']:.2f} — сигнал ослаблен"
+                    if not indicator_note
+                    else (
+                        f"{indicator_note}; цена у сопротивления "
+                        f"{near_res['price']:.2f} — сигнал ослаблен"
+                    )
+                )
+            elif near_sup and net_score < 0:
+                net_score *= 0.9
+                indicator_note = (
+                    f"цена {last_close:.2f} у поддержки "
+                    f"{near_sup['price']:.2f} — сигнал ослаблен"
+                    if not indicator_note
+                    else (
+                        f"{indicator_note}; цена у поддержки "
+                        f"{near_sup['price']:.2f} — сигнал ослаблен"
+                    )
                 )
 
     weighted = [s for s in signals if s["weight"] != 0]
