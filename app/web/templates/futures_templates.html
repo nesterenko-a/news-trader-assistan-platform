@@ -113,8 +113,13 @@
     var on = selected[f.secid] ? ' selected' : '';
     return '<label class="ft-badge' + on + '">' +
       '<input type="checkbox" class="ft-check" data-secid="' + f.secid + '"' + (on ? ' checked' : '') + '>' +
-      '<div class="ft-ticker">' + f.secid + '</div>' +
-      '<div class="ft-short">' + (f.shortname || '') + '</div>' +
+      '<div class="ft-head">' +
+        '<span class="ft-icon" title="' + (f.sector || '—') + '">' + iconFor(f.sector) + '</span>' +
+        '<div>' +
+          '<div class="ft-ticker">' + f.secid + '</div>' +
+          '<div class="ft-short">' + (f.shortname || '') + '</div>' +
+        '</div>' +
+      '</div>' +
       '<div class="ft-secname">' + (f.secname || '') + '</div>' +
       '<div class="ft-tags">' +
         '<span class="ft-tag">' + (f.sector || '—') + '</span>' +
@@ -125,6 +130,44 @@
         (f.stepprice != null ? ' · шаг ' + fmtMoney(f.stepprice) + ' ₽' : '') + '</div>' +
       '<div class="ft-meta">Поставка: —</div>' +
       '</label>';
+  }
+
+  // Иконки отраслей/категорий (inline SVG, стиль lucide: stroke, round caps, 24×24)
+  var ICON_WRAP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">';
+  var ICONS = {
+    'авиаперевозки': '<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/>',
+    'автопром': '<path d="M5 17H3a1 1 0 0 1-1-1v-3a1 1 0 0 1 .3-.7L5 9l1.5-4h11L19 9l2.7 3.3a1 1 0 0 1 .3.7v3a1 1 0 0 1-1 1h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M9 17h6"/>',
+    'банковский': '<path d="M3 21h18M3 10h18M5 10v11M10 10v11M14 10v11M19 10v11M4 6l8-4 8 4H4z"/>',
+    'девелопмент': '<path d="M4 21h16M6 21V8h10M6 8 3 13M6 8l3 5M12 4v17M12 4 8 1l4 3 4-3"/>',
+    'драгметалл': '<path d="M12 2l8 10-8 10-8-10 8-10z"/><path d="M9 8l3 3 3-3M12 12v6"/>',
+    'металлург': '<circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/>',
+    'нефтегаз': '<path d="M12 2s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/><path d="M10 13a2 2 0 0 0 2 2"/>',
+    'ритейл': '<path d="M1 3h2l2.4 12.4a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 2-1.6L21 7H6"/><circle cx="9" cy="20" r="1.6"/><circle cx="17" cy="20" r="1.6"/>',
+    'телеком': '<path d="M12 21V9M7 21h10M9 9l3-6 3 6"/><path d="M4.5 10.5a8 8 0 0 1 15 0"/><path d="M7.5 13.5a5 5 0 0 1 9 0"/>',
+    'технолог': '<path d="M9 3v18M15 3v18M3 9h18M3 15h18"/><rect x="9" y="9" width="6" height="6"/>',
+    'транспорт': '<path d="M4 17a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6c0-3-2-5-8-5s-8 2-8 5v6z"/><path d="M8 19v2M16 19v2M7 13h3M14 13h3M7 9l2-3h6l2 3"/>',
+    'угольн': '<path d="M4 21h16M6 21V9l6-6 6 6v12"/><path d="M10 21v-5h4v5M10 11h4"/>',
+    'химическ': '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/><path d="M7.5 15h9"/>',
+    'цветн': '<path d="M12 2l8 4.5v9L12 20l-8-4.5v-9L12 2z"/><circle cx="12" cy="12" r="3"/>',
+    'электроэнерг': '<path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/>',
+    'индексы': '<path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v4h-4"/>',
+    'валюты': '<path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+    'товары': '<path d="M12 3v18M5 21h14M12 7 8 11h8l-4-4z"/><path d="M8 21l-2-5a4 4 0 0 1 8 0l-2 5z"/><path d="M16 21l-2-5a4 4 0 0 1 8 0l-2 5z"/>',
+    'проценты': '<path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>',
+    'крипто': '<path d="M10 2v20M10 7h4.5a3 3 0 0 1 0 6H10M10 13h5a3 3 0 0 1 0 6h-5"/>',
+    'прочее': '<path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/>'
+  };
+  var ICON_FALLBACK = '<path d="M12 2a5 5 0 0 1 5 5c0 2.5-3 3-3 5"/><path d="M12 17h.01"/>';
+
+  function iconFor(sector) {
+    var s = String(sector || '').trim().toLowerCase();
+    if (ICONS[s]) return ICON_WRAP + ICONS[s] + '</svg>';
+    for (var k in ICONS) {
+      if (ICONS.hasOwnProperty(k) && s.indexOf(k) !== -1) {
+        return ICON_WRAP + ICONS[k] + '</svg>';
+      }
+    }
+    return ICON_WRAP + ICON_FALLBACK + '</svg>';
   }
 
   function applyFilters() {

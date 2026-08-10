@@ -626,6 +626,19 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .ft-badge:hover { border-color: #3b82f6; }
 .ft-badge.selected { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,.35); }
 .ft-check { position: absolute; opacity: 0; pointer-events: none; }
+.ft-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.ft-icon {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(59, 130, 246, 0.12);
+  color: #5b9cf5;
+}
+.ft-icon svg { width: 18px; height: 18px; }
 .ft-ticker { font-weight: 700; font-size: 14px; }
 .ft-short { font-size: 12px; color: var(--muted, #8b97ad); }
 .ft-secname { font-size: 11px; color: var(--muted, #8b97ad); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
