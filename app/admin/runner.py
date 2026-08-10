@@ -136,6 +136,7 @@ SCRIPTS: list[dict] = [
         "key": "update_oi",
         "module": "scripts.update_oi",
         "title": "Обновить открытые позиции (OI)",
+        "timeout_seconds": 7200,
         "description": (
             "Скачивание истории открытых позиций фьючерсов из MOEX ISS "
             "(iss/history, блок history: OPENPOSITION, OPENPOSITIONVALUE) "
@@ -155,6 +156,7 @@ SCRIPTS: list[dict] = [
         "key": "update_oi_all",
         "module": "scripts.update_oi",
         "title": "Скачать OI по всем фьючерсам",
+        "timeout_seconds": 7200,
         "description": (
             "Скачивание открытых позиций и свечей по ВСЕМ фьючерсам, "
             "доступным на MOEX (список берётся из ISS, ~467 контрактов, "
@@ -174,6 +176,25 @@ _active_run_id: int | None = None
 
 def get_script(key: str) -> dict | None:
     return SCRIPTS_BY_KEY.get(key)
+
+
+def script_timeout_seconds(script_key: str) -> int:
+    """Таймаут запуска скрипта (сек).
+
+    Приоритет: env `SCRIPT_TIMEOUT_SECONDS_<KEY>` (например
+    SCRIPT_TIMEOUT_SECONDS_UPDATE_OI) > дефолт скрипта в SCRIPTS
+    (timeout_seconds) > глобальный settings.script_timeout_seconds.
+    """
+    env_value = os.getenv(f"SCRIPT_TIMEOUT_SECONDS_{script_key.upper()}")
+    if env_value:
+        try:
+            return int(env_value)
+        except ValueError:
+            pass
+    script = get_script(script_key)
+    if script and script.get("timeout_seconds"):
+        return int(script["timeout_seconds"])
+    return settings.script_timeout_seconds
 
 
 def build_argv(script_key: str, param_values: dict | None = None) -> list[str]:
@@ -255,7 +276,7 @@ async def _execute(run_id: int, script_key: str, param_values: dict | None) -> t
         )
 
     try:
-        async with asyncio.timeout(settings.script_timeout_seconds):
+        async with asyncio.timeout(script_timeout_seconds(script_key)):
             assert proc.stdout is not None
             while True:
                 chunk = await proc.stdout.readline()
