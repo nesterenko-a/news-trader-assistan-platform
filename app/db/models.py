@@ -428,3 +428,16 @@ class SystemNotice(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class FuturesTemplate(Base):
+    """Сохранённый шаблон списка фьючерсов (SECID) для отслеживания OI."""
+
+    __tablename__ = "futures_templates"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    tickers: Mapped[str] = mapped_column(Text, nullable=False)  # CSV SECID
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

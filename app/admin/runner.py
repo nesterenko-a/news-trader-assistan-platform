@@ -7,11 +7,13 @@ from pathlib import Path
 
 from sqlalchemy import select
 
+from app.config import get_settings
+
+settings = get_settings()
 from app.db.connection import SessionLocal
 from app.db.models import ScriptRun
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SCRIPT_TIMEOUT_SECONDS = 1800
 LOG_FLUSH_INTERVAL = 1.5
 LOG_FLUSH_LINES = 25
 
@@ -146,6 +148,7 @@ SCRIPTS: list[dict] = [
         "params": [
             ("--ticker", "Код фьючерса (SECID)", "W4V6", "text"),
             ("--days", "За последние N дней", 30, "int"),
+            ("--tickers", "Шаблон фьючерсов (список SECID)", "", "templates"),
         ],
     },
     {
@@ -187,8 +190,8 @@ def build_argv(script_key: str, param_values: dict | None = None) -> list[str]:
             flag, label, default, *rest = p
             ptype = rest[0] if rest else "int"
             value = param_values.get(flag, default)
-            if ptype == "text":
-                argv += [flag, str(value) if value not in (None, "") else str(default)]
+            if ptype in ("text", "templates"):
+                argv += [flag, str(value) if value not in (None, "") else ""]
             else:
                 value = int(value) if value is not None else int(default)
                 if value <= 0:
@@ -252,7 +255,7 @@ async def _execute(run_id: int, script_key: str, param_values: dict | None) -> t
         )
 
     try:
-        async with asyncio.timeout(SCRIPT_TIMEOUT_SECONDS):
+        async with asyncio.timeout(settings.script_timeout_seconds):
             assert proc.stdout is not None
             while True:
                 chunk = await proc.stdout.readline()

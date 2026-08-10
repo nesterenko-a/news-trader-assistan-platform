@@ -18,6 +18,11 @@ async def main() -> None:
         help="фьючерсный код SECID (например W4V6); можно несколько раз",
     )
     parser.add_argument(
+        "--tickers",
+        default="",
+        help="список SECID через запятую (например, из шаблона админки); приоритетнее --ticker",
+    )
+    parser.add_argument(
         "--all",
         action="store_true",
         help="скачать OI по всем фьючерсам, доступным на MOEX",
@@ -46,7 +51,10 @@ async def main() -> None:
             for f in futures
         }
         tickers = [t.upper() for t in args.ticker]
-        if args.all:
+        if args.tickers.strip():
+            tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
+            print(f"Шаблон: {len(tickers)} фьючерсов. ", flush=True)
+        elif args.all:
             tickers = [f["secid"] for f in futures]
             print(f"Найдено фьючерсов на MOEX: {len(tickers)}. ", flush=True)
         if not tickers:

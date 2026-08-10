@@ -28,6 +28,14 @@
         <input type="text" name="param_{{ p[0][2:] }}" value="{{ p[2] }}"
           {% if p[0] == "--ticker" %}id="oi-ticker" list="futures-datalist" autocomplete="off"{% endif %} style="width:100%">
         {% if p[0] == "--ticker" %}<span class="muted small">Подсказка — список всех фьючерсов MOEX</span>{% endif %}
+        {% elif p|length > 3 and p[3] == "templates" %}
+        <select name="param_{{ p[0][2:] }}" style="width:100%">
+          <option value="">— не выбран —</option>
+          {% for t in templates %}
+          <option value="{{ t.id }}">{{ t.name }} ({{ t.tickers }})</option>
+          {% endfor %}
+        </select>
+        {% if not templates %}<span class="muted small">Шаблонов нет — создайте в карточке ниже</span>{% endif %}
         {% else %}
         <input type="number" name="param_{{ p[0][2:] }}" min="1" value="{{ p[2] }}">
         {% endif %}
@@ -52,6 +60,40 @@
     {% endif %}
     {% endfor %}
   </div>
+</section>
+
+<section class="card">
+  <h2>Шаблоны фьючерсов (для OI)</h2>
+  <form method="post" action="/admin/templates/add" style="margin-top:10px">
+    <label class="muted small" style="display:block;margin-top:8px">Название шаблона</label>
+    <input type="text" name="name" placeholder="Например: зерновые" style="width:100%" {% if tpl_name_error %}class="field-error"{% endif %}>
+    <label class="muted small" style="display:block;margin-top:8px">Тикеры фьючерсов (SECID через запятую)</label>
+    <textarea name="tickers" rows="3" placeholder="W4V6, AFU6, SRU6" style="width:100%" {% if tpl_ticker_error %}class="field-error"{% endif %}></textarea>
+    <button class="btn" type="submit" style="margin-top:8px">Сохранить шаблон</button>
+    {% if tpl_name_error %}<p class="muted small" style="color:#c0392b">Укажите название шаблона</p>{% endif %}
+    {% if tpl_ticker_error %}<p class="muted small" style="color:#c0392b">Укажите хотя бы один тикер</p>{% endif %}
+  </form>
+  {% if templates %}
+  <table class="table" style="margin-top:12px">
+    <thead><tr><th>Название</th><th>Тикеры</th><th></th></tr></thead>
+    <tbody>
+      {% for t in templates %}
+      <tr>
+        <td>{{ t.name }}</td>
+        <td class="muted small">{{ t.tickers }}</td>
+        <td style="text-align:right">
+          <form method="post" action="/admin/templates/delete" class="inline" onsubmit="return confirm('Удалить шаблон «{{ t.name }}»?')">
+            <input type="hidden" name="template_id" value="{{ t.id }}">
+            <button type="submit" class="icon-btn" title="Удалить шаблон">×</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted small" style="margin-top:10px">Шаблонов пока нет — создайте первый выше.</p>
+  {% endif %}
 </section>
 
 <datalist id="futures-datalist"></datalist>

@@ -44,6 +44,7 @@ from app.paper.service import (
 from app.notices.service import notice_state
 from app.db.connection import get_session
 from app.db.models import (
+    FuturesTemplate,
     MarketCandle,
     MarketOpenPosition,
     PortfolioPosition,
@@ -1529,14 +1530,18 @@ async def admin_page(
         }
         for run in runs
     ]
+    futures_templates = (await session.scalars(select(FuturesTemplate).order_by(FuturesTemplate.name))).all()
     context = await _base_context(session, user)
     context.update(
         {
             "scripts": SCRIPTS,
             "runs": items,
+            "templates": futures_templates,
             "busy": is_busy(),
             "error": request.query_params.get("error") == "1",
             "param_error": request.query_params.get("error") == "2",
+            "tpl_name_error": request.query_params.get("error") == "3",
+            "tpl_ticker_error": request.query_params.get("error") == "4",
             "busy_error": request.query_params.get("busy") == "1",
         }
     )
@@ -1570,7 +1575,14 @@ async def admin_run_script(
             flag, label, default, *rest = p
             ptype = rest[0] if rest else "int"
             raw = str(form.get(f"param_{flag[2:]}") or "").strip()
-            if ptype == "text":
+            if ptype == "templates":
+                # Выбранный шаблон фьючерсов -> список SECID из сохранённого шаблона
+                if raw:
+                    template = await session.get(FuturesTemplate, int(raw)) if raw.isdigit() else None
+                    param_values[flag] = template.tickers if template else raw
+                else:
+                    param_values[flag] = ""
+            elif ptype == "text":
                 param_values[flag] = raw if raw else str(default)
             else:
                 try:
@@ -1609,6 +1621,55 @@ async def admin_run_script(
     except ValueError:
         return RedirectResponse(url="/admin?error=2", status_code=303)
     return RedirectResponse(url=f"/admin/runs/{run.id}", status_code=303)
+
+
+@router.post("/admin/templates/add")
+async def admin_template_add(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if not _is_admin_user(user):
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    name = str(form.get("name") or "").strip()
+    tickers = str(form.get("tickers") or "").strip()
+    if not name:
+        return RedirectResponse(url="/admin?error=3", status_code=303)
+    tickers_csv = ",".join(
+        t.strip().upper() for t in tickers.replace(";", ",").split(",") if t.strip()
+    )
+    if not tickers_csv:
+        return RedirectResponse(url="/admin?error=4", status_code=303)
+    exists = await session.scalar(
+        select(FuturesTemplate).where(FuturesTemplate.name == name)
+    )
+    if exists is not None:
+        exists.tickers = tickers_csv
+    else:
+        session.add(FuturesTemplate(name=name, tickers=tickers_csv))
+    await session.commit()
+    return RedirectResponse(url="/admin", status_code=303)
+
+
+@router.post("/admin/templates/delete")
+async def admin_template_delete(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if not _is_admin_user(user):
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    try:
+        template_id = int(str(form.get("template_id") or "0"))
+    except ValueError:
+        template_id = 0
+    template = await session.get(FuturesTemplate, template_id)
+    if template is not None:
+        await session.delete(template)
+        await session.commit()
+    return RedirectResponse(url="/admin", status_code=303)
 
 
 def _run_progress(output: str | None) -> dict | None:

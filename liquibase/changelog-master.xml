@@ -22,5 +22,6 @@
     <include file="changelogs/015_news_sources_llm.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/016_news_sources_browser.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/017_market_open_positions_client_groups.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/018_futures_templates.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

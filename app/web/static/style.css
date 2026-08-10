@@ -594,3 +594,16 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
   height: 3px;
   border-radius: 2px;
 }
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: #c0392b;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.icon-btn:hover { background: rgba(192, 57, 43, 0.12); }
+.field-error { border-color: #c0392b !important; }

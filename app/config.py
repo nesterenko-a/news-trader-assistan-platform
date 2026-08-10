@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     telegram_channels: str = ""
     telegram_session_name: str = "telethon_session"
     admin_usernames: str = ""
+    script_timeout_seconds: int = 7200  # таймаут запуска скрипта из админки (env SCRIPT_TIMEOUT_SECONDS)
     app_url: str = "http://localhost:8000"
     mvp_tickers: str = "AFLT,LKOH,GAZP,SBER"
     auto_create_schema: bool = True
