@@ -606,6 +606,7 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
   border-radius: 6px;
 }
 .icon-btn:hover { background: rgba(192, 57, 43, 0.12); }
+.inline { display: inline; }
 .field-error { border-color: #c0392b !important; }
 
 /* --- Шаблоны фьючерсов --- */
