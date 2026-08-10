@@ -276,3 +276,33 @@ async def test_client_groups_series_delta(oi_session):
     assert series[1]["delta"]["physical"]["long"]["arrows"] == "↑↑"
     assert series[1]["delta"]["physical"]["short"]["arrows"] == "−"
     assert series[1]["delta"]["juridical"]["total"]["arrows"] == "−"  # 50→50
+
+
+async def test_futures_template_crud(oi_session):
+    """Шаблон фьючерсов создаётся (created_at заполняется), обновляется, удаляется."""
+    from sqlalchemy import select
+
+    from app.db.models import FuturesTemplate
+
+    async with oi_session.begin():
+        tpl = FuturesTemplate(name="tpl_test", tickers="W4V6,AFU6")
+        oi_session.add(tpl)
+    async with oi_session.begin():
+        loaded = await oi_session.scalar(
+            select(FuturesTemplate).where(FuturesTemplate.name == "tpl_test")
+        )
+        assert loaded is not None
+        assert loaded.tickers == "W4V6,AFU6"
+        assert loaded.created_at is not None
+        loaded.tickers = "W4V6"
+    async with oi_session.begin():
+        updated = await oi_session.scalar(
+            select(FuturesTemplate).where(FuturesTemplate.name == "tpl_test")
+        )
+        assert updated.tickers == "W4V6"
+        await oi_session.delete(updated)
+    async with oi_session.begin():
+        gone = await oi_session.scalar(
+            select(FuturesTemplate).where(FuturesTemplate.name == "tpl_test")
+        )
+        assert gone is None
