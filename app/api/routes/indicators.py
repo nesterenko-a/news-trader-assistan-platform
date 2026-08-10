@@ -29,9 +29,43 @@ router = APIRouter(prefix="/indicators", tags=["indicators"])
 _FUTURES_CACHE: dict = {"ts": 0.0, "data": None}
 _FUTURES_TTL_SECONDS = 3600
 
+# Категории для фьючерсов, базовый актив которых не акция (по assetcode/серии)
+_NON_STOCK_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Крипто", ("BTC", "ETH", "SOL", "XRP", "TRX")),
+    ("Валюты", (
+        "USDRUB", "EURRUB", "CNYRUB", "UCNY", "USD", "EUR", "CNY", "Si", "Eu",
+        "UJPY", "UCHF", "GBPU", "UCAD", "HKD", "KZT", "TRY", "INR", "AED",
+        "BYN", "UINR", "UKZT", "ECAD", "EJPY", "EGBP", "AUU", "CAU", "ED",
+    )),
+    ("Индексы", (
+        "RTS", "IMOEX", "MOEXCNY", "RTSM", "MIX", "MXI", "SP500", "NASD",
+        "DAX", "DJ30", "STOX", "NIKK", "KOREA", "CHINA", "INDIA", "BRAZIL",
+        "HANG", "SAUDI", "R2000", "SOXQ", "QQQ", "SBERF", "EM", "IPO",
+    )),
+    ("Товары", (
+        "GOLD", "SILV", "PLT", "PLDM", "GOLDM", "SILVM", "PLTM", "GL", "SL",
+        "WHEAT", "BR", "WTI", "NG", "COCOA", "COFFEE", "SUGR", "SUGAR",
+        "COPPER", "NICKEL", "ZINC", "ALUM", "ORANGE", "TTF", "AI92", "AI95",
+    )),
+    ("Проценты", ("RUONIA", "RGBI", "RUON", "MFR", "RVI", "GAZR", "MMI", "SPYF", "SBPR")),
+)
+
+
+def _classify_non_stock(assetcode: str, shortname: str = "") -> str:
+    """Категория фьючерса, если базовый актив не акция: Индексы/Валюты/Товары/Проценты/Крипто/Прочее."""
+    code = (assetcode or "").upper()
+    name = (shortname or "").upper()
+    for category, keys in _NON_STOCK_RULES:
+        if any(k.upper() in code or k.upper() in name for k in keys):
+            return category
+    return "Прочее"
+
 
 @router.get("/futures")
-async def list_futures(q: str | None = None) -> dict:
+async def list_futures(
+    q: str | None = None,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
     """Все фьючерсы срочного рынка MOEX (для загрузки OI), с TTL-кэшем 1 час."""
     now = time.monotonic()
     if _FUTURES_CACHE["data"] is None or now - _FUTURES_CACHE["ts"] > _FUTURES_TTL_SECONDS:
@@ -47,7 +81,18 @@ async def list_futures(q: str | None = None) -> dict:
             or needle in f["shortname"].lower()
             or needle in f["assetcode"].lower()
         ]
-    return {"count": len(futures), "futures": futures}
+    # Отрасль: для фьючерсов на акции — сектор базового актива из справочника,
+    # для неакционных — категория по типу актива
+    stocks = (
+        await session.scalars(select(Security).where(Security.security_type == "stock"))
+    ).all()
+    sector_by_ticker = {s.ticker: s.sector for s in stocks if s.sector}
+    enriched = []
+    for f in futures:
+        asset = f["assetcode"]
+        sector = sector_by_ticker.get(asset) or _classify_non_stock(asset, f.get("shortname") or "")
+        enriched.append({**f, "sector": sector})
+    return {"count": len(enriched), "futures": enriched}
 
 
 @router.get("")

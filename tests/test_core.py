@@ -1346,3 +1346,64 @@ async def test_notice_state_worst_severity(session):
 
     await set_source_notice(session, "stale_prices", "info", "", active=False)
     assert (await notice_state(session))["state"] == "none"
+
+
+async def test_futures_templates_page_access(session):
+    """Страница шаблонов фьючерсов доступна только admin; сохранение создаёт шаблон."""
+    from app.web.router import (
+        admin_futures_templates_page,
+        admin_futures_templates_save,
+    )
+    from app.db.models import FuturesTemplate
+
+    admin = User(username="boss2", password_hash="x", role="admin")
+    plain = User(username="worker2", password_hash="x")
+    session.add_all([admin, plain])
+    await session.flush()
+    admin_token = await create_session(session, admin)
+    plain_token = await create_session(session, plain)
+    await session.commit()
+
+    def make_request(token: str | None, method: str = "GET") -> Request:
+        headers = [(b"cookie", f"nt_token={token}".encode())] if token else []
+        return Request(
+            {
+                "type": "http",
+                "method": method,
+                "path": "/admin/futures-templates",
+                "headers": headers,
+                "server": ("test", 80),
+                "query_string": b"",
+                "client": ("test", 80),
+                "scheme": "http",
+            }
+        )
+
+    html = (await admin_futures_templates_page(make_request(admin_token), session)).body.decode()
+    assert "Шаблоны фьючерсов" in html
+    assert "Загрузить фьючерсы" in html
+
+    plain_response = await admin_futures_templates_page(make_request(plain_token), session)
+    assert plain_response.status_code == 303
+
+    # сохранение: новый шаблон
+    form = {
+        "type": "http",
+        "method": "POST",
+        "path": "/admin/futures-templates/save",
+        "headers": [(b"cookie", f"nt_token={admin_token}".encode())],
+        "server": ("test", 80),
+        "query_string": b"",
+        "client": ("test", 80),
+        "scheme": "http",
+    }
+    req = Request(form)
+    req._form = {"id": "", "name": "tpl_page", "tickers": "W4V6, AFU6"}
+    resp = await admin_futures_templates_save(req, session)
+    assert resp.status_code == 303
+    tpl = await session.scalar(
+        select(FuturesTemplate).where(FuturesTemplate.name == "tpl_page")
+    )
+    assert tpl is not None and tpl.tickers == "W4V6,AFU6"
+    await session.delete(tpl)
+    await session.commit()

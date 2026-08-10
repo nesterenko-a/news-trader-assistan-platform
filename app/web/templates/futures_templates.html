@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+  <h1 style="margin:0">Шаблоны фьючерсов</h1>
+  <a class="btn" href="/admin">← к админке</a>
+</div>
+<p class="muted small">Именованные списки фьючерсов (SECID) для отслеживания OI. Выбранный шаблон передаётся в скрипт «Обновить открытые позиции (OI)» как <code>--tickers</code>.</p>
+
+{% if error %}<p style="color:#c0392b">Укажите название шаблона и хотя бы один фьючерс.</p>{% endif %}
+{% if saved %}<p style="color:#2f7d32">Шаблон сохранён.</p>{% endif %}
+
+<section class="card">
+  <h2>Сохранённые шаблоны</h2>
+  {% if templates %}
+  <table class="table" style="margin-top:8px">
+    <thead><tr><th>Название</th><th>Состав</th><th></th><th></th></tr></thead>
+    <tbody>
+      {% for t in templates %}
+      <tr>
+        <td>{{ t.name }}</td>
+        <td class="muted small">{{ t.tickers }}</td>
+        <td><button type="button" class="btn btn-small" data-open="{{ t.id }}">Открыть</button></td>
+        <td style="text-align:right">
+          <form method="post" action="/admin/futures-templates/delete" class="inline" onsubmit="return confirm('Удалить шаблон «{{ t.name }}»?')">
+            <input type="hidden" name="template_id" value="{{ t.id }}">
+            <button type="submit" class="icon-btn" title="Удалить шаблон">×</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted small" style="margin-top:8px">Шаблонов пока нет — создайте первый в редакторе ниже.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Редактор шаблона</h2>
+  <form method="post" action="/admin/futures-templates/save" id="tpl-form">
+    <input type="hidden" name="id" id="tpl-id" value="">
+    <label class="muted small" style="display:block;margin-top:8px">Название шаблона</label>
+    <input type="text" name="name" id="tpl-name" placeholder="Например: зерновые" style="width:100%">
+    <input type="hidden" name="tickers" id="tpl-tickers" value="">
+  </form>
+
+  <button type="button" class="btn" id="btn-load" style="margin-top:12px">Загрузить фьючерсы</button>
+  <span class="muted small" id="load-hint"></span>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+    <input type="text" id="f-search" placeholder="Поиск: тикер / серия / имя" style="width:240px">
+    <select id="f-sector"><option value="">Отрасль: все</option></select>
+    <select id="f-expiry"><option value="">Экспирация: любая</option></select>
+  </div>
+
+  <div id="badge-grid" class="badge-grid" style="margin-top:12px"></div>
+  <div id="pagination" class="pagination" style="margin-top:10px"></div>
+
+  <button type="button" class="btn" id="btn-add-selected" style="margin-top:12px">Добавить выбранные в шаблон</button>
+  <span class="muted small" id="grid-info"></span>
+
+  <h3 style="margin-top:20px">Список наполнения шаблона <span class="muted small" id="sel-count"></span></h3>
+  <div id="selected-list" class="selected-list"></div>
+
+  <div style="display:flex;gap:8px;margin-top:14px">
+    <button type="submit" class="btn" form="tpl-form" id="btn-save">Сохранить шаблон</button>
+    <button type="button" class="btn" id="btn-clear">Очистить список</button>
+  </div>
+</section>
+
+<script>
+(function () {
+  'use strict';
+  var all = [];           // все загруженные фьючерсы
+  var filtered = [];      // после фильтров
+  var page = 0;
+  var PAGE_SIZE = 15;
+  var selected = {};      // secid -> true
+  var templates = {{ templates | tojson | safe }};
+
+  var grid = document.getElementById('badge-grid');
+  var pagination = document.getElementById('pagination');
+  var gridInfo = document.getElementById('grid-info');
+  var selectedList = document.getElementById('selected-list');
+  var selCount = document.getElementById('sel-count');
+  var sectorSel = document.getElementById('f-sector');
+  var expirySel = document.getElementById('f-expiry');
+
+  function fmtInt(v) {
+    return v == null ? '' : String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  }
+  function fmtMoney(v) {
+    return v == null ? '' : fmtInt(v.toFixed(2).replace(/\.00$/, ''));
+  }
+  function fmtDate(iso) {
+    if (!iso) return '';
+    var p = String(iso).split('-');
+    return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : iso;
+  }
+  function expiryBucket(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d)) return '';
+    var now = new Date();
+    var m = (d - now) / (1000 * 60 * 60 * 24 * 30.44);
+    if (m <= 1) return 'до 1 мес';
+    if (m <= 3) return '1–3 мес';
+    if (m <= 6) return '3–6 мес';
+    return '>6 мес';
+  }
+
+  function badgeHtml(f) {
+    var on = selected[f.secid] ? ' selected' : '';
+    return '<label class="ft-badge' + on + '">' +
+      '<input type="checkbox" class="ft-check" data-secid="' + f.secid + '"' + (on ? ' checked' : '') + '>' +
+      '<div class="ft-ticker">' + f.secid + '</div>' +
+      '<div class="ft-short">' + (f.shortname || '') + '</div>' +
+      '<div class="ft-secname">' + (f.secname || '') + '</div>' +
+      '<div class="ft-tags">' +
+        '<span class="ft-tag">' + (f.sector || '—') + '</span>' +
+        '<span class="ft-tag">' + fmtDate(f.lastdeldate) + '</span>' +
+      '</div>' +
+      '<div class="ft-meta">OI ' + fmtInt(f.prevopenposition) + ' · лот ' + fmtInt(f.lotvolume) + '</div>' +
+      '<div class="ft-meta">ГО ' + (f.initialmargin != null ? fmtMoney(f.initialmargin) + ' ₽' : '—') +
+        (f.stepprice != null ? ' · шаг ' + fmtMoney(f.stepprice) + ' ₽' : '') + '</div>' +
+      '<div class="ft-meta">Поставка: —</div>' +
+      '</label>';
+  }
+
+  function applyFilters() {
+    var q = (document.getElementById('f-search').value || '').trim().toLowerCase();
+    var sector = sectorSel.value;
+    var expiry = expirySel.value;
+    filtered = all.filter(function (f) {
+      if (q && (f.secid + ' ' + f.shortname + ' ' + (f.secname || '') + ' ' + (f.assetcode || '')).toLowerCase().indexOf(q) === -1) return false;
+      if (sector && (f.sector || '') !== sector) return false;
+      if (expiry && expiryBucket(f.lastdeldate) !== expiry) return false;
+      return true;
+    });
+    page = 0;
+    renderGrid();
+  }
+
+  function renderGrid() {
+    var slice = filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+    grid.innerHTML = slice.map(badgeHtml).join('');
+    var pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    var html = '';
+    for (var i = 0; i < pages; i++) {
+      var cls = i === page ? 'page-btn active' : 'page-btn';
+      html += '<button type="button" class="' + cls + '" data-page="' + i + '">' + (i + 1) + '</button>';
+    }
+    pagination.innerHTML = html;
+    gridInfo.textContent = 'Показано ' + slice.length + ' из ' + filtered.length +
+      (all.length ? ' (загружено ' + all.length + ')' : '');
+  }
+
+  function renderSelected() {
+    var keys = Object.keys(selected).sort();
+    selectedList.innerHTML = keys.map(function (secid) {
+      var f = allBySecid(secid);
+      return '<span class="ft-mini">' +
+        '<b>' + secid + '</b> ' + (f ? f.shortname : '') +
+        (f && f.sector ? ' · ' + f.sector : '') +
+        (f && f.lastdeldate ? ' · ' + fmtDate(f.lastdeldate) : '') +
+        '<button type="button" class="icon-btn" data-remove="' + secid + '" title="Убрать">×</button>' +
+        '</span>';
+    }).join('');
+    selCount.textContent = '— ' + keys.length + ' фьючерсов';
+  }
+
+  function allBySecid(secid) {
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].secid === secid) return all[i];
+    }
+    return null;
+  }
+
+  function syncChecks() {
+    var checks = grid.querySelectorAll('.ft-check');
+    for (var i = 0; i < checks.length; i++) {
+      checks[i].checked = !!selected[checks[i].getAttribute('data-secid')];
+      var b = checks[i].closest('.ft-badge');
+      if (b) b.classList.toggle('selected', checks[i].checked);
+    }
+  }
+
+  function fillSectorOptions() {
+    var seen = {};
+    all.forEach(function (f) { if (f.sector) seen[f.sector] = true; });
+    var keys = Object.keys(seen).sort();
+    sectorSel.innerHTML = '<option value="">Отрасль: все</option>' +
+      keys.map(function (s) { return '<option value="' + s + '">' + s + '</option>'; }).join('');
+  }
+
+  document.getElementById('btn-load').addEventListener('click', function () {
+    var hint = document.getElementById('load-hint');
+    hint.textContent = 'Загрузка…';
+    fetch('/v1/indicators/futures')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        all = data.futures || [];
+        fillSectorOptions();
+        applyFilters();
+        hint.textContent = 'Загружено ' + all.length + ' фьючерсов.';
+      })
+      .catch(function () { hint.textContent = 'Ошибка загрузки. MOEX может быть недоступен.'; });
+  });
+
+  document.getElementById('f-search').addEventListener('input', applyFilters);
+  sectorSel.addEventListener('change', applyFilters);
+  expirySel.addEventListener('change', applyFilters);
+
+  pagination.addEventListener('click', function (e) {
+    var btn = e.target.closest('.page-btn');
+    if (!btn) return;
+    page = parseInt(btn.getAttribute('data-page'), 10);
+    renderGrid();
+  });
+
+  grid.addEventListener('click', function (e) {
+    var check = e.target.closest('.ft-check');
+    if (!check) return;
+    var secid = check.getAttribute('data-secid');
+    if (check.checked) selected[secid] = true;
+    else delete selected[secid];
+    syncChecks();
+  });
+
+  document.getElementById('btn-add-selected').addEventListener('click', function () {
+    var checks = grid.querySelectorAll('.ft-check:checked');
+    for (var i = 0; i < checks.length; i++) {
+      selected[checks[i].getAttribute('data-secid')] = true;
+    }
+    syncChecks();
+    renderSelected();
+  });
+
+  selectedList.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-remove]');
+    if (!btn) return;
+    delete selected[btn.getAttribute('data-remove')];
+    syncChecks();
+    renderSelected();
+  });
+
+  document.getElementById('btn-clear').addEventListener('click', function () {
+    selected = {};
+    syncChecks();
+    renderSelected();
+  });
+
+  // Открыть шаблон из списка
+  var openBtns = document.querySelectorAll('[data-open]');
+  for (var o = 0; o < openBtns.length; o++) {
+    openBtns[o].addEventListener('click', (function (id) {
+      return function () {
+        var tpl = null;
+        for (var i = 0; i < templates.length; i++) {
+          if (templates[i].id === id) { tpl = templates[i]; break; }
+        }
+        if (!tpl) return;
+        document.getElementById('tpl-id').value = tpl.id;
+        document.getElementById('tpl-name').value = tpl.name;
+        selected = {};
+        (tpl.tickers || '').split(',').forEach(function (t) {
+          t = t.trim();
+          if (t) selected[t.toUpperCase()] = true;
+        });
+        renderSelected();
+        if (all.length) { syncChecks(); }
+        document.getElementById('tpl-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      };
+    })(openBtns[o].getAttribute('data-open')));
+  }
+
+  document.getElementById('tpl-form').addEventListener('submit', function () {
+    document.getElementById('tpl-tickers').value = Object.keys(selected).sort().join(',');
+  });
+
+  renderSelected();
+})();
+</script>
+{% endblock %}

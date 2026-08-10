@@ -1672,6 +1672,87 @@ async def admin_template_delete(
     return RedirectResponse(url="/admin", status_code=303)
 
 
+@router.get("/admin/futures-templates")
+async def admin_futures_templates_page(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if not _is_admin_user(user):
+        return RedirectResponse(url="/login", status_code=303)
+    futures_tpls = (
+        await session.scalars(select(FuturesTemplate).order_by(FuturesTemplate.name))
+    ).all()
+    context = await _base_context(session, user)
+    context.update(
+        {
+            "templates": [
+                {"id": t.id, "name": t.name, "tickers": t.tickers}
+                for t in futures_tpls
+            ],
+            "error": request.query_params.get("error") == "1",
+            "saved": request.query_params.get("saved") == "1",
+        }
+    )
+    return templates.TemplateResponse(request, "futures_templates.html", context)
+
+
+@router.post("/admin/futures-templates/save")
+async def admin_futures_templates_save(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if not _is_admin_user(user):
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    raw_id = str(form.get("id") or "").strip()
+    name = str(form.get("name") or "").strip()
+    tickers_raw = str(form.get("tickers") or "").strip()
+    if not name or not tickers_raw:
+        return RedirectResponse(url="/admin/futures-templates?error=1", status_code=303)
+    tickers_csv = ",".join(
+        t.strip().upper() for t in tickers_raw.replace(";", ",").split(",") if t.strip()
+    )
+    if not tickers_csv:
+        return RedirectResponse(url="/admin/futures-templates?error=1", status_code=303)
+    template = None
+    if raw_id.isdigit():
+        template = await session.get(FuturesTemplate, int(raw_id))
+    if template is None:
+        template = await session.scalar(
+            select(FuturesTemplate).where(FuturesTemplate.name == name)
+        )
+    if template is None:
+        template = FuturesTemplate(name=name, tickers=tickers_csv)
+        session.add(template)
+    else:
+        template.name = name
+        template.tickers = tickers_csv
+    await session.commit()
+    return RedirectResponse(url="/admin/futures-templates?saved=1", status_code=303)
+
+
+@router.post("/admin/futures-templates/delete")
+async def admin_futures_templates_delete(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if not _is_admin_user(user):
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    try:
+        template_id = int(str(form.get("template_id") or "0"))
+    except ValueError:
+        template_id = 0
+    template = await session.get(FuturesTemplate, template_id)
+    if template is not None:
+        await session.delete(template)
+        await session.commit()
+    return RedirectResponse(url="/admin/futures-templates", status_code=303)
+
+
 def _run_progress(output: str | None) -> dict | None:
     """Прогресс «[i/N]» из лога скрипта (например, фьючерсов загружено из общего числа)."""
     if not output:

@@ -226,12 +226,15 @@ class MOEXClient:
         return rows
 
     async def fetch_futures_list(self) -> list[dict]:
-        """Все фьючерсы срочного рынка MOEX: SECID, SHORTNAME, ASSETCODE, дата экспирации, OI предыдущего дня."""
+        """Все фьючерсы срочного рынка MOEX: SECID, SHORTNAME, SECNAME, ASSETCODE,
+        даты торгов/экспирации, OI предыдущего дня, лот, ГО, шаг цены, расчётная цена."""
         url = f"{self.base_url}/engines/futures/markets/forts/securities.json"
         params = {
             "iss.only": "securities",
             "securities.columns": (
-                "SECID,SHORTNAME,ASSETCODE,LASTTRADEDATE,PREVOPENPOSITION"
+                "SECID,SHORTNAME,SECNAME,ASSETCODE,LASTTRADEDATE,LASTDELDATE,"
+                "PREVOPENPOSITION,LOTVOLUME,INITIALMARGIN,MINSTEP,STEPPRICE,"
+                "PREVSETTLEPRICE"
             ),
         }
         rows: list[dict] = []
@@ -261,12 +264,40 @@ class MOEXClient:
                     {
                         "secid": secid,
                         "shortname": record.get("SHORTNAME") or "",
+                        "secname": record.get("SECNAME") or "",
                         "assetcode": record.get("ASSETCODE") or "",
-                        "lastdeldate": record.get("LASTTRADEDATE") or "",
+                        "lastdeldate": record.get("LASTDELDATE")
+                        or record.get("LASTTRADEDATE")
+                        or "",
                         "prevopenposition": (
                             int(record["PREVOPENPOSITION"])
                             if record.get("PREVOPENPOSITION") is not None
                             else 0
+                        ),
+                        "lotvolume": (
+                            int(record["LOTVOLUME"])
+                            if record.get("LOTVOLUME") is not None
+                            else 0
+                        ),
+                        "initialmargin": (
+                            float(record["INITIALMARGIN"])
+                            if record.get("INITIALMARGIN") is not None
+                            else None
+                        ),
+                        "minstep": (
+                            float(record["MINSTEP"])
+                            if record.get("MINSTEP") is not None
+                            else None
+                        ),
+                        "stepprice": (
+                            float(record["STEPPRICE"])
+                            if record.get("STEPPRICE") is not None
+                            else None
+                        ),
+                        "prevsettleprice": (
+                            float(record["PREVSETTLEPRICE"])
+                            if record.get("PREVSETTLEPRICE") is not None
+                            else None
                         ),
                     }
                 )
