@@ -611,7 +611,7 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 /* --- Шаблоны фьючерсов --- */
 .badge-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 10px;
 }
 .ft-badge {
