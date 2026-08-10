@@ -132,49 +132,45 @@
       '</label>';
   }
 
-  // Иконки отраслей: спрайт из SVG-атласа static/futures_icons.svg (ячейка 128px),
-  // для отраслей, которых нет в атласе — inline SVG (стиль lucide)
-  var SPRITE_URL = '/static/futures_icons.svg';
-  var SPRITE_W = 1920;
-  var SPRITE_H = 896;
-  var SPRITE_CELL = 128;
+  // Иконки отраслей: спрайт из PNG-атласа static/futures_icons.png (1717×916, иконки 42×42)
+  var SPRITE_URL = '/static/futures_icons.png';
+  var SPRITE_W = 1717;
+  var SPRITE_H = 916;
+  var SPRITE_CELL = 42;
   var SPRITE_ICON_PX = 28;
   var SPRITE_SCALE = SPRITE_CELL / SPRITE_ICON_PX;
-  // отрасль (нижний регистр) -> [x, y] из атласа
+  // отрасль (нижний регистр) -> [x, y] первой иконки категории из CSV-карты
   var SPRITE_MAP = {
-    'нефтегаз': [0, 0],
-    'угольн': [768, 0],
-    'электроэнерг': [896, 0],
-    'драгметалл': [1152, 0],
-    'цветн': [1664, 0],
-    'индексы': [1792, 384],
-    'крипто': [384, 640],
-    'транспорт': [1664, 640],
-    'металлург': [0, 768],
-    'товары': [1152, 768],
-    'проценты': [1280, 768],
-    'валюты': [1408, 768],
-    'прочее': [1536, 768]
+    'авиаперевозки': [59, 187],
+    'автопром': [386, 187],
+    'банковский': [712, 187],
+    'девелопмент': [1039, 187],
+    'драгметалл': [1379, 187],
+    'металлург': [59, 344],
+    'нефтегаз': [386, 344],
+    'ритейл': [712, 344],
+    'телеком': [1039, 344],
+    'технолог': [1379, 344],
+    'транспорт': [59, 505],
+    'угольн': [386, 505],
+    'химическ': [712, 505],
+    'цветн': [1039, 505],
+    'электроэнерг': [1379, 505],
+    'индексы': [59, 663],
+    'валюты': [386, 663],
+    'товары': [712, 663],
+    'проценты': [1039, 663],
+    'крипто': [1379, 663],
+    'прочее': [86, 805]
   };
 
-  var ICON_WRAP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">';
-  var ICONS = {
-    'авиаперевозки': '<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/>',
-    'автопром': '<path d="M5 17H3a1 1 0 0 1-1-1v-3a1 1 0 0 1 .3-.7L5 9l1.5-4h11L19 9l2.7 3.3a1 1 0 0 1 .3.7v3a1 1 0 0 1-1 1h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M9 17h6"/>',
-    'банковский': '<path d="M3 21h18M3 10h18M5 10v11M10 10v11M14 10v11M19 10v11M4 6l8-4 8 4H4z"/>',
-    'девелопмент': '<path d="M4 21h16M6 21V8h10M6 8 3 13M6 8l3 5M12 4v17M12 4 8 1l4 3 4-3"/>',
-    'ритейл': '<path d="M1 3h2l2.4 12.4a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 2-1.6L21 7H6"/><circle cx="9" cy="20" r="1.6"/><circle cx="17" cy="20" r="1.6"/>',
-    'телеком': '<path d="M12 21V9M7 21h10M9 9l3-6 3 6"/><path d="M4.5 10.5a8 8 0 0 1 15 0"/><path d="M7.5 13.5a5 5 0 0 1 9 0"/>',
-    'технолог': '<path d="M9 3v18M15 3v18M3 9h18M3 15h18"/><rect x="9" y="9" width="6" height="6"/>',
-    'химическ': '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/><path d="M7.5 15h9"/>'
-  };
-  var ICON_FALLBACK = '<path d="M12 2a5 5 0 0 1 5 5c0 2.5-3 3-3 5"/><path d="M12 17h.01"/>';
+  var ICON_FALLBACK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 0 1 5 5c0 2.5-3 3-3 5"/><path d="M12 17h.01"/></svg>';
 
   function iconHtml(sector) {
     var s = String(sector || '').trim().toLowerCase();
     var title = ' title="' + (sector || '—') + '"';
     for (var k in SPRITE_MAP) {
-      if (SPRITE_MAP.hasOwnProperty(k) && (s === k || s.indexOf(k) !== -1)) {
+      if (SPRITE_MAP.hasOwnProperty(k) && s.indexOf(k) !== -1) {
         var xy = SPRITE_MAP[k];
         return '<span class="ft-icon ft-sprite"' + title + ' style="' +
           'background-image:url(\'' + SPRITE_URL + '\');' +
@@ -183,13 +179,7 @@
           '</span>';
       }
     }
-    var icon = ICONS[s];
-    if (!icon) {
-      for (var k2 in ICONS) {
-        if (ICONS.hasOwnProperty(k2) && s.indexOf(k2) !== -1) { icon = ICONS[k2]; break; }
-      }
-    }
-    return '<span class="ft-icon"' + title + '>' + ICON_WRAP + (icon || ICON_FALLBACK) + '</svg></span>';
+    return '<span class="ft-icon"' + title + '>' + ICON_FALLBACK + '</span>';
   }
 
   function applyFilters() {
