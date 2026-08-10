@@ -48,7 +48,8 @@
   <span class="muted small" id="load-hint"></span>
 
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-    <input type="text" id="f-search" placeholder="Поиск: тикер / серия / имя" style="width:240px">
+    <input type="text" id="f-search" placeholder="Поиск: тикер / серия / имя" list="ft-futures-datalist" autocomplete="off" style="width:240px">
+    <datalist id="ft-futures-datalist"></datalist>
     <select id="f-sector"><option value="">Отрасль: все</option></select>
     <select id="f-expiry"><option value="">Экспирация: любая</option></select>
   </div>
@@ -248,6 +249,19 @@
       keys.map(function (s) { return '<option value="' + s + '">' + s + '</option>'; }).join('');
   }
 
+  function fillTickerDatalist(data) {
+    var dl = document.getElementById('ft-futures-datalist');
+    dl.innerHTML = (data || []).map(function (f) {
+      return '<option value="' + f.secid + '">' + (f.shortname || '') + '</option>';
+    }).join('');
+  }
+
+  // Автоподсказки тикера (как в проекте): datalist из /v1/indicators/futures при загрузке страницы
+  fetch('/v1/indicators/futures')
+    .then(function (r) { return r.json(); })
+    .then(function (data) { fillTickerDatalist(data.futures || []); })
+    .catch(function () { /* MOEX может быть недоступен — подсказки появятся после «Загрузить фьючерсы» */ });
+
   document.getElementById('btn-load').addEventListener('click', function () {
     var hint = document.getElementById('load-hint');
     hint.textContent = 'Загрузка…';
@@ -255,6 +269,7 @@
       .then(function (r) { return r.json(); })
       .then(function (data) {
         all = data.futures || [];
+        fillTickerDatalist(all);
         fillSectorOptions();
         applyFilters();
         hint.textContent = 'Загружено ' + all.length + ' фьючерсов.';
