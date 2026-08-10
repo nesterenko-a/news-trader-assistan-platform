@@ -402,6 +402,13 @@
         else if (cols[0]) { tickers.push(cols[0]); }
       });
       if (name) { document.getElementById('tpl-name').value = name; }
+      // Название из имени файла: после "template_" или полное имя без расширения
+      var baseName = file.name.replace(/\.[^.]+$/, '');
+      if (baseName.indexOf('template_') === 0) { baseName = baseName.slice(9); }
+      if (baseName.trim()) {
+        name = baseName.trim();
+        document.getElementById('tpl-name').value = name;
+      }
       document.getElementById('tpl-id').value = '';
       selected = {};
       tickers.forEach(function (t) { if (t) selected[t.toUpperCase()] = true; });
