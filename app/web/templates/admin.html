@@ -87,9 +87,13 @@ fetch('/v1/indicators/futures')
 (function () {
   var cb = document.getElementById('oi-all');
   var ticker = document.getElementById('oi-ticker');
+  var tpl = document.querySelector('select[name="param_tickers"]');
   if (!cb || !ticker) { return; }
-  function syncDisabled() { ticker.disabled = cb.checked; }
+  function syncDisabled() {
+    ticker.disabled = cb.checked || (tpl && !!tpl.value);
+  }
   cb.addEventListener('change', syncDisabled);
+  if (tpl) { tpl.addEventListener('change', syncDisabled); }
   syncDisabled();
 })();
 </script>

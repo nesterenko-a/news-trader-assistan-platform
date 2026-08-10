@@ -1407,3 +1407,43 @@ async def test_futures_templates_page_access(session):
     assert tpl is not None and tpl.tickers == "W4V6,AFU6"
     await session.delete(tpl)
     await session.commit()
+
+
+async def test_admin_oi_template_skips_ticker(session, monkeypatch):
+    """При выборе шаблона фьючерсов поле --ticker не передаётся в запуск OI."""
+    from app.web.router import admin_run_script
+    from app.admin import runner as runner_mod
+    from app.db.models import FuturesTemplate
+
+    admin = User(username="boss3", password_hash="x", role="admin")
+    session.add(admin)
+    await session.flush()
+    token = await create_session(session, admin)
+    tpl = FuturesTemplate(name="tpl_oi", tickers="AFU6,SRU6")
+    session.add(tpl)
+    await session.commit()
+
+    started = {}
+
+    def fake_launch(run_id, script_key, param_values):
+        started["params"] = param_values
+
+    monkeypatch.setattr("app.web.router.launch", fake_launch)
+
+    form = {
+        "type": "http",
+        "method": "POST",
+        "path": "/admin/scripts/run",
+        "headers": [(b"cookie", f"nt_token={token}".encode())],
+        "server": ("test", 80),
+        "query_string": b"",
+        "client": ("test", 80),
+        "scheme": "http",
+    }
+    req = Request(form)
+    # шаблон выбран, поле тикера disabled (не передаётся формой)
+    req._form = {"script": "update_oi", "param_tickers": str(tpl.id), "param_days": "5"}
+    resp = await admin_run_script(req, session)
+    assert resp.status_code == 303
+    assert started["params"]["--tickers"] == "AFU6,SRU6"
+    assert started["params"]["--ticker"] == ""

@@ -1589,6 +1589,9 @@ async def admin_run_script(
                     param_values[flag] = int(raw) if raw else int(default)
                 except ValueError:
                     return RedirectResponse(url="/admin?error=2", status_code=303)
+        # Если выбран шаблон фьючерсов — поле тикера блокируется и не передаётся
+        if param_values.get("--tickers"):
+            param_values["--ticker"] = ""
         run_params = {"params": param_values}
     else:
         param_raw = str(form.get("param") or "").strip()
