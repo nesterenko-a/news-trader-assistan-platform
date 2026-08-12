@@ -39,6 +39,30 @@ async function waitForHealth(timeoutMs: number): Promise<void> {
 }
 
 export default async function globalSetup(): Promise<void> {
+  // если порт уже отвечает — это зависший сервер предыдущего прогона
+  let stale = false;
+  try {
+    const resp = await fetch(HEALTH_URL);
+    stale = resp.status === 200;
+  } catch {
+    stale = false;
+  }
+  if (stale) {
+    console.log("[e2e] Найден зависший сервер на порту — останавливаю...");
+    if (process.platform === "win32") {
+      const out = execSync(`netstat -ano | findstr :${PORT} | findstr LISTENING`, {
+        encoding: "utf8",
+      });
+      const m = out.match(/\s(\d+)\s*$/m);
+      if (m) {
+        execSync(`taskkill /PID ${m[1]} /T /F`, { stdio: "ignore" });
+      }
+    } else {
+      execSync(`fuser -k ${PORT}/tcp`, { stdio: "ignore" });
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+
   fs.mkdirSync(DB_DIR, { recursive: true });
   if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH);
 

@@ -15,12 +15,14 @@ test.describe("News manager и админка", () => {
   test("news: добавить → toggle LLM → удалить", async ({ page }) => {
     await login(page, USER.username, USER.password);
     await page.goto("/news");
+    // уникальное имя — устойчивость к повторным прогонам/UI-режиму
+    const feedName = "E2E Feed " + crypto.randomUUID().replace(/-/g, "").slice(0, 6);
     const add = page.locator('form[action="/news/rss/add"]');
-    await add.locator('input[name="name"]').fill("E2E Test Feed");
+    await add.locator('input[name="name"]').fill(feedName);
     await add.locator('input[name="url"]').fill("https://example.com/rss");
     await Promise.all([page.waitForURL("/news"), add.locator('button[type="submit"]').click()]);
 
-    const row = page.locator("tr:has-text('E2E Test Feed')");
+    const row = page.locator(`tr:has-text('${feedName}')`);
     await expect(row).toHaveCount(1);
 
     // toggle «LLM-разбор» (async POST)
@@ -31,7 +33,7 @@ test.describe("News manager и админка", () => {
 
     // удаление
     await Promise.all([page.waitForURL("/news"), row.locator("button.feed-remove").click()]);
-    await expect(page.locator("tr:has-text('E2E Test Feed')")).toHaveCount(0);
+    await expect(page.locator(`tr:has-text('${feedName}')`)).toHaveCount(0);
   });
 
   test("news: «Вернуть стандартные ленты»", async ({ page }) => {
