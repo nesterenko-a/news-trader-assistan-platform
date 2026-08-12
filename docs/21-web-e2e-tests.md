@@ -1,6 +1,6 @@
 # 21. E2E-тесты веб-интерфейса (Playwright) — ТЗ и план тестирования
 
-**Статус:** утверждено v1.6  
+**Статус:** утверждено v1.7  
 **Система:** NewsTrader Assistant  
 **Связанные документы:** [14-web-interface.md](./14-web-interface.md), [16-working-process.md](./16-working-process.md), [13-operations.md](./13-operations.md), [17-quickstart.md](./17-quickstart.md)
 
@@ -49,7 +49,10 @@
 2. Создаётся временный SQLite-файл (`tmp_path`/`tempfile`) и выполняется сидинг:
    - схема `Base.metadata.create_all` (SQLite, миграции Liquibase не требуются);
    - `seed_graph(session)` — граф сущностей, влияний и справочник бумаг (SBER, AFLT, LKOH, GAZP и др.);
-   - `Strategy` для SBER (чтобы была история стратегий);
+   - дневные свечи (60 торговых дней) для SBER и AFLT — графики и Volume Profile на карточке;
+   - источник `e2e_feed` и статья о Сбербанке (связка через `ArticleEntity` с сущностью «Сбербанк») — блок «Новости» на карточке;
+   - 3 макро-события (RU/US, high/medium/low) — фильтры на `/macro`;
+   - `Strategy` для SBER (история стратегий);
    - пользователи: `admin` / `admin123` (роль `admin`), `user` / `user123` (роль `user`).
 3. Запускается uvicorn-субпроцесс:
 
