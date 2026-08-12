@@ -1,6 +1,6 @@
 # 17. Быстрый старт для новичка
 
-**Статус:** утверждено v1.10  
+**Статус:** утверждено v1.11  
 **Система:** NewsTrader Assistant
 
 Пошаговое руководство, как впервые развернуть программу, какие скрипты запускать, какими командами и как часто это делать. Рассчитано на новичка, который впервые видит проект.
@@ -38,10 +38,10 @@ copy .env.example .env
 
 ```
 docker compose -f docker/docker-compose.yml up -d db
-docker compose -f docker/docker-compose.yml up migrations
+docker compose -f docker/docker-compose.yml up --build migrations
 ```
 
-Второй запуск миграций ничего не меняет (идемпотентно), поэтому её можно повторять после каждого обновления схемы.
+Второй запуск миграций ничего не меняет (идемпотентно), поэтому её можно повторять после каждого обновления схемы. Флаг `--build` пересобирает образ Liquibase с ченджлогами (они вшиты в образ при сборке, без bind-mount — это обходит баг Docker Desktop с монтированием Windows-путей).
 
 ### 1.4. Наполнить справочники
 
@@ -146,7 +146,7 @@ docker compose -f docker/docker-compose.yml up migrations
 |---|---|---|
 | Создать окружение, установить зависимости | см. 1.1 | один раз |
 | Запустить БД | `docker compose -f docker/docker-compose.yml up -d db` | один раз (БД поднимается при старте Docker) |
-| Применить миграции | `docker compose -f docker/docker-compose.yml up migrations` | один раз + после появления новых миграций |
+| Применить миграции | `docker compose -f docker/docker-compose.yml up --build migrations` | один раз + после появления новых миграций |
 | Наполнить справочники | `.venv\Scripts\python.exe -m scripts.seed_db` | один раз (идемпотентно) |
 | Полная история цен | `.venv\Scripts\python.exe -m scripts.update_prices --from 2012-01-01` | один раз при старте |
 | Бэкфилл новостей за период | `.venv\Scripts\python.exe -m scripts.collect_news --from YYYY-MM-DD` (или `--days N`) | один раз при старте (глубина ограничена выдачей RSS) |

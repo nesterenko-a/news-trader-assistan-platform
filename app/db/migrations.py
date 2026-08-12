@@ -12,8 +12,10 @@ def run_migrations(database_url: str | None = None) -> bool:
     """Проверяет и применяет миграции Liquibase при старте приложения.
 
     Для PostgreSQL запускает `docker compose -f docker/docker-compose.yml up
-    migrations` (идемпотентно: Liquibase применяет только новые changesets и сам
-    поднимает контейнер БД из-за depends_on). Для SQLite/прочих — пропускает
+    --build migrations` (идемпотентно: Liquibase применяет только новые
+    changesets и сам поднимает контейнер БД из-за depends_on; `--build`
+    пересобирает образ с ченджлогами — кэш слоёв делает это быстрым, когда
+    ничего не менялось). Для SQLite/прочих — пропускает
     (схема создаётся через create_all). Логирует в stdout приложения.
 
     Возвращает True при успехе или когда миграции не требуются; False — если
@@ -41,6 +43,7 @@ def run_migrations(database_url: str | None = None) -> bool:
                 "-f",
                 _COMPOSE_FILE,
                 "up",
+                "--build",
                 _MIGRATIONS_SERVICE,
             ]
         )
@@ -48,7 +51,7 @@ def run_migrations(database_url: str | None = None) -> bool:
         print(
             "[migrations] ПРЕДУПРЕЖДЕНИЕ: docker недоступен — миграции не "
             "применены. Запустите вручную: docker compose -f "
-            f"{_COMPOSE_FILE} up {_MIGRATIONS_SERVICE}",
+            f"{_COMPOSE_FILE} up --build {_MIGRATIONS_SERVICE}",
             flush=True,
         )
         return False
@@ -57,7 +60,7 @@ def run_migrations(database_url: str | None = None) -> bool:
         print(
             f"[migrations] ПРЕДУПРЕЖДЕНИЕ: миграции завершились с кодом "
             f"{proc.returncode}. Запустите вручную: docker compose -f "
-            f"{_COMPOSE_FILE} up {_MIGRATIONS_SERVICE}",
+            f"{_COMPOSE_FILE} up --build {_MIGRATIONS_SERVICE}",
             flush=True,
         )
         return False

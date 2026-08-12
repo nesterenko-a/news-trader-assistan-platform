@@ -18,14 +18,17 @@ services:
       retries: 12
 
   migrations:
-    image: liquibase/liquibase:4.31
+    build:
+      context: ..
+      dockerfile: docker/liquibase.Dockerfile
+    image: newstrader-liquibase:local
     container_name: newstrader-liquibase
     restart: "no"
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - ../liquibase:/liquibase/changelog
+    environment:
+      LIQUIBASE_COMMAND_PASSWORD: ${LIQUIBASE_COMMAND_PASSWORD:-postgres}
     command: ["--defaultsFile=/liquibase/changelog/liquibase.properties", "update"]
 
 volumes:

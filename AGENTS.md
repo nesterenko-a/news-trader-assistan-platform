@@ -23,7 +23,7 @@ Python 3.13+ (в `.venv` — 3.13.7) · FastAPI · SQLAlchemy 2 (async) · Postg
 | Только веб | `.venv\Scripts\python.exe -m uvicorn app.main:app` |
 | Только бот | `.venv\Scripts\python.exe -m scripts.run_bot` |
 | Поднять БД | `docker compose -f docker/docker-compose.yml up -d db` |
-| Миграции | `docker compose -f docker/docker-compose.yml up migrations` |
+| Миграции | `docker compose -f docker/docker-compose.yml up --build migrations` |
 | Наполнить справочники | `.venv\Scripts\python.exe -m scripts.seed_db` |
 | Наполнить макро-справочник | `.venv\Scripts\python.exe -m scripts.seed_macro` |
 | Собрать новости | `.venv\Scripts\python.exe -m scripts.collect_news` |
@@ -78,7 +78,7 @@ Python 3.13+ (в `.venv` — 3.13.7) · FastAPI · SQLAlchemy 2 (async) · Postg
 
 ## Notes
 
-- Документация: комплект **v1.124**; версии: 07 — v1.17, 08 — v1.3, 10 — v1.21, 12 — v1.37, 13 — v1.42, 14 — v1.62, 16 — v1.5, 17 — v1.10, 19 — v1.20, 20 — v1.5, 21 — v1.15, 22 — v1.1, остальные см. шапки.
+- Документация: комплект **v1.125**; версии: 07 — v1.17, 08 — v1.3, 10 — v1.21, 12 — v1.37, 13 — v1.43, 14 — v1.62, 16 — v1.6, 17 — v1.11, 19 — v1.20, 20 — v1.5, 21 — v1.15, 22 — v1.1, остальные см. шапки.
 - Roadmap (12): этап 0 завершён; этап 1 — срезы 1–6 (включая бэктест «на момент T») + News Sources Manager (страница `/news`, ленты из БД); этап 2 — начат (paper trading, контраргументы/риски, веса факторов, OI, Volume Profile, EMA/MACD, поддержка/сопротивление, E2E-тесты веб-интерфейса `pytest -m e2e`).
 - `/indicators` строится из реестра `app/market/indicators/registry.py`: новый индикатор в реестре автоматически получает вкладку.
 - E2E-тесты (`tests/e2e/`, Playwright Test Runner, TypeScript) запускаются отдельным прогоном `npx playwright test` (UI-режим `--ui`); в `pytest -q` не входят; расхождения, найденные e2e, фиксируются в реестре док. 21 (§6).

@@ -1,6 +1,6 @@
 # 13. Инфраструктура и эксплуатация
 
-**Статус:** утверждено v1.42  
+**Статус:** утверждено v1.43  
 **Система:** NewsTrader Assistant
 
 Практическое руководство: как запускается система, как управлять схемой БД, как работает планировщик сбора новостей и какие утилиты доступны.
@@ -12,7 +12,7 @@
 | Сервис | Образ | Назначение |
 |---|---|---|
 | `db` | postgres:13.3 | Основная БД, порт 5432, том `pgdata` (данные переживают перезапуск), healthcheck |
-| `migrations` | liquibase/liquibase:4.31 | Применение миграций схемы; запускается и завершается |
+| `migrations` | `newstrader-liquibase:local` (собирается из `docker/liquibase.Dockerfile` на базе liquibase/liquibase:4.31) | Применение миграций схемы; ченджлоги **вшиты в образ при сборке** (`COPY liquibase/ /liquibase/changelog`) — bind-mount не используется; запускается и завершается |
 
 **Запуск БД:**
 ```
@@ -27,13 +27,13 @@ docker compose -f docker/docker-compose.yml up -d db
 
 Каждый ченджсет содержит precondition `tableExists/indexExists` с `onFail="MARK_RAN"`, поэтому при применении к существующей базе изменения помечаются выполненными без потери данных.
 
-**Автозапуск при старте приложения (реализовано):** при запуске веб-приложения (`scripts/run_app.py`, `uvicorn app.main:app`) и Telegram-бота (`scripts/run_bot.py`) автоматически вызывается `run_migrations()` (`app/db/migrations.py`): если БД — PostgreSQL, запускается `docker compose -f docker/docker-compose.yml up migrations` (Liquibase сам проверяет `databasechangelog` и применяет только новые миграции; контейнер БД поднимается автоматически через `depends_on`). Логи в терминале приложения: `[migrations] Проверка миграций Liquibase (PostgreSQL)...`, затем вывод Liquibase и `[migrations] Миграции проверены и применены (Liquibase: успешно)`. Если docker недоступен или миграции завершились ошибкой — печатается `[migrations] ПРЕДУПРЕЖДЕНИЕ: ...` с командой ручного запуска, приложение продолжает старт. Для SQLite (тесты, smoke) миграции пропускаются (лог «БД не PostgreSQL»).
+**Автозапуск при старте приложения (реализовано):** при запуске веб-приложения (`scripts/run_app.py`, `uvicorn app.main:app`) и Telegram-бота (`scripts/run_bot.py`) автоматически вызывается `run_migrations()` (`app/db/migrations.py`): если БД — PostgreSQL, запускается `docker compose -f docker/docker-compose.yml up --build migrations` (Liquibase сам проверяет `databasechangelog` и применяет только новые миграции; контейнер БД поднимается автоматически через `depends_on`; `--build` пересобирает образ с ченджлогами — кэш слоёв делает это быстрым, когда ничего не менялось). Логи в терминале приложения: `[migrations] Проверка миграций Liquibase (PostgreSQL)...`, затем вывод Liquibase и `[migrations] Миграции проверены и применены (Liquibase: успешно)`. Если docker недоступен или миграции завершились ошибкой — печатается `[migrations] ПРЕДУПРЕЖДЕНИЕ: ...` с командой ручного запуска, приложение продолжает старт. Для SQLite (тесты, smoke) миграции пропускаются (лог «БД не PostgreSQL»).
 
 **Применить миграции вручную:**
 ```
-docker compose -f docker/docker-compose.yml up migrations
+docker compose -f docker/docker-compose.yml up --build migrations
 ```
-Применение идемпотентно: повторный запуск ничего не меняет (Run: 0).
+Применение идемпотентно: повторный запуск ничего не меняет (Run: 0). Флаг `--build` обязателен после добавления нового ченджлога в `liquibase/changelogs/` — он пересобирает образ, в который вшиты ченджлоги (bind-mount не используется: это обходит баг Docker Desktop «error while creating mount source path /run/desktop/mnt/host/...»).
 
 **Статус и откат:**
 ```
@@ -44,7 +44,7 @@ docker compose -f docker/docker-compose.yml run --rm migrations rollback --count
 **Добавление новой миграции:**
 1. Создать `liquibase/changelogs/002_<описание>.xml`.
 2. Включить его в `changelog-master.xml` через `<include .../>`.
-3. Применить: `docker compose -f docker/docker-compose.yml up migrations`.
+3. Применить: `docker compose -f docker/docker-compose.yml up --build migrations` (пересборка образа подхватит новый ченджлог).
 
 Флаг `AUTO_CREATE_SCHEMA` в `.env`: `true` для локальной разработки, `false` в продакшене — приложение не создаёт схему само, ею управляет только Liquibase.
 

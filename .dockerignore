@@ -1,0 +1,17 @@
+.git
+.venv
+__pycache__
+*.pyc
+.env
+.env.*
+logs
+node_modules
+test-results
+playwright-report
+*.db
+.idea
+.vscode
+.reasonix
+reasonix.toml
+.pytest_cache
+.e2e
