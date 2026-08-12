@@ -1,6 +1,6 @@
 # 21. E2E-тесты веб-интерфейса (Playwright) — ТЗ и план тестирования
 
-**Статус:** утверждено v1.5  
+**Статус:** утверждено v1.6  
 **Система:** NewsTrader Assistant  
 **Связанные документы:** [14-web-interface.md](./14-web-interface.md), [16-working-process.md](./16-working-process.md), [13-operations.md](./13-operations.md), [17-quickstart.md](./17-quickstart.md)
 
@@ -109,7 +109,11 @@
 | Полный прогон (unit, без e2e) | `.venv\Scripts\python.exe -m pytest -q` |
 | Только e2e | `.venv\Scripts\python.exe -m pytest -m e2e` (или лаунчер `scripts\run_e2e.bat`) |
 | Один сценарий | `.venv\Scripts\python.exe -m pytest -m e2e tests/e2e/test_public.py::test_...` |
-| С артефактами при падении | `.venv\Scripts\python.exe -m pytest -m e2e --screenshot only-on-failure` |
+| Скриншоты при падении | `.venv\Scripts\python.exe -m pytest -m e2e --screenshot only-on-failure` |
+| Видео всех тестов | `.venv\Scripts\python.exe -m pytest -m e2e --video on` |
+| Видимый браузер + видео | `scripts\run_e2e.bat --headed --video on` |
+
+Артефакты (видео `video.webm`, скриншоты `test-failed-*.png`) складываются в `test-results/<имя теста>/` (папка в `.gitignore`, в git не попадает).
 
 Регламент (по [16-working-process.md](./16-working-process.md) §5):
 
