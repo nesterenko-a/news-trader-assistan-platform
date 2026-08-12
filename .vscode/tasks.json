@@ -1,0 +1,40 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "pytest: unit",
+      "type": "shell",
+      "command": ".venv\\Scripts\\python.exe -m pytest -q",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "playwright: e2e",
+      "type": "shell",
+      "command": "npx playwright test",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "playwright: e2e (UI-режим)",
+      "type": "shell",
+      "command": "npx playwright test --ui",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "playwright: e2e (видимый браузер)",
+      "type": "shell",
+      "command": "npx playwright test --headed",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "playwright: codegen (инспектор страниц)",
+      "type": "shell",
+      "command": ".venv\\Scripts\\python.exe -m playwright codegen http://localhost:8000",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    }
+  ]
+}
