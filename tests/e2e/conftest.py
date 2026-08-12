@@ -28,7 +28,17 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.auth import hash_password
 from app.db.connection import Base
-from app.db.models import MacroEvent, Security, Strategy, User
+from app.db.models import (
+    Article,
+    ArticleEntity,
+    Entity,
+    MacroEvent,
+    MarketCandle,
+    Security,
+    Source,
+    Strategy,
+    User,
+)
 from app.graph.service import seed_graph
 
 ADMIN_USERNAME = "admin"
@@ -134,6 +144,86 @@ def _seed(db_path: Path) -> None:
                             region=item["region"],
                             expected_impact=item["expected_impact"],
                             market_wide=item["market_wide"],
+                        )
+                    )
+            # дневные свечи для графиков на карточке (SBER, AFLT)
+            candle_seed = {
+                "SBER": {"start": 280.0, "step": 0.5},
+                "AFLT": {"start": 45.0, "step": -0.15},
+            }
+            today = datetime.now(timezone.utc).date()
+            for ticker, cfg in candle_seed.items():
+                sec = await session.scalar(
+                    select(Security).where(Security.ticker == ticker)
+                )
+                if sec is None:
+                    continue
+                if (
+                    await session.scalar(
+                        select(MarketCandle).where(
+                            MarketCandle.security_id == sec.id
+                        )
+                    )
+                    is not None
+                ):
+                    continue
+                price = cfg["start"]
+                for i in range(60):
+                    day = today - timedelta(days=59 - i)
+                    price = price + cfg["step"] + (i % 5) * 0.12
+                    session.add(
+                        MarketCandle(
+                            security_id=sec.id,
+                            trading_date=day,
+                            open=round(price - 0.4, 2),
+                            high=round(price + 0.6, 2),
+                            low=round(price - 0.6, 2),
+                            close=round(price, 2),
+                            volume=100_000 + i * 1_000,
+                        )
+                    )
+            # источник и статья, связанная с SBER (блок «Новости» на карточке)
+            source = await session.scalar(
+                select(Source).where(Source.name == "e2e_feed")
+            )
+            if source is None:
+                source = Source(
+                    name="e2e_feed",
+                    kind="rss",
+                    reputation_score=0.7,
+                    is_active=True,
+                    config={},
+                )
+                session.add(source)
+                await session.flush()
+            article = await session.scalar(
+                select(Article).where(Article.url == "https://e2e.example/sber-news")
+            )
+            if article is None:
+                article = Article(
+                    title="Сбербанк отчитался о росте прибыли",
+                    text="E2E-статья: Сбербанк показал рост чистой прибыли.",
+                    url="https://e2e.example/sber-news",
+                    source_id=source.id,
+                    source_reputation=0.7,
+                    published_at=datetime.now(timezone.utc) - timedelta(hours=5),
+                    language="ru",
+                )
+                session.add(article)
+                await session.flush()
+                sber_entity = await session.scalar(
+                    select(Entity).where(Entity.name == "Сбербанк")
+                )
+                if sber_entity is not None:
+                    session.add(
+                        ArticleEntity(
+                            article_id=article.id,
+                            entity_id=sber_entity.id,
+                            sentiment="positive",
+                            topic="результаты",
+                            impact=0.6,
+                            snippet="Сбербанк отчитался",
+                            entity_role="primary",
                         )
                     )
             await session.commit()

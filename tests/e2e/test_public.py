@@ -44,17 +44,29 @@ def test_index_type_filter(page, server):
 def test_security_card_chart_ranges(page, server):
     page.goto(server + "/securities/AFLT")
     assert "История цены" in page.text_content("h2")
-    links = page.locator(".chart-range a")
-    assert [links.nth(i).inner_text() for i in range(links.count())] == [
-        "1 день",
-        "7 дней",
-        "1 год",
-        "5 лет",
-        "Всё",
-    ]
-    page.click(".chart-range a:has-text('1 год')")
+    # сидинг содержит свечи — график рендерится, а не «Нет исторических данных»
+    assert "Нет исторических данных" not in page.text_content("body")
+    assert page.locator("svg.chart polyline").count() >= 1
+    # на карточке есть и Volume Profile (данные свечей оживили блок)
+    assert "Профиль объёма (Volume Profile)" in page.text_content("body")
+    # диапазоны цены — в первом блоке .chart-range (второй — периоды VP)
+    range_links = page.locator(".chart-range").first.locator("a")
+    assert [
+        range_links.nth(i).inner_text() for i in range(range_links.count())
+    ] == ["1 день", "7 дней", "1 год", "5 лет", "Всё"]
+    page.locator(".chart-range").first.locator("a:has-text('1 год')").click()
     page.wait_for_url("**/securities/AFLT?range=1y*")
-    assert page.locator(".chart-range a.active").inner_text() == "1 год"
+    assert (
+        page.locator(".chart-range").first.locator("a.active").inner_text() == "1 год"
+    )
+
+
+def test_security_card_shows_news(page, server):
+    # сидинг добавляет статью, связанную с сущностью Сбербанка
+    page.goto(server + "/securities/SBER")
+    assert "Новости (1)" in page.text_content("body")
+    assert "Сбербанк отчитался о росте прибыли" in page.text_content("body")
+    assert page.locator(".news-item").count() == 1
 
 
 def test_security_card_screenshot_button(page, server):
