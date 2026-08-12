@@ -7,7 +7,7 @@ import path from "path";
  * (на Windows — дерево процессов через taskkill /T /F).
  */
 
-const ROOT = path.resolve(__dirname, "..");
+const ROOT = path.resolve(__dirname, "..", "..");
 const PID_FILE = path.join(ROOT, "test-results", "e2e-server.pid");
 
 export default async function globalTeardown(): Promise<void> {

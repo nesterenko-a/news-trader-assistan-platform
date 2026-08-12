@@ -11,7 +11,7 @@ import path from "path";
  */
 
 const PORT = 8765;
-const ROOT = path.resolve(__dirname, "..");
+const ROOT = path.resolve(__dirname, "..", "..");
 const DB_DIR = path.join(ROOT, "test-results");
 const DB_PATH = path.join(DB_DIR, "e2e.db");
 const DB_URL = `sqlite+aiosqlite:///${DB_PATH.replace(/\\/g, "/")}`;

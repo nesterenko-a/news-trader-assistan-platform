@@ -8,14 +8,14 @@ import { defineConfig } from "@playwright/test";
  * Запуск: `npx playwright test`; UI-режим: `npx playwright test --ui`.
  */
 export default defineConfig({
-  testDir: "./e2e",
+  testDir: "./tests/e2e",
   timeout: 60_000,
   // Сервер и БД общие — прогон последовательный, один worker.
   fullyParallel: false,
   workers: 1,
   reporter: [["list"]],
-  globalSetup: "./e2e/global-setup.ts",
-  globalTeardown: "./e2e/global-teardown.ts",
+  globalSetup: "./tests/e2e/global-setup.ts",
+  globalTeardown: "./tests/e2e/global-teardown.ts",
   outputDir: "test-results",
   use: {
     baseURL: "http://127.0.0.1:8765",
