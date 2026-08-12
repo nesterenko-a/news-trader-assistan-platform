@@ -6,13 +6,14 @@ from sqlalchemy import select
 
 from app.collectors.rss import DEFAULT_FEEDS, fetch_rss_feeds
 from app.collectors.telegram import TelegramCollector
+from app.collectors.websites import fetch_websites
 from app.config import get_settings
 from app.db.connection import SessionLocal, init_db
 from app.db.models import Article
 from app.llm.analyzer import ArticleAnalyzer
 from app.llm.client import LLMClient
 from app.news.ingest import ensure_sources, filter_candidates, ingest_candidates
-from app.news.sources_service import get_rss_feeds
+from app.news.sources_service import get_rss_feeds, get_website_sources
 
 MAX_PER_FEED = 30
 
@@ -135,9 +136,61 @@ async def collect_telegram_news(
     return stored
 
 
+async def collect_website_news(
+    session,
+    since: datetime | None = None,
+    entity_names: set[str] | None = None,
+    max_candidates: int = MAX_PER_FEED,
+) -> int:
+    """Сбор новостей со страниц-списков сайтов компаний (kind='website')."""
+    client = LLMClient.from_settings()
+    analyzer = ArticleAnalyzer(client)
+    sites = await get_website_sources(session)
+    if not sites:
+        print("Сайты компаний: активных источников нет", flush=True)
+        return 0
+    site_sources = [
+        {
+            "name": site["name"],
+            "kind": "website",
+            "reputation": site.get("reputation", 0.5),
+            "config": {"url": site["url"]},
+        }
+        for site in sites
+    ]
+    source_ids, reputation = await ensure_sources(session, site_sources)
+
+    print("Загрузка страниц сайтов компаний...", flush=True)
+    raw_articles = await fetch_websites(sites)
+    candidates = await filter_candidates(
+        session,
+        raw_articles,
+        since,
+        entity_names,
+        await _known_urls(session),
+        max_candidates,
+    )
+    print(
+        f"Сайты: загружено {len(raw_articles)} записей, "
+        f"релевантных графу: {len(candidates)}",
+        flush=True,
+    )
+
+    stored = await ingest_candidates(
+        session,
+        candidates,
+        source_ids,
+        reputation,
+        analyzer,
+        f"llm:{client.model}",
+    )
+    return stored
+
+
 async def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Collect, filter and analyze news via RSS (+ Telegram) and LLM"
+        description="Collect, filter and analyze news via RSS, company websites "
+        "(+ Telegram) and LLM"
     )
     parser.add_argument(
         "--days",
@@ -163,6 +216,11 @@ async def main() -> None:
         action="store_true",
         help="also collect news from Telegram channels (TELEGRAM_CHANNELS)",
     )
+    parser.add_argument(
+        "--sites",
+        action="store_true",
+        help="also collect news from company websites (kind='website')",
+    )
     args = parser.parse_args()
 
     since = _parse_since(args)
@@ -181,6 +239,11 @@ async def main() -> None:
                 session, since=since, entity_names=entity_names
             )
             print(f"Stored {tg_stored} analyzed Telegram articles")
+        if args.sites:
+            site_stored = await collect_website_news(
+                session, since=since, entity_names=entity_names
+            )
+            print(f"Stored {site_stored} analyzed website articles")
 
 
 if __name__ == "__main__":

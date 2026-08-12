@@ -46,6 +46,54 @@ test.describe("News manager и админка", () => {
     expect(await page.locator("table.table tbody tr").count()).toBeGreaterThan(0);
   });
 
+  test("sites: вкладка рендерит сайт из списка", async ({ page }) => {
+    await login(page, USER.username, USER.password);
+    await page.goto("/news?tab=sites");
+    await expect(page.locator(".tab-active")).toContainText("Сайты");
+    const row = page.locator('tr:has-text("e2e_site")');
+    await expect(row).toHaveCount(1);
+    await expect(row).toContainText("✔ работает");
+    await expect(page.locator('button:has-text("Вернуть стандартные сайты")')).toHaveCount(1);
+  });
+
+  test("sites: невалидный URL — ошибка", async ({ page }) => {
+    await login(page, USER.username, USER.password);
+    await page.goto("/news?tab=sites");
+    const add = page.locator('form[action="/news/site/add"]');
+    await add.locator('input[name="name"]').fill("Bad Site");
+    await add.locator('input[name="url"]').fill("ftp://example.com/press");
+    await Promise.all([page.waitForURL("**/news*"), add.locator('button[type="submit"]').click()]);
+    await expect(page.locator("body")).toContainText("Допустимы только http/https");
+  });
+
+  test("sites: toggle LLM → удалить", async ({ page }) => {
+    await login(page, USER.username, USER.password);
+    await page.goto("/news?tab=sites");
+    const row = page.locator('tr:has-text("e2e_site")');
+    await expect(row).toHaveCount(1);
+    // toggle «LLM-разбор» (async POST; e2e.example не резолвится — проверка быстрая)
+    const checkbox = row.locator('input[data-field="use_llm"]');
+    await Promise.all([page.waitForResponse("**/news/site/toggle"), checkbox.check()]);
+    await page.reload();
+    await expect(page.locator('tr:has-text("e2e_site") input[data-field="use_llm"]')).toBeChecked();
+    // удаление
+    await Promise.all([
+      page.waitForURL("**/news*"),
+      page.locator('tr:has-text("e2e_site") button.feed-remove').click(),
+    ]);
+    await expect(page.locator('tr:has-text("e2e_site")')).toHaveCount(0);
+  });
+
+  test("sites: «Вернуть стандартные сайты»", async ({ page }) => {
+    await login(page, USER.username, USER.password);
+    await page.goto("/news?tab=sites");
+    await Promise.all([
+      page.waitForURL("**/news*"),
+      page.click('form[action="/news/site/restore"] button[type="submit"]'),
+    ]);
+    await expect(page.locator("body")).toContainText("Добавлено стандартных сайтов");
+  });
+
   test("admin: запуск скрипта, статус и вывод по AJAX", async ({ page }) => {
     await login(page, ADMIN.username, ADMIN.password);
     await page.goto("/admin");

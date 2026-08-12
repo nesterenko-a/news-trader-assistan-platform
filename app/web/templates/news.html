@@ -7,11 +7,12 @@
 {% if info %}<div class="notice notice-info">{{ info }}</div>{% endif %}
 
 <div class="tabs">
-  <a class="tab tab-active" href="/news?tab=rss">RSS-ленты</a>
+  <a class="tab {% if tab != 'sites' %}tab-active{% endif %}" href="/news?tab=rss">RSS-ленты</a>
   <a class="tab tab-disabled" href="#">Telegram <span class="muted">(в планах)</span></a>
-  <a class="tab tab-disabled" href="#">Сайты <span class="muted">(в планах)</span></a>
+  <a class="tab {% if tab == 'sites' %}tab-active{% endif %}" href="/news?tab=sites">Сайты</a>
 </div>
 
+{% if tab != 'sites' %}
 <div class="card">
   <div class="card-head">
     <h2>Мои ленты</h2>
@@ -39,7 +40,7 @@
     </thead>
     <tbody>
       {% for feed in feeds %}
-      <tr>
+      <tr data-action="rss">
         <td><input type="checkbox" form="check-form" name="ids" value="{{ feed.id }}"></td>
         <td>{{ feed.name }}</td>
         <td class="muted small" style="max-width:200px">
@@ -156,10 +157,113 @@
   </form>
   {% endif %}
 </div>
+{% endif %}
+
+{% if tab == 'sites' %}
+<div class="card">
+  <div class="card-head">
+    <h2>Мои сайты</h2>
+    <form method="post" action="/news/site/check" class="inline">
+      <button type="submit" class="btn">Проверить все</button>
+    </form>
+    <form method="post" action="/news/site/restore" class="inline">
+      <button type="submit" class="btn">Вернуть стандартные сайты</button>
+    </form>
+  </div>
+
+  {% if sites %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th></th>
+        <th>Имя</th>
+        <th>URL</th>
+        <th>Категория</th>
+        <th>Репутация</th>
+        <th>Статус</th>
+        <th>Парсинг</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for site in sites %}
+      <tr data-action="site">
+        <td><input type="checkbox" form="check-form-sites" name="ids" value="{{ site.id }}"></td>
+        <td>{{ site.name }}</td>
+        <td class="muted small" style="max-width:200px">
+          <input class="feed-field feed-field-url" type="text" value="{{ (site.config or {}).get('url', '') }}" disabled title="{{ (site.config or {}).get('url', '') }}">
+        </td>
+        <td>
+          <select class="feed-field feed-field-cat" disabled>
+            {% for cat in categories %}
+            <option value="{{ cat }}" {% if (site.category or '') == cat %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+            {% if site.category and site.category not in categories %}
+            <option value="{{ site.category }}" selected>{{ site.category }}</option>
+            {% endif %}
+          </select>
+        </td>
+        <td>
+          <input class="feed-field feed-field-rep" type="number" min="0" max="1" step="0.01" value="{{ '%.2f'|format(site.reputation_score) }}" disabled>
+        </td>
+        <td>
+          {% if site.last_status == 'ok' %}
+          <span class="feed-ok" title="Проверено{% if site.last_checked_at %}: {{ site.last_checked_at.strftime('%d.%m %H:%M') }}{% endif %}">✔ работает</span>
+          {% elif site.last_status == 'error' %}
+          <span class="feed-err" title="{{ site.last_error }}">✘ {{ site.last_error or 'ошибка' }}</span>
+          {% else %}
+          <span class="muted">не проверена</span>
+          {% endif %}
+        </td>
+        <td class="muted small" style="white-space:nowrap">
+          <label class="feed-toggle" title="Извлекать записи со страницы-списка через LLM">
+            <input type="checkbox" data-source-id="{{ site.id }}" data-field="use_llm" {% if site.use_llm %}checked{% endif %}> LLM
+          </label>
+          <label class="feed-toggle" style="margin-left:8px" title="Фетч через headless-браузер (Playwright) при недоступности по HTTP">
+            <input type="checkbox" data-source-id="{{ site.id }}" data-field="use_browser" {% if site.use_browser %}checked{% endif %}> Браузер
+          </label>
+        </td>
+        <td style="white-space:nowrap">
+          <button type="button" class="feed-edit" data-source-id="{{ site.id }}" title="Редактировать" aria-label="Редактировать">✎</button>
+          <form method="post" action="/news/site/remove" class="inline">
+            <input type="hidden" name="source_id" value="{{ site.id }}">
+            <button type="submit" class="feed-remove" title="Убрать сайт" aria-label="Убрать сайт">✕</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <form method="post" action="/news/site/check" id="check-form-sites">
+    <button type="submit" class="btn">Проверить выбранные</button>
+  </form>
+  {% else %}
+  <p class="muted">Сайтов пока нет. Добавьте сайт вручную или верните стандартные.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Добавить сайт</h2>
+  <form method="post" action="/news/site/add" class="form">
+    <div class="form-row">
+      <input type="text" name="name" placeholder="Название (например, Аэрофлот — пресс-релизы)" required>
+      <input type="url" name="url" placeholder="https://company.ru/press" required>
+      <select name="category">
+        <option value="">другое</option>
+        {% for cat in categories %}
+        <option value="{{ cat }}">{{ cat }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn">Добавить и проверить</button>
+    </div>
+  </form>
+</div>
+{% endif %}
 
 <script>
 document.querySelectorAll('.feed-toggle input[type="checkbox"]').forEach(function (cb) {
   cb.addEventListener('change', function () {
+    var action = cb.closest('tr').getAttribute('data-action');
     if (cb.checked && cb.getAttribute('data-field') === 'use_browser') {
       var cell = cb.closest('td');
       cell.innerHTML = '<span class="muted" style="white-space:nowrap">Проверяю…</span>';
@@ -168,7 +272,7 @@ document.querySelectorAll('.feed-toggle input[type="checkbox"]').forEach(functio
     fd.append('source_id', cb.getAttribute('data-source-id'));
     fd.append('field', cb.getAttribute('data-field'));
     fd.append('on', cb.checked ? '1' : '0');
-    fetch('/news/rss/toggle', { method: 'POST', body: fd })
+    fetch('/news/' + action + '/toggle', { method: 'POST', body: fd })
       .then(function () { location.reload(); })
       .catch(function () { location.reload(); });
   });
@@ -176,6 +280,7 @@ document.querySelectorAll('.feed-toggle input[type="checkbox"]').forEach(functio
 document.querySelectorAll('.feed-edit').forEach(function (btn) {
   btn.addEventListener('click', function () {
     var row = btn.closest('tr');
+    var action = row.getAttribute('data-action');
     var fields = row.querySelectorAll('.feed-field');
     var editing = !btn.classList.contains('active');
     if (editing) {
@@ -192,7 +297,7 @@ document.querySelectorAll('.feed-edit').forEach(function (btn) {
       btn.classList.remove('active');
       btn.textContent = '\u270E';
       btn.title = 'Редактировать';
-      fetch('/news/rss/update', { method: 'POST', body: fd })
+      fetch('/news/' + action + '/update', { method: 'POST', body: fd })
         .then(function () { location.reload(); })
         .catch(function () { location.reload(); });
     }

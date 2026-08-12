@@ -13,7 +13,7 @@ from app.auth import get_current_user
 from app.db.connection import get_session
 from app.db.models import Source, User, UserSource
 from app.llm.client import LLMClient
-from app.news.feed_check import check_feed, validate_feed_url
+from app.news.feed_check import check_feed, check_website, validate_feed_url
 from app.news.sources_service import (
     SOURCE_CATEGORIES,
     restore_default_sources,
@@ -31,7 +31,7 @@ from app.schemas import (
 
 router = APIRouter(prefix="/sources", tags=["sources"])
 
-ALLOWED_KINDS = ("rss",)
+ALLOWED_KINDS = ("rss", "website")
 SEARCH_CANDIDATES = 8
 
 
@@ -139,7 +139,10 @@ async def add_source(
         session.add(UserSource(user_id=user.id, source_id=source.id))
     await session.commit()
 
-    ok, error = await check_feed(url)
+    if payload.kind == "website":
+        ok, error = await check_website(url)
+    else:
+        ok, error = await check_feed(url)
     await _mark_checked(source, ok, error)
     await session.commit()
     return _source_out(source)
@@ -211,13 +214,17 @@ async def check_sources(
             await _owned_source(session, user.id, sid) for sid in payload.ids
         ]
     else:
-        sources = await user_sources(session, user.id, kind="rss")
+        sources = await user_sources(session, user.id)
     urls = [(s, (s.config or {}).get("url") or "") for s in sources]
+
+    async def _check(source: Source, url: str) -> tuple[bool, str]:
+        flags = dict(use_llm=bool(source.use_llm), use_browser=bool(source.use_browser))
+        if source.kind == "website":
+            return await check_website(url, **flags)
+        return await check_feed(url, **flags)
+
     results = await asyncio.gather(
-        *(
-            check_feed(u, use_llm=bool(s.use_llm), use_browser=bool(s.use_browser))
-            for s, u in urls
-        )
+        *(_check(s, u) for s, u in urls)
     )
     for (source, _), (ok, error) in zip(urls, results):
         await _mark_checked(source, ok, error)
@@ -231,8 +238,10 @@ async def search_sources(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict]:
-    if payload.kind not in ALLOWED_KINDS:
-        raise HTTPException(status_code=400, detail="Недопустимый тип источника")
+    if payload.kind != "rss":
+        raise HTTPException(
+            status_code=400, detail="LLM-поиск доступен только для RSS-лент"
+        )
     client = LLMClient.from_settings()
     system_prompt = (
         "Ты подбираешь RSS/Atom-ленты новостей по теме. "

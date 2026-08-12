@@ -60,6 +60,7 @@ from app.db.models import (
 from app.news.sources_service import (
     SOURCE_CATEGORIES,
     add_default_sources_for_user,
+    restore_default_sites,
     restore_default_sources,
     user_sources,
 )
@@ -70,7 +71,7 @@ from app.api.routes.sources import (
     restore_defaults as restore_defaults_api,
     search_sources as search_sources_api,
 )
-from app.news.feed_check import validate_feed_url
+from app.news.feed_check import check_website, validate_feed_url
 from app.schemas import FeedCheckIn, FeedSearchIn, SourceIn
 from app.market.moex import MOEXClient
 from app.market.oi_data import (
@@ -2064,14 +2065,17 @@ async def news_page(
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
     feeds = await user_sources(session, user.id, kind="rss")
+    sites = await user_sources(session, user.id, kind="website")
     context = await _base_context(session, user)
     context.update(
         {
             "feeds": feeds,
+            "sites": sites,
             "categories": SOURCE_CATEGORIES,
             "error": request.query_params.get("error", ""),
             "info": request.query_params.get("info", ""),
             "candidates": [],
+            "tab": request.query_params.get("tab", "rss"),
         }
     )
     return templates.TemplateResponse(request, "news.html", context)
@@ -2311,4 +2315,199 @@ async def news_rss_add_selected(
                 pass
     return RedirectResponse(
         url=f"/news?info=Добавлено лент: {added}", status_code=303
+    )
+
+
+@router.post("/news/site/add")
+async def news_site_add(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    name = str(form.get("name") or "").strip()
+    url = str(form.get("url") or "").strip()
+    category = str(form.get("category") or "")
+    if not name or not url:
+        return RedirectResponse(
+            url="/news?tab=sites&error=Заполните имя и URL", status_code=303
+        )
+    if category not in SOURCE_CATEGORIES and category != "":
+        return RedirectResponse(
+            url="/news?tab=sites&error=Недопустимая категория", status_code=303
+        )
+    err = await validate_feed_url(url)
+    if err:
+        return RedirectResponse(url=f"/news?tab=sites&error={err}", status_code=303)
+    try:
+        await add_source_api(
+            SourceIn(name=name, url=url, category=category, kind="website"),
+            user,
+            session,
+        )
+    except HTTPException as exc:
+        return RedirectResponse(
+            url=f"/news?tab=sites&error={exc.detail}", status_code=303
+        )
+    return RedirectResponse(url="/news?tab=sites", status_code=303)
+
+
+@router.post("/news/site/remove")
+async def news_site_remove(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    try:
+        source_id = int(str(form.get("source_id") or "0"))
+    except ValueError:
+        source_id = 0
+    try:
+        await remove_source_api(source_id, user, session)
+    except HTTPException:
+        pass
+    return RedirectResponse(url="/news?tab=sites", status_code=303)
+
+
+@router.post("/news/site/toggle")
+async def news_site_toggle(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    """Включает/выключает флаг сайта: use_llm или use_browser."""
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    try:
+        source_id = int(str(form.get("source_id") or "0"))
+    except ValueError:
+        source_id = 0
+    field = str(form.get("field") or "")
+    on = str(form.get("on") or "0") == "1"
+    source = await session.scalar(
+        select(Source)
+        .join(UserSource, UserSource.source_id == Source.id)
+        .where(UserSource.user_id == user.id, Source.id == source_id)
+    )
+    if source is not None:
+        if field == "use_llm":
+            source.use_llm = on
+        elif field == "use_browser":
+            source.use_browser = on
+        if on:
+            url = (source.config or {}).get("url") or ""
+            if url:
+                ok, desc = await check_website(
+                    url,
+                    use_llm=bool(source.use_llm),
+                    use_browser=bool(source.use_browser),
+                )
+                source.last_status = "ok" if ok else "error"
+                source.last_error = "" if ok else desc
+                source.last_checked_at = datetime.now(timezone.utc)
+        await session.commit()
+    return RedirectResponse(url="/news?tab=sites", status_code=303)
+
+
+@router.post("/news/site/update")
+async def news_site_update(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    try:
+        source_id = int(str(form.get("source_id") or "0"))
+    except ValueError:
+        source_id = 0
+    url = str(form.get("url") or "").strip()
+    category = str(form.get("category") or "").strip()
+    reputation_raw = str(form.get("reputation") or "").strip()
+    if not url.startswith(("http://", "https://")):
+        return RedirectResponse(
+            url="/news?tab=sites&error=Некорректный URL", status_code=303
+        )
+    try:
+        reputation = float(reputation_raw)
+    except ValueError:
+        return RedirectResponse(
+            url="/news?tab=sites&error=Некорректная репутация", status_code=303
+        )
+    if not 0 <= reputation <= 1:
+        return RedirectResponse(
+            url="/news?tab=sites&error=Репутация должна быть от 0 до 1", status_code=303
+        )
+    source = await session.scalar(
+        select(Source)
+        .join(UserSource, UserSource.source_id == Source.id)
+        .where(UserSource.user_id == user.id, Source.id == source_id)
+    )
+    if source is None:
+        return RedirectResponse(
+            url="/news?tab=sites&error=Источник не найден", status_code=303
+        )
+    if category and category not in SOURCE_CATEGORIES and category != (source.category or ""):
+        return RedirectResponse(
+            url="/news?tab=sites&error=Недопустимая категория", status_code=303
+        )
+    old_url = (source.config or {}).get("url")
+    config = dict(source.config or {})
+    config["url"] = url
+    source.config = config
+    source.category = category or None
+    source.reputation_score = reputation
+    if old_url != url:
+        source.last_status = None
+        source.last_error = None
+    await session.commit()
+    return RedirectResponse(url="/news?tab=sites&info=Сайт обновлён", status_code=303)
+
+
+@router.post("/news/site/check")
+async def news_site_check(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    ids = []
+    for value in form.getlist("ids"):
+        try:
+            ids.append(int(str(value)))
+        except ValueError:
+            continue
+    try:
+        await check_sources_api(FeedCheckIn(ids=ids), user, session)
+    except HTTPException:
+        return RedirectResponse(
+            url="/news?tab=sites&error=Не удалось проверить сайты", status_code=303
+        )
+    return RedirectResponse(
+        url=f"/news?tab=sites&info=Проверено сайтов: {len(ids) if ids else 'все'}",
+        status_code=303,
+    )
+
+
+@router.post("/news/site/restore")
+async def news_site_restore(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    added = await restore_default_sites(session, user.id)
+    return RedirectResponse(
+        url=f"/news?tab=sites&info=Добавлено стандартных сайтов: {added}",
+        status_code=303,
     )

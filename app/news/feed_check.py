@@ -134,3 +134,36 @@ async def check_feed(
             return True, "ok (LLM)"
         return False, f"Не похоже на RSS: {result.error or 'LLM не извлёк записи'}"
     return False, f"Не похоже на RSS: {result.error or 'parse error'}"
+
+
+async def check_website(
+    url: str, use_llm: bool = False, use_browser: bool = False
+) -> tuple[bool, str]:
+    """Проверяет доступность страницы-списка сайта: (ok, описание).
+
+    Требование: HTTP 200 и непустое тело. При недоступности по HTTP и
+    use_browser — фолбэк через Playwright; при use_llm — извлечение хотя бы
+    одной записи LLM-разбором (иначе статус «ok» без разбора записей).
+    """
+    from app.news.browser_fetch import fetch_with_playwright
+    from app.news.llm_parse import parse_site_with_llm
+
+    data, error = await fetch_feed_bytes(url)
+    if data is None and use_browser:
+        try:
+            data = await fetch_with_playwright(url)
+        except Exception:
+            data = None
+    if data is None:
+        return False, error
+    if not data.strip():
+        return False, "Пустая страница"
+    if not use_llm:
+        return True, "ok"
+    try:
+        entries = await parse_site_with_llm(data)
+    except Exception:
+        entries = []
+    if entries:
+        return True, "ok (LLM)"
+    return False, "LLM не извлёк записи"

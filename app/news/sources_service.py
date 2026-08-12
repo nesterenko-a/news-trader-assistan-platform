@@ -8,6 +8,21 @@ from app.db.models import Source, UserSource
 
 SOURCE_CATEGORIES = ["биржа", "геополитика", "погода"]
 
+DEFAULT_SITES: list[dict] = []
+
+
+def default_site_dicts() -> list[dict]:
+    return [
+        {
+            "name": site["name"],
+            "kind": "website",
+            "reputation": site["reputation"],
+            "config": {"url": site["url"]},
+            "category": site.get("category", ""),
+        }
+        for site in DEFAULT_SITES
+    ]
+
 
 def default_feed_dicts() -> list[dict]:
     return [
@@ -77,14 +92,32 @@ async def restore_default_sources(session: AsyncSession, user_id: int) -> int:
     return await add_default_sources_for_user(session, user_id)
 
 
+async def restore_default_sites(session: AsyncSession, user_id: int) -> int:
+    """Кнопка «Вернуть стандартные сайты»: добавляет недостающие DEFAULT_SITES."""
+    return await add_sources_to_user(session, user_id, default_site_dicts())
+
+
 async def get_rss_feeds(session: AsyncSession) -> list[dict]:
     """Активные RSS-ленты из каталога (для коллектора); [] если пусто.
 
     Каждая лента: {name, url, reputation, category, use_llm} — use_llm включает
     LLM-разбор при неудаче штатного парсинга.
     """
+    return await _active_sources(session, "rss")
+
+
+async def get_website_sources(session: AsyncSession) -> list[dict]:
+    """Активные сайты компаний из каталога (для коллектора); [] если пусто.
+
+    Каждый сайт: {name, url, reputation, category, use_llm, use_browser} —
+    извлечение записей со страницы-списка выполняется через LLM.
+    """
+    return await _active_sources(session, "website")
+
+
+async def _active_sources(session: AsyncSession, kind: str) -> list[dict]:
     rows = await session.scalars(
-        select(Source).where(Source.kind == "rss", Source.is_active.is_(True))
+        select(Source).where(Source.kind == kind, Source.is_active.is_(True))
     )
     feeds = []
     for source in rows:

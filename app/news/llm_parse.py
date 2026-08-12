@@ -62,3 +62,15 @@ async def parse_feed_with_llm(data: bytes) -> list[dict]:
     client = LLMClient.from_settings()
     raw = await client.chat(_LLM_EXTRACT_PROMPT, text)
     return _extract_json_list(raw)
+
+
+async def parse_site_with_llm(data: bytes) -> list[dict]:
+    """Извлекает записи новостей со страницы-списка сайта через LLM (DeepSeek).
+
+    Возвращает [] при ошибке LLM. Промпт общий с разбором лент — он покрывает
+    и HTML-списки новостей/пресс-релизов.
+    """
+    try:
+        return await parse_feed_with_llm(data)
+    except Exception:
+        return []

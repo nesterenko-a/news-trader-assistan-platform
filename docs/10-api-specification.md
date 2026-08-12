@@ -1,6 +1,6 @@
 # 10. Спецификация API
 
-**Статус:** утверждено v1.20  
+**Статус:** утверждено v1.21  
 **Система:** NewsTrader Assistant
 
 Программный интерфейс системы. Спецификация концептуальная; точные схемы запросов/ответов фиксируются на этапе разработки (например, в формате OpenAPI) и должны соответствовать этому документу.
@@ -229,19 +229,17 @@ GET /v1/indicators/oi?ticker=W4V6&from=2026-07-20&to=2026-08-05
 Индикатор **Volume Profile** (`GET /v1/indicators/volume_profile?ticker=AFLT&period=60`): `meta` содержит `nodes` — список узлов профиля (`price`, `volume`, `is_poc`, `in_value_area`, `is_hvn`, `is_lvn`), а также `poc`, `vah`, `val`, `from`/`to`, `candles`; `signals` — `poc`, `value_area`, `hvn`, `lvn` (см. [19-market-indicators.md](./19-market-indicators.md) §8.13).
 Индикатор **Поддержка/сопротивление** (`GET /v1/indicators/support_resistance?ticker=AFLT`): `meta` содержит `levels` — список уровней (`price`, `kind`: `support`/`resistance`, `strength`: `medium`/`strong`, `touches` — число касаний), `pivot` (P/R1/R2/S1/S2), `atr`, `last_close`, `from`/`to`, `candles`; `signals` — `breakout_up`/`breakout_down` (пробой уровня) и `bounce_up`/`bounce_down` (отскок от уровня) (см. [19-market-indicators.md](./19-market-indicators.md) §8.11).
 
-### 3.9. Источники новостей (RSS)
+### 3.9. Источники новостей (RSS, сайты компаний)
 
-Управление персональным списком RSS-лент пользователя (см. [20-news-sources-manager.md](./20-news-sources-manager.md)). Все эндпоинты требуют авторизации (Bearer или cookie `nt_token`).
+Управление персональным списком источников новостей пользователя — RSS-лент (`kind: "rss"`) и сайтов компаний (`kind: "website"`, URL страницы-списка новостей в `config.url`) — см. [20-news-sources-manager.md](./20-news-sources-manager.md) и [22-company-sites-source.md](./22-company-sites-source.md). Все эндпоинты требуют авторизации (Bearer или cookie `nt_token`).
 
-- `GET /v1/sources[?kind=rss][&category=...]` — список источников пользователя (из `user_sources`): `id`, `name`, `kind`, `url`, `category`, `reputation`, `is_active`, `last_status` (`ok`/`error`), `last_error`, `last_checked_at`, `use_llm`, `use_browser`.
-- `POST /v1/sources` — добавить источник в список пользователя (`{name, url, kind: "rss", category, reputation}`); запись создаётся в каталоге `sources` при необходимости, выполняется проверка работоспособности. Ошибки: `400` — невалидный URL/категория/SSRF, `401`.
-- `PUT /v1/sources/{id}` — обновить метаданные источника (`{name?, url?, category?, reputation?, is_active?}`).
+- `GET /v1/sources[?kind=rss|website][&category=...]` — список источников пользователя (из `user_sources`): `id`, `name`, `kind`, `url`, `category`, `reputation`, `is_active`, `last_status` (`ok`/`error`), `last_error`, `last_checked_at`, `use_llm`, `use_browser`.
+- `POST /v1/sources` — добавить источник в список пользователя (`{name, url, kind: "rss"|"website", category, reputation}`); запись создаётся в каталоге `sources` при необходимости, выполняется проверка работоспособности (для `rss` — `check_feed`, для `website` — `check_website`: HTTP 200 + непустое тело, при `use_llm` — извлечение записей LLM). Ошибки: `400` — невалидный URL/категория/SSRF, `401`.
+- `PUT /v1/sources/{id}` — обновить метаданные источника (`{name?, url?, category?, reputation?, is_active?, use_llm?, use_browser?}`).
 - `DELETE /v1/sources/{id}` — убрать источник из списка пользователя (из каталога не удаляется).
-- `POST /v1/sources/check` — проверить ленты (`{ids: [...]}`, пусто = все): обновляет `last_status`/`last_error`/`last_checked_at`, возвращает обновлённые записи.
-- `POST /v1/sources/search` — LLM-поиск новых лент (`{query, kind: "rss"}`): DeepSeek генерирует до 8 кандидатов (название, URL, категория), каждый проверяется HTTP-запросом; возвращает `[{name, url, category, ok, error}]` (не добавляет в список).
-- `POST /v1/sources/restore-defaults` — вернуть стандартные ленты (`DEFAULT_FEEDS`) в список пользователя; ответ `{added: N}`.
-
-**Сайты компаний (в планах):** те же эндпоинты `/v1/sources` работают с `kind: "website"` (URL страницы-списка новостей в `config.url`); планируются веб-роуты `/news/site/add|remove|toggle|check|update|restore` для вкладки «Сайты» на `/news`. ТЗ и дизайн: [22-company-sites-source.md](./22-company-sites-source.md).
+- `POST /v1/sources/check` — проверить источники (`{ids: [...]}`, пусто = все источники пользователя любого kind): обновляет `last_status`/`last_error`/`last_checked_at`, возвращает обновлённые записи.
+- `POST /v1/sources/search` — LLM-поиск новых лент **только для `kind: "rss"`** (`{query, kind: "rss"}`; `kind: "website"` → `400`): DeepSeek генерирует до 8 кандидатов (название, URL, категория), каждый проверяется HTTP-запросом; возвращает `[{name, url, category, ok, error}]` (не добавляет в список).
+- `POST /v1/sources/restore-defaults` — вернуть стандартные **ленты** (`DEFAULT_FEEDS`) в список пользователя; ответ `{added: N}`. Стандартные сайты (`DEFAULT_SITES`, пока пусто) восстанавливаются отдельно — веб-роут `POST /news/site/restore`.
 
 ## 4. Webhook для алертов (исходящие)
 

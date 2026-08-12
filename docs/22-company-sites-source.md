@@ -1,6 +1,6 @@
 # 22. Источник «Сайты компаний» — ТЗ и дизайн
 
-**Статус:** утверждено v1.0  
+**Статус:** утверждено v1.1 (реализовано: коллектор `app/collectors/websites.py`, LLM-разбор `parse_site_with_llm`, проверка `check_website`, API/веб-роуты `kind=website`, вкладка «Сайты» на `/news`, флаги `--sites` в `collect_news`/`daily_pipeline`, unit + e2e тесты)  
 **Система:** NewsTrader Assistant  
 **Связанные документы:** [20-news-sources-manager.md](./20-news-sources-manager.md), [04-functional-requirements.md](./04-functional-requirements.md), [10-api-specification.md](./10-api-specification.md), [14-web-interface.md](./14-web-interface.md), [13-operations.md](./13-operations.md), [12-roadmap.md](./12-roadmap.md)
 
@@ -63,9 +63,9 @@
 - `POST /v1/sources` с `{name, url, kind: "website", category}` — добавить сайт (с проверкой `validate_feed_url` → 400 при SSRF/невалидном URL);
 - `PUT /v1/sources/{id}`, `DELETE /v1/sources/{id}`, `POST /v1/sources/check`, `POST /v1/sources/restore-defaults` — без изменений, работают для любого `kind`.
 
-### 4.2. Веб-роуты вкладки «Сайты» (планируемые, `/news/site/*`)
+### 4.2. Веб-роуты вкладки «Сайты» (реализованы)
 
-По образцу существующих RSS-роутов `/news/rss/*` (все требуют авторизации; ответ — 303-редирект на `/news?tab=sites`, ошибки — через `?error=`):
+По образцу RSS-роутов `/news/rss/*` (все требуют авторизации; ответ — 303-редирект на `/news?tab=sites`, ошибки — через `?error=`):
 
 | Роут | Назначение |
 |---|---|
@@ -78,7 +78,7 @@
 
 ## 5. UI — вкладка «Сайты» на `/news`
 
-Вкладка **«Сайты»** в `news.html` (сейчас `tab-disabled` «(в планах)») становится активной и повторяет структуру RSS-вкладки:
+Вкладка **«Сайты»** в `news.html` активна (переключение `?tab=rss|sites`) и повторяет структуру RSS-вкладки:
 
 - **Таблица сайтов** (по `GET /v1/sources?kind=website`): Имя · URL · Категория (select) · Репутация · Статус (✓ работает / ✘ ошибка / не проверена) · Парсинг (галочки «LLM» и «Браузер») · Действия (✎ редактировать, ✕ удалить);
 - **Кнопки**: «Проверить выбранные» (чекбоксы строк) и «Вернуть стандартные сайты»;
@@ -87,7 +87,7 @@
 
 Переключение вкладок RSS ⇄ Сайты — через `?tab=rss|sites` (URL-параметр).
 
-## 6. Коллектор — дизайн (`app/collectors/websites.py`)
+## 6. Коллектор — реализация (`app/collectors/websites.py`)
 
 ```
 fetch (httpx, SSRF-валидация + таймаут 10с + лимит 2 МБ из feed_check)
@@ -102,10 +102,10 @@ fetch (httpx, SSRF-валидация + таймаут 10с + лимит 2 МБ 
 - Функция `fetch_website(site) -> RawArticle[]` — по образцу `fetch_rss_feeds` (`app/collectors/rss.py`): безопасный фетч + фолбэки, логирование в stdout конвейера.
 - Реестр источников: `get_website_sources(session)` в `app/news/sources_service.py` (по образцу `get_rss_feeds`, фильтр `kind == "website"`).
 
-## 7. Тестирование (план, без реализации)
+## 7. Тестирование (реализовано)
 
-- **Unit:** `parse_site_with_llm` (мок LLM: валидный JSON, пустой ответ, markdown-обёртка, ошибка); `fetch_website` (SSRF-отказ, таймаут, фолбэк на браузер, лимит размера); сервис источников (`get_website_sources`, CRUD).
-- **E2E (`tests/e2e/test_news_admin.py` или новый файл):** вкладка «Сайты» — рендер, добавление с невалидным URL → ошибка, toggle LLM/Браузер, удаление, «Вернуть стандартные сайты» (по образцу RSS-тестов); маркер `e2e`, прогон `pytest -m e2e`.
+- **Unit (`tests/test_websites.py`, 20 тестов):** `parse_site_with_llm` (мок LLM: валидный JSON, пустой ответ, markdown-обёртка, ошибка → `[]`); `fetch_website` (SSRF-отказ, LLM выключен, извлечение через LLM, фолбэк на браузер, лимит размера); `check_website` (ok, LLM-извлечение, пустое тело); сервис источников (`get_website_sources`, `restore_default_sites`); API (`add_source` kind=website, kind-диспетчеризация `check_sources`, отказ LLM-поиска для website); веб-роуты (`/news?tab=sites`, `add`, невалидный URL, `restore`).
+- **E2E (`tests/e2e/news-admin.spec.ts`, сценарии `sites:`):** вкладка «Сайты» — рендер сайта из сидинга (`e2e_site`, `scripts/e2e_seed.py`), добавление с невалидным URL → ошибка, toggle LLM → удаление, «Вернуть стандартные сайты»; прогон `npx playwright test`.
 
 ## 8. Ограничения и не-скоуп (MVP)
 

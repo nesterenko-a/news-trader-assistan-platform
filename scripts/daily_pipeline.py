@@ -11,7 +11,12 @@ from app.db.models import Security
 from app.market.prices import sync_security_prices
 from app.paper.service import process_all_accounts
 from app.strategy.engine import generate_strategy
-from scripts.collect_news import _parse_since, collect_news, collect_telegram_news
+from scripts.collect_news import (
+    _parse_since,
+    collect_news,
+    collect_telegram_news,
+    collect_website_news,
+)
 
 PRICE_LOOKBACK_DAYS = 5
 
@@ -37,6 +42,11 @@ async def main() -> None:
         action="store_true",
         help="also collect news from Telegram channels (TELEGRAM_CHANNELS)",
     )
+    parser.add_argument(
+        "--sites",
+        action="store_true",
+        help="also collect news from company websites (kind='website')",
+    )
     args = parser.parse_args()
 
     since = _parse_since(args)
@@ -54,6 +64,11 @@ async def main() -> None:
             print("Фаза 1b/5: Telegram-каналы...", flush=True)
             tg_stored = await collect_telegram_news(session, since=since)
             print(f"Telegram-новости: {tg_stored} сохранено", flush=True)
+
+        if args.sites:
+            print("Фаза 1c/5: сайты компаний...", flush=True)
+            site_stored = await collect_website_news(session, since=since)
+            print(f"Сайты: {site_stored} сохранено", flush=True)
 
         tickers = [
             s.ticker

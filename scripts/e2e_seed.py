@@ -27,6 +27,7 @@ from app.db.models import (
     Source,
     Strategy,
     User,
+    UserSource,
 )
 from app.graph.service import seed_graph
 from app.config import get_settings
@@ -164,6 +165,30 @@ async def seed(db_url: str) -> None:
             )
             session.add(source)
             await session.flush()
+        user_row = await session.scalar(
+            select(User).where(User.username == USER_USERNAME)
+        )
+        site = await session.scalar(select(Source).where(Source.name == "e2e_site"))
+        if site is None:
+            site = Source(
+                name="e2e_site",
+                kind="website",
+                reputation_score=0.5,
+                is_active=True,
+                last_status="ok",
+                config={"url": "https://e2e.example/press"},
+            )
+            session.add(site)
+            await session.flush()
+        if user_row is not None and site is not None:
+            link = await session.scalar(
+                select(UserSource).where(
+                    UserSource.user_id == user_row.id,
+                    UserSource.source_id == site.id,
+                )
+            )
+            if link is None:
+                session.add(UserSource(user_id=user_row.id, source_id=site.id))
         article = await session.scalar(
             select(Article).where(Article.url == "https://e2e.example/sber-news")
         )
