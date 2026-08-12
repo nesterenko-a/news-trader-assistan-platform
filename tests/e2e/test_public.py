@@ -69,6 +69,20 @@ def test_security_card_shows_news(page, server):
     assert page.locator(".news-item").count() == 1
 
 
+def test_security_card_verdict_and_signals(page, server):
+    # сидовая новость даёт движку материал для стратегии — на карточке есть вердикт
+    page.goto(server + "/securities/SBER")
+    badge = page.locator("div.badge")
+    assert badge.count() >= 1
+    assert badge.first.inner_text() in ("BUY", "SELL", "HOLD", "INSUFFICIENT_DATA")
+    assert "Сигналы" in page.text_content("body")
+
+
+def test_security_unknown_ticker_404(page, server):
+    response = page.goto(server + "/securities/XXXX")
+    assert response.status == 404
+
+
 def test_security_card_screenshot_button(page, server):
     errors: list[str] = []
     page.on("pageerror", lambda exc: errors.append(str(exc)))
@@ -123,3 +137,19 @@ def test_indicators_tabs_switch(page, server, name, label, ticker):
     if name == "macd":
         # на сидовых свечах MACD даёт сигналы (пересечения гистограммы)
         assert page.locator("table.table tbody tr").count() >= 1
+
+
+@pytest.mark.parametrize(
+    "name,heading",
+    [
+        ("volume_profile", "Профиль объёма — Сбербанк (SBER)"),
+        ("support_resistance", None),
+    ],
+)
+def test_indicators_with_ticker_data(page, server, name, heading):
+    # свечи в сидинге — VP и S/R с тикером рендерят данные
+    page.goto(server + f"/indicators?name={name}&ticker=SBER")
+    assert "Бумага не найдена" not in page.text_content("body")
+    assert "Сбербанк (SBER)" in page.text_content("body")
+    if heading:
+        assert heading in page.text_content("h2")

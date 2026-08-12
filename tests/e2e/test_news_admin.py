@@ -1,4 +1,6 @@
-"""P1: news manager (CRUD, toggles, «Вернуть стандартные ленты») и админ-запуск скрипта с деталями."""
+"""P1: news manager (CRUD, toggles, «Вернуть стандартные ленты») и админка (запуск скрипта, шаблоны фьючерсов)."""
+
+import uuid
 
 import pytest
 from conftest import login
@@ -64,5 +66,49 @@ def test_admin_run_script_and_detail(page, server):
     assert "Наполнить справочники" in page.text_content("body")
     assert page.locator("#run-live").count() == 1
     # скрипт завершается (E2E-R3 исправлен: seed_db принудительно выходит
-    # после успешного сидинга, см. docs/21-web-e2e-tests.md)
+    # после успешного сидинга, см. docs/21-web-e2e-tests.md); статус и вывод
+    # подтягиваются AJAX-обновлением страницы (partial)
     page.wait_for_selector(".run-status:not(.run-running)", timeout=30000)
+    assert page.locator(".run-status").inner_text() in ("успех", "ошибка")
+    assert page.locator("pre.run-output").inner_text().strip() != ""
+
+
+def test_admin_futures_templates_crud(page, server):
+    login(page, server, "admin", "admin123")
+    page.goto(server + "/admin/futures-templates")
+    assert "Шаблоны фьючерсов" in page.text_content("body")
+
+    name = "e2e_tpl_" + uuid.uuid4().hex[:6]
+    page.fill("#tpl-name", name)
+    # Клик по бейджам невозможен без данных фьючерсов (MOEX отключён в стенде),
+    # а submit-обработчик перезаписывает hidden-поле из бейджей — отправляем
+    # форму напрямую из браузера (серверная логика и авторизация сохраняются)
+    page.evaluate(
+        """(name) => fetch('/admin/futures-templates/save', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'id=&name=' + encodeURIComponent(name) + '&tickers=W4V6%2CAFU6',
+        })""",
+        name,
+    )
+    page.goto(server + "/admin/futures-templates")
+    row = page.locator(f"tr:has-text('{name}')")
+    assert row.count() == 1
+
+    # удаление шаблона (форма с confirm-диалогом)
+    page.on("dialog", lambda dialog: dialog.accept())
+    with page.expect_navigation():
+        row.locator('form[action="/admin/futures-templates/delete"] button').click()
+    assert page.locator(f"tr:has-text('{name}')").count() == 0
+
+
+def test_admin_update_oi_card_params(page, server):
+    login(page, server, "admin", "admin123")
+    page.goto(server + "/admin")
+    card = page.locator(
+        'form[action="/admin/scripts/run"]:has(input[name="script"][value="update_oi"])'
+    )
+    assert card.count() == 1
+    # тикер-поле с подсказкой фьючерсов и чекбокс «--all»
+    assert card.locator('input[list="futures-datalist"]').count() == 1
+    assert card.locator("#oi-all").count() == 1
