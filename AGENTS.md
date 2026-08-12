@@ -16,6 +16,7 @@ Python 3.13+ (в `.venv` — 3.13.7) · FastAPI · SQLAlchemy 2 (async) · Postg
 |---|---|
 | Тесты | `.venv\Scripts\python.exe -m pytest -q` (unit; e2e исключены маркером) |
 | E2E-тесты веб-интерфейса | `.venv\Scripts\python.exe -m pytest -m e2e` (Playwright, chromium; см. `docs/21-web-e2e-tests.md`) |
+| Быстрый запуск e2e | `scripts\run_e2e.bat` (лаунчер, аргументы пробрасываются) |
 | Проверка компиляции | `.venv\Scripts\python.exe -m compileall -q app scripts` |
 | Смоук API и веба | `.venv\Scripts\python.exe -m scripts.smoke` |
 | Запуск (веб + Telegram-бот) | `.venv\Scripts\python.exe -m scripts.run_app` |
@@ -76,7 +77,7 @@ Python 3.13+ (в `.venv` — 3.13.7) · FastAPI · SQLAlchemy 2 (async) · Postg
 
 ## Notes
 
-- Документация: комплект **v1.111**; версии: 07 — v1.17, 12 — v1.35, 13 — v1.37, 14 — v1.60, 16 — v1.4, 17 — v1.8, 19 — v1.20, 20 — v1.4, 21 — v1.4, остальные см. шапки.
+- Документация: комплект **v1.112**; версии: 07 — v1.17, 12 — v1.35, 13 — v1.38, 14 — v1.60, 16 — v1.4, 17 — v1.9, 19 — v1.20, 20 — v1.4, 21 — v1.5, остальные см. шапки.
 - Roadmap (12): этап 0 завершён; этап 1 — срезы 1–6 (включая бэктест «на момент T») + News Sources Manager (страница `/news`, ленты из БД); этап 2 — начат (paper trading, контраргументы/риски, веса факторов, OI, Volume Profile, EMA/MACD, поддержка/сопротивление, E2E-тесты веб-интерфейса `pytest -m e2e`).
 - `/indicators` строится из реестра `app/market/indicators/registry.py`: новый индикатор в реестре автоматически получает вкладку.
 - E2E-тесты (`tests/e2e/`, маркер `e2e`) в общий `pytest -q` не входят (sync Playwright конфликтует с pytest-asyncio); расхождения, найденные e2e, фиксируются в реестре док. 21 (§6).
