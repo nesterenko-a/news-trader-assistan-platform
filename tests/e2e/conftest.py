@@ -186,6 +186,10 @@ def server() -> str:
         _seed(db_path)
         env = os.environ.copy()
         env["DATABASE_URL"] = f"sqlite+aiosqlite:///{db_path.as_posix()}"
+        # MOEX недоступен в тестовом стенде: заведомо мёртвый адрес, чтобы
+        # e2e не зависели от внешней сети и не ждали таймаутов (страница
+        # /portfolio обрабатывает сбой MOEX без 500).
+        env["MOEX_BASE_URL"] = "http://127.0.0.1:9"
         proc = subprocess.Popen(
             [
                 sys.executable,

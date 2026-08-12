@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import httpx
 import pytest
 import pytest_asyncio
 from fastapi import HTTPException
@@ -1062,6 +1063,43 @@ async def test_admin_page_access(session):
 
     anon_response = await admin_page_route(make_request(None), session)
     assert anon_response.status_code == 303
+
+
+async def test_portfolio_page_tolerates_moex_failure(session, monkeypatch):
+    """/portfolio рендерится без 500, когда MOEX недоступен (fetch_quote падает)."""
+    from app.web.router import portfolio_page
+
+    await seed_graph(session)
+    sber = await session.scalar(select(Security).where(Security.ticker == "SBER"))
+    user = User(username="portfolioowner", password_hash="x")
+    session.add(user)
+    await session.flush()
+    session.add(PortfolioPosition(user_id=user.id, security_id=sber.id, quantity=10, avg_price=100))
+    token = await create_session(session, user)
+    await session.commit()
+
+    async def _boom(ticker: str):
+        raise httpx.ConnectError("MOEX недоступен")
+
+    monkeypatch.setattr("app.web.router._moex.fetch_quote", _boom)
+
+    headers = [(b"cookie", f"nt_token={token}".encode())]
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/portfolio",
+            "headers": headers,
+            "server": ("test", 80),
+            "query_string": b"",
+            "client": ("test", 80),
+            "scheme": "http",
+        }
+    )
+    response = await portfolio_page(request, session)
+    assert response.status_code == 200
+    body = response.body.decode()
+    assert "SBER" in body
 
 
 async def test_paper_signals_open_and_close(session):

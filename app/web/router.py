@@ -2,6 +2,7 @@ from pathlib import Path
 from datetime import date, datetime, timedelta, timezone
 import re
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -1269,7 +1270,12 @@ async def portfolio_page(
     total_value = 0.0
     total_cost = 0.0
     for position, security in rows:
-        quote = await _moex.fetch_quote(security.ticker)
+        try:
+            quote = await _moex.fetch_quote(security.ticker)
+        except httpx.HTTPError:
+            # MOEX недоступен (офлайн/таймаут) — страница рендерится без
+            # текущей цены (P&L показывается как «—»), 500 не возвращаем.
+            quote = None
         price = quote["price"] if quote else None
         strategy = await session.scalar(
             select(Strategy)
