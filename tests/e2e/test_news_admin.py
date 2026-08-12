@@ -63,7 +63,6 @@ def test_admin_run_script_and_detail(page, server):
         form.locator('button[type="submit"]').click()
     assert "Наполнить справочники" in page.text_content("body")
     assert page.locator("#run-live").count() == 1
-    # Завершения скрипта не ждём: на SQLite-стенде фоновый запуск скрипта с
-    # create_all (DDL) зависает из-за блокировки файла БД uvicorn-процессом
-    # (см. реестр расхождений в docs/21-web-e2e-tests.md); teardown сессии
-    # убивает дерево процессов (taskkill /T).
+    # скрипт завершается (E2E-R3 исправлен: seed_db принудительно выходит
+    # после успешного сидинга, см. docs/21-web-e2e-tests.md)
+    page.wait_for_selector(".run-status:not(.run-running)", timeout=30000)

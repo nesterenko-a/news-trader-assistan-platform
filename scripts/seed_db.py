@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 from app.db.connection import SessionLocal, init_db
 from app.graph.service import seed_graph
@@ -14,3 +15,8 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
+    # Принудительный выход: обычный shutdown блокируется финализаторами SQLite,
+    # когда скрипт запущен из админки параллельно с работающим приложением на
+    # том же файле БД (см. E2E-R3 в docs/21-web-e2e-tests.md). Вся работа уже
+    # закоммичена, на PostgreSQL не воспроизводится.
+    os._exit(0)
