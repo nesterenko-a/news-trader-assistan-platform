@@ -1,6 +1,6 @@
 # 21. E2E-тесты веб-интерфейса (Playwright) — ТЗ и план тестирования
 
-**Статус:** утверждено v1.8  
+**Статус:** утверждено v1.9  
 **Система:** NewsTrader Assistant  
 **Связанные документы:** [14-web-interface.md](./14-web-interface.md), [16-working-process.md](./16-working-process.md), [13-operations.md](./13-operations.md), [17-quickstart.md](./17-quickstart.md)
 
@@ -122,6 +122,7 @@
 
 - Перед каждым коммитом: `compileall` + `pytest -q` (unit).
 - E2E — отдельный прогон `pytest -m e2e` (быстрее unit-набора не делать обязательным перед каждым коммитом; обязательно при изменении веб-интерфейса).
+- **CI (GitHub Actions, `.github/workflows/tests.yml`):** на каждый push в `master` и PR параллельно запускаются unit (`pytest -q`) и e2e (`pytest -m e2e --screenshot only-on-failure`, chromium); при падении e2e артефакты `test-results/` выгружаются как `e2e-artifacts`.
 - Требование к окружению: установленные браузеры Playwright (см. §2); без них e2e-тесты падают с ошибкой запуска браузера.
 - Артефакты e2e (`test-results/`) не коммитятся (в `.gitignore`).
 
