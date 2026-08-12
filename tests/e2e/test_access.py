@@ -22,10 +22,11 @@ def test_protected_page_redirects_anonymous(page, server, path):
     assert page.url.startswith(server + "/login")
 
 
-def test_admin_page_redirects_regular_user(page, server):
+def test_admin_page_forbidden_for_regular_user(page, server):
     login(page, server, "user", "user123")
-    page.goto(server + "/admin")
-    assert page.url.startswith(server + "/login")
+    response = page.goto(server + "/admin")
+    assert response.status == 403
+    assert page.url == server + "/admin"
 
 
 def test_admin_page_accessible_for_admin(page, server):

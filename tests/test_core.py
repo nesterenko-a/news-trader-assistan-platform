@@ -2,7 +2,9 @@ from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import pytest
 import pytest_asyncio
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from starlette.requests import Request
@@ -1054,8 +1056,9 @@ async def test_admin_page_access(session):
     assert "Ежедневный конвейер" in admin_html
     assert "Последние запуски" in admin_html
 
-    plain_response = await admin_page_route(make_request(plain_token), session)
-    assert plain_response.status_code == 303
+    with pytest.raises(HTTPException) as excinfo:
+        await admin_page_route(make_request(plain_token), session)
+    assert excinfo.value.status_code == 403
 
     anon_response = await admin_page_route(make_request(None), session)
     assert anon_response.status_code == 303
@@ -1383,8 +1386,9 @@ async def test_futures_templates_page_access(session):
     assert "Шаблоны фьючерсов" in html
     assert "Загрузить фьючерсы" in html
 
-    plain_response = await admin_futures_templates_page(make_request(plain_token), session)
-    assert plain_response.status_code == 303
+    with pytest.raises(HTTPException) as excinfo:
+        await admin_futures_templates_page(make_request(plain_token), session)
+    assert excinfo.value.status_code == 403
 
     # сохранение: новый шаблон
     form = {

@@ -1510,8 +1510,10 @@ async def admin_page(
     session: AsyncSession = Depends(get_session),
 ):
     user = await _optional_user(request, session)
-    if not _is_admin_user(user):
+    if user is None:
         return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
     runs = (
         await session.scalars(select(ScriptRun).order_by(ScriptRun.id.desc()).limit(20))
     ).all()
@@ -1554,8 +1556,10 @@ async def admin_run_script(
     session: AsyncSession = Depends(get_session),
 ):
     user = await _optional_user(request, session)
-    if not _is_admin_user(user):
+    if user is None:
         return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
     form = await request.form()
     script_key = str(form.get("script") or "")
     # Чекбокс «скачать OI по всем фьючерсам» на карточке update_oi
@@ -1632,8 +1636,10 @@ async def admin_template_add(
     session: AsyncSession = Depends(get_session),
 ):
     user = await _optional_user(request, session)
-    if not _is_admin_user(user):
+    if user is None:
         return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
     form = await request.form()
     name = str(form.get("name") or "").strip()
     tickers = str(form.get("tickers") or "").strip()
@@ -1661,8 +1667,10 @@ async def admin_template_delete(
     session: AsyncSession = Depends(get_session),
 ):
     user = await _optional_user(request, session)
-    if not _is_admin_user(user):
+    if user is None:
         return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
     form = await request.form()
     try:
         template_id = int(str(form.get("template_id") or "0"))
@@ -1681,8 +1689,10 @@ async def admin_futures_templates_page(
     session: AsyncSession = Depends(get_session),
 ):
     user = await _optional_user(request, session)
-    if not _is_admin_user(user):
+    if user is None:
         return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
     futures_tpls = (
         await session.scalars(select(FuturesTemplate).order_by(FuturesTemplate.name))
     ).all()
@@ -1706,8 +1716,10 @@ async def admin_futures_templates_save(
     session: AsyncSession = Depends(get_session),
 ):
     user = await _optional_user(request, session)
-    if not _is_admin_user(user):
+    if user is None:
         return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
     form = await request.form()
     raw_id = str(form.get("id") or "").strip()
     name = str(form.get("name") or "").strip()
@@ -1742,8 +1754,10 @@ async def admin_futures_templates_delete(
     session: AsyncSession = Depends(get_session),
 ):
     user = await _optional_user(request, session)
-    if not _is_admin_user(user):
+    if user is None:
         return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
     form = await request.form()
     try:
         template_id = int(str(form.get("template_id") or "0"))
@@ -1784,8 +1798,10 @@ async def admin_run_detail(
     session: AsyncSession = Depends(get_session),
 ):
     user = await _optional_user(request, session)
-    if not _is_admin_user(user):
+    if user is None:
         return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
     run = await session.get(ScriptRun, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Запуск не найден")
