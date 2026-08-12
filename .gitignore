@@ -31,6 +31,10 @@ Thumbs.db
 .coverage
 test-results/
 
+# Node / Playwright
+node_modules/
+playwright-report/
+
 # Reasonix — локальные метаданные сессий/десктопа
 .reasonix/
 reasonix.toml

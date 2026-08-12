@@ -31,15 +31,21 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-      - name: Install dependencies
+      - name: Install Python dependencies (стенд: uvicorn + сидинг)
         run: pip install -r requirements-dev.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install Node dependencies
+        run: npm ci
       - name: Install Playwright browsers
-        run: python -m playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
       - name: E2E tests
-        run: python -m pytest -m e2e -q --screenshot only-on-failure
-      - name: Upload artifacts (screenshots on failure)
+        run: npx playwright test
+      - name: Upload artifacts (trace/screenshot on failure)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-artifacts
+          name: playwright-artifacts
           path: test-results/

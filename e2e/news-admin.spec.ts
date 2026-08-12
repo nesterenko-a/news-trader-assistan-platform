@@ -1,0 +1,104 @@
+import { test, expect } from "@playwright/test";
+import { ADMIN, USER, login } from "./helpers";
+
+test.describe("News manager и админка", () => {
+  test("news: невалидный URL — ошибка", async ({ page }) => {
+    await login(page, USER.username, USER.password);
+    await page.goto("/news");
+    const add = page.locator('form[action="/news/rss/add"]');
+    await add.locator('input[name="name"]').fill("Bad Feed");
+    await add.locator('input[name="url"]').fill("ftp://example.com/rss");
+    await Promise.all([page.waitForURL("**/news*"), add.locator('button[type="submit"]').click()]);
+    await expect(page.locator("body")).toContainText("Допустимы только http/https");
+  });
+
+  test("news: добавить → toggle LLM → удалить", async ({ page }) => {
+    await login(page, USER.username, USER.password);
+    await page.goto("/news");
+    const add = page.locator('form[action="/news/rss/add"]');
+    await add.locator('input[name="name"]').fill("E2E Test Feed");
+    await add.locator('input[name="url"]').fill("https://example.com/rss");
+    await Promise.all([page.waitForURL("/news"), add.locator('button[type="submit"]').click()]);
+
+    const row = page.locator("tr:has-text('E2E Test Feed')");
+    await expect(row).toHaveCount(1);
+
+    // toggle «LLM-разбор» (async POST)
+    const checkbox = row.locator('input[data-field="use_llm"]');
+    await Promise.all([page.waitForResponse("**/news/rss/toggle"), checkbox.check()]);
+    await page.reload();
+    await expect(row.locator('input[data-field="use_llm"]')).toBeChecked();
+
+    // удаление
+    await Promise.all([page.waitForURL("/news"), row.locator("button.feed-remove").click()]);
+    await expect(page.locator("tr:has-text('E2E Test Feed')")).toHaveCount(0);
+  });
+
+  test("news: «Вернуть стандартные ленты»", async ({ page }) => {
+    await login(page, USER.username, USER.password);
+    await page.goto("/news");
+    await Promise.all([
+      page.waitForURL("/news"),
+      page.click('form[action="/news/rss/restore"] button[type="submit"]'),
+    ]);
+    expect(await page.locator("table.table tbody tr").count()).toBeGreaterThan(0);
+  });
+
+  test("admin: запуск скрипта, статус и вывод по AJAX", async ({ page }) => {
+    await login(page, ADMIN.username, ADMIN.password);
+    await page.goto("/admin");
+    const form = page.locator(
+      'form[action="/admin/scripts/run"]:has(input[name="script"][value="seed_db"])'
+    );
+    await expect(form).toHaveCount(1);
+    await Promise.all([page.waitForURL("**/admin/runs/*"), form.locator('button[type="submit"]').click()]);
+    await expect(page.locator("body")).toContainText("Наполнить справочники");
+    await expect(page.locator("#run-live")).toHaveCount(1);
+    // скрипт завершается, статус и вывод подтягиваются AJAX (partial)
+    await page.waitForSelector(".run-status:not(.run-running)", { timeout: 30_000 });
+    await expect(page.locator(".run-status")).toHaveText(/успех|ошибка/);
+    expect((await page.locator("pre.run-output").innerText()).trim().length).toBeGreaterThan(0);
+  });
+
+  test("admin: шаблоны фьючерсов — создание и удаление", async ({ page }) => {
+    await login(page, ADMIN.username, ADMIN.password);
+    await page.goto("/admin/futures-templates");
+    await expect(page.locator("body")).toContainText("Шаблоны фьючерсов");
+
+    const name = "e2e_tpl_" + crypto.randomUUID().replace(/-/g, "").slice(0, 6);
+    await page.fill("#tpl-name", name);
+    // бейджи недоступны без данных фьючерсов (MOEX отключён), submit-обработчик
+    // перезаписывает hidden-поле — отправляем форму напрямую из браузера
+    await page.evaluate(
+      (n) =>
+        fetch("/admin/futures-templates/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: "id=&name=" + encodeURIComponent(n) + "&tickers=W4V6%2CAFU6",
+        }),
+      name
+    );
+    await page.goto("/admin/futures-templates");
+    const row = page.locator(`tr:has-text('${name}')`);
+    await expect(row).toHaveCount(1);
+
+    // удаление (форма с confirm-диалогом)
+    page.on("dialog", (d) => d.accept());
+    await Promise.all([
+      page.waitForURL("**/admin/futures-templates*"),
+      row.locator('form[action="/admin/futures-templates/delete"] button').click(),
+    ]);
+    await expect(page.locator(`tr:has-text('${name}')`)).toHaveCount(0);
+  });
+
+  test("admin: карточка update_oi с параметрами", async ({ page }) => {
+    await login(page, ADMIN.username, ADMIN.password);
+    await page.goto("/admin");
+    const card = page.locator(
+      'form[action="/admin/scripts/run"]:has(input[name="script"][value="update_oi"])'
+    );
+    await expect(card).toHaveCount(1);
+    await expect(card.locator('input[list="futures-datalist"]')).toHaveCount(1);
+    await expect(card.locator("#oi-all")).toHaveCount(1);
+  });
+});
