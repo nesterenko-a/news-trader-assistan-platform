@@ -31,7 +31,7 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-      - name: Install Python dependencies (стенд: uvicorn + сидинг)
+      - name: Install Python dependencies (стенд uvicorn + сидинг)
         run: pip install -r requirements-dev.txt
       - uses: actions/setup-node@v4
         with:
