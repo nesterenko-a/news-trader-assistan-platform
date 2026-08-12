@@ -1,6 +1,7 @@
 import math
 from datetime import datetime, timedelta, timezone
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -298,8 +299,14 @@ async def generate_strategy(
     if use_live_market:
         from app.market.moex import MOEXClient
 
-        quotes = await MOEXClient().fetch_quote(ticker)
-        closes = await MOEXClient().fetch_daily_closes(ticker)
+        try:
+            quotes = await MOEXClient().fetch_quote(ticker)
+            closes = await MOEXClient().fetch_daily_closes(ticker)
+        except httpx.HTTPError:
+            # MOEX недоступен (офлайн/таймаут) — стратегия строится без
+            # рыночных сигналов (RSI/SMA), страница не отдаёт 500.
+            quotes = None
+            closes = []
 
         if quotes and closes:
             rsi_value = rsi(closes)

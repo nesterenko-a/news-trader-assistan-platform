@@ -216,6 +216,25 @@ async def test_generate_strategy_without_persist(session, monkeypatch):
     assert strategies == []
 
 
+async def test_generate_strategy_tolerates_moex_failure(session, monkeypatch):
+    """Движок строит стратегию без 500, когда MOEX недоступен (use_live_market)."""
+
+    class BrokenMOEX:
+        async def fetch_quote(self, ticker: str):
+            raise httpx.ConnectError("MOEX недоступен")
+
+        async def fetch_daily_closes(self, ticker: str, days: int = 60):
+            raise httpx.ConnectError("MOEX недоступен")
+
+    monkeypatch.setattr("app.market.moex.MOEXClient", lambda: BrokenMOEX())
+    await seed_graph(session)
+    await _store_news(session, "http://test.ru/oil4", "Нефть", "positive")
+    await session.commit()
+
+    result = await generate_strategy(session, "AFLT", persist=False, use_live_market=True)
+    assert result["strategy"]["verdict"] in ("BUY", "SELL", "HOLD")
+
+
 async def test_collect_news_date_filter(session):
     since = _parse_since(SimpleNamespace(from_date="2026-01-01", days=0))
     assert since == datetime(2026, 1, 1, tzinfo=timezone.utc)
