@@ -97,18 +97,29 @@ def test_macro_page_renders(page, server):
 
 
 @pytest.mark.parametrize(
-    "name,label",
+    "name,label,ticker",
     [
-        ("ema", "EMA (скользящие средние)"),
-        ("macd", "MACD"),
-        ("oi", "Открытый интерес (OI)"),
-        ("volume_profile", "Профиль объёма (Volume Profile)"),
-        ("support_resistance", "Поддержка/сопротивление"),
+        ("ema", "EMA (скользящие средние)", "SBER"),
+        ("macd", "MACD", "SBER"),
+        ("oi", "Открытый интерес (OI)", ""),
+        ("volume_profile", "Профиль объёма (Volume Profile)", ""),
+        ("support_resistance", "Поддержка/сопротивление", ""),
     ],
 )
-def test_indicators_tabs_switch(page, server, name, label):
-    page.goto(server + "/indicators")
-    page.click(f'.seg-item.seg-link:has-text("{label}")')
-    page.wait_for_url(f"**/indicators?name={name}*")
+def test_indicators_tabs_switch(page, server, name, label, ticker):
+    url = server + "/indicators"
+    if ticker:
+        url += f"?name={name}&ticker={ticker}"
+    else:
+        url += f"?name={name}"
+    page.goto(url)
     assert label in page.locator(".seg-item.seg-active").inner_text()
     assert page.locator('button[type="submit"]').count() >= 1
+    if name in ("ema", "macd"):
+        # свечи в сидинге — график и название бумаги на вкладке
+        assert "Сбербанк (SBER)" in page.text_content("h2")
+        assert page.locator("svg.chart").count() >= 1
+        assert "Бумага не найдена" not in page.text_content("body")
+    if name == "macd":
+        # на сидовых свечах MACD даёт сигналы (пересечения гистограммы)
+        assert page.locator("table.table tbody tr").count() >= 1
