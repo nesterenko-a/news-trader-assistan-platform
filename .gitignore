@@ -29,6 +29,7 @@ Thumbs.db
 # Test artifacts
 .pytest_cache/
 .coverage
+test-results/
 
 # Reasonix — локальные метаданные сессий/десктопа
 .reasonix/
