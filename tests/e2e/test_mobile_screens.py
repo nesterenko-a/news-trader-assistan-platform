@@ -28,6 +28,18 @@ def test_mobile_menu_opens_and_navigates(page, server):
     assert "Watchlist" in page.text_content("h1")
 
 
+def test_mobile_menu_closes_on_second_click(page, server):
+    login(page, server, "user", "user123")
+    page.set_viewport_size({"width": 375, "height": 667})
+    page.goto(server + "/")
+    toggle = page.locator(".menu-toggle")
+    toggle.click()
+    assert _menu_open(page)
+    # повторный клик по toggle закрывает меню (E2E-019)
+    toggle.click()
+    assert not _menu_open(page)
+
+
 def test_mobile_menu_closes_on_escape(page, server):
     login(page, server, "user", "user123")
     page.set_viewport_size({"width": 375, "height": 667})
@@ -35,8 +47,6 @@ def test_mobile_menu_closes_on_escape(page, server):
     toggle = page.locator(".menu-toggle")
     toggle.click()
     assert _menu_open(page)
-    # закрытие — клавишей Escape (см. реестр расхождений док.21: повторный
-    # клик по toggle меню не закрывает; закрытие — клик вне меню или Escape)
     page.keyboard.press("Escape")
     assert not _menu_open(page)
 

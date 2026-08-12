@@ -79,9 +79,13 @@
       toggle.addEventListener("click", function (event) {
         event.preventDefault();
         event.stopPropagation();
+        if (popup.classList.contains("open")) {
+          closeDropdowns();
+          return;
+        }
         closeDropdowns();
-        var open = popup.classList.toggle("open");
-        toggle.setAttribute("aria-expanded", String(open));
+        popup.classList.add("open");
+        toggle.setAttribute("aria-expanded", "true");
       });
     }
     bindToggle(".menu-toggle", "user-menu");
