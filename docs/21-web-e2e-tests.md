@@ -1,6 +1,6 @@
 # 21. E2E-тесты веб-интерфейса (Playwright) — ТЗ и план тестирования
 
-**Статус:** утверждено v1.11  
+**Статус:** утверждено v1.12  
 **Система:** NewsTrader Assistant  
 **Связанные документы:** [14-web-interface.md](./14-web-interface.md), [16-working-process.md](./16-working-process.md), [13-operations.md](./13-operations.md), [17-quickstart.md](./17-quickstart.md)
 
@@ -102,6 +102,11 @@
 | E2E-019 | P2 | Мобильное меню | На мобильном viewport (375×667) кнопка `.menu-toggle` открывает `#user-menu`; пункты меню кликабельны; повторный клик закрывает | `test_mobile_screens.py` |
 | E2E-020 | P2 | Рендер ключевых страниц (скриншоты) | `--screenshot only-on-failure` даёт артефакт при падении; ключевые страницы рендерятся без JS-ошибок (console-errors пуст) | `test_mobile_screens.py` |
 | E2E-021 | P2 | (опционально) firefox | Прогон критичных сценариев E2E-001/003/009 в `--browser firefox` | `test_public.py` |
+| E2E-022 | P1 | Карточка: вердикт и сигналы | На `/securities/SBER` (сидовая новость) есть бейдж вердикта (BUY/SELL/HOLD/INSUFFICIENT_DATA) и блок «Сигналы» | `test_public.py` |
+| E2E-023 | P1 | Карточка: неизвестный тикер | `/securities/XXXX` отвечает 404 | `test_public.py` |
+| E2E-024 | P1 | Индикаторы: VP и S/R с тикером | `/indicators?name=volume_profile|support_resistance&ticker=SBER` рендерят данные по свечам (заголовок «Сбербанк (SBER)», для VP — график) | `test_public.py` |
+| E2E-025 | P1 | Админка: шаблоны фьючерсов | `/admin/futures-templates`: создание шаблона (name+тикеры) показывает его в списке, удаление убирает | `test_news_admin.py` |
+| E2E-026 | P1 | Админка: карточка `update_oi` и AJAX-запуск | На `/admin` карточка `update_oi` рендерит тикер-поле и чекбокс `--all`; запуск скрипта через `/admin/runs/{id}` обновляет статус и вывод по AJAX (partial) | `test_news_admin.py` |
 
 Критерии прохождения сценария: все проверки внутри теста зелёные; страница отвечает 200 (или ожидаемый редирект); нет необработанных JS-ошибок консоли (для P0-сценариев).
 
