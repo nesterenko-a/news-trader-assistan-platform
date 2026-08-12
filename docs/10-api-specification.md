@@ -1,6 +1,6 @@
 # 10. Спецификация API
 
-**Статус:** утверждено v1.19  
+**Статус:** утверждено v1.20  
 **Система:** NewsTrader Assistant
 
 Программный интерфейс системы. Спецификация концептуальная; точные схемы запросов/ответов фиксируются на этапе разработки (например, в формате OpenAPI) и должны соответствовать этому документу.
@@ -240,6 +240,8 @@ GET /v1/indicators/oi?ticker=W4V6&from=2026-07-20&to=2026-08-05
 - `POST /v1/sources/check` — проверить ленты (`{ids: [...]}`, пусто = все): обновляет `last_status`/`last_error`/`last_checked_at`, возвращает обновлённые записи.
 - `POST /v1/sources/search` — LLM-поиск новых лент (`{query, kind: "rss"}`): DeepSeek генерирует до 8 кандидатов (название, URL, категория), каждый проверяется HTTP-запросом; возвращает `[{name, url, category, ok, error}]` (не добавляет в список).
 - `POST /v1/sources/restore-defaults` — вернуть стандартные ленты (`DEFAULT_FEEDS`) в список пользователя; ответ `{added: N}`.
+
+**Сайты компаний (в планах):** те же эндпоинты `/v1/sources` работают с `kind: "website"` (URL страницы-списка новостей в `config.url`); планируются веб-роуты `/news/site/add|remove|toggle|check|update|restore` для вкладки «Сайты» на `/news`. ТЗ и дизайн: [22-company-sites-source.md](./22-company-sites-source.md).
 
 ## 4. Webhook для алертов (исходящие)
 
