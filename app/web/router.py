@@ -26,7 +26,7 @@ from app.auth import (
 )
 from app.bot.linking import consume_link_code, set_user_chat, unlink_telegram
 from app.bot.push import get_bot_username
-from app.admin.runner import SCRIPTS, get_script, is_busy, launch
+from app.admin.runner import SCRIPTS, _pipeline_failed_phase, get_script, is_busy, launch
 from app.api.routes.indicators import _calculate_oi
 from app.feedback.service import (
     get_rating,
@@ -1536,6 +1536,11 @@ async def admin_page(
             "exit_code": run.exit_code,
             "started_at": run.started_at,
             "user": usernames.get(run.user_id, ""),
+            "failed_phase": (
+                _pipeline_failed_phase(run.output)
+                if run.script_name == "daily_pipeline" and run.status == "failed"
+                else None
+            ),
         }
         for run in runs
     ]
@@ -1785,9 +1790,62 @@ _PIPELINE_TITLES = {
     5: "Paper trading",
 }
 
+# Подзадачи фаз: (иконка, название, описание, маркер в логе для «выполнено»)
+_PIPELINE_TASKS = {
+    1: [
+        ("📡", "Сбор RSS новостей", "Получение новостей из RSS-лент финансовых и экономических ресурсов", "Новости:"),
+        ("✈️", "Сбор Telegram новостей", "Сообщения из Telegram-каналов и чатов", "Telegram-новости:"),
+        ("🌐", "Сбор новостей с сайтов", "Парсинг новостей с сайтов СМИ и финансовых порталов", "Сайты:"),
+    ],
+    2: [
+        ("📈", "Синхронизация акций", "Обновление котировок и свечей акций (TQBR)", None),
+        ("📊", "Синхронизация фьючерсов", "Обновление контрактов срочного рынка (FORTS)", None),
+    ],
+    3: [
+        ("🎯", "Генерация стратегий", "Анализ данных, поиск паттернов и генерация стратегий", "strategies stored:"),
+    ],
+    4: [
+        ("🔔", "Генерация алертов", "Формирование алертов по найденным стратегиям", "Алерты:"),
+        ("✉️", "Отправка алертов в Telegram", "Push-уведомления в Telegram-каналы и чаты", "Telegram: отправлено"),
+    ],
+    5: [
+        ("📥", "Покупка ценных бумаг", "Открытие виртуальных позиций на покупку", "открыто"),
+        ("📤", "Продажа ценных бумаг", "Закрытие виртуальных позиций и фиксация прибыли", "закрыто"),
+    ],
+}
+
+# Иконки фаз для шапки дашборда
+_PIPELINE_ICONS = {1: "📰", 2: "🗄️", 3: "🎯", 4: "🔔", 5: "💼"}
+
+
+def _log_line(output: str, marker: str) -> str | None:
+    """Хвост строки лога, содержащей маркер (например «5 сохранено» из «Новости: 5 сохранено»)."""
+    for line in output.splitlines():
+        if marker in line:
+            tail = line.split(marker, 1)[1].strip()
+            return tail or None
+    return None
+
+
+def _task_state(phase_state: str, done: bool, index: int, has_marker: bool) -> str:
+    """Состояние подзадачи по состоянию фазы и наличию маркера завершения в логе."""
+    if phase_state == "done":
+        return "done" if (done or not has_marker) else "waiting"
+    if phase_state == "running":
+        if done:
+            return "done"
+        if index == 0:
+            return "running"
+        prev = True  # маркер-свободные фазы: первая running, остальные waiting
+        return "waiting"
+    if phase_state == "error":
+        return "done" if done else "waiting"
+    return "waiting"
+
 
 def _pipeline_phases(output: str | None, status: str | None) -> list[dict] | None:
-    """Состояния 5 фаз Ежедневного конвейера по логу: done/skipped/running/error/pending."""
+    """Состояния 5 фаз Ежедневного конвейера по логу: done/skipped/running/error/pending,
+    с подзадачами (tasks) и процентом выполнения фазы."""
     if not output or "Фаза " not in output:
         return None
     skipped = None
@@ -1814,7 +1872,32 @@ def _pipeline_phases(output: str | None, status: str | None) -> list[dict] | Non
                 state = "running"
         else:
             state = "pending"
-        phases.append({"n": n, "title": _PIPELINE_TITLES.get(n, str(n)), "state": state})
+        tasks = []
+        done_count = 0
+        for i, (icon, t_title, t_desc, marker) in enumerate(_PIPELINE_TASKS.get(n, [])):
+            done = bool(marker and marker in output)
+            if done:
+                done_count += 1
+            t_state = _task_state(state, done, i, marker is not None)
+            count = None
+            if done and marker:
+                num = re.search(rf"{re.escape(marker)}\s*(\d+)", output)
+                count = num.group(1) if num else None
+            tasks.append(
+                {"icon": icon, "title": t_title, "desc": t_desc, "state": t_state, "count": count}
+            )
+        total = len(tasks) or 1
+        pct = round(done_count / total * 100) if state != "pending" else 0
+        phases.append(
+            {
+                "n": n,
+                "title": _PIPELINE_TITLES.get(n, str(n)),
+                "icon": _PIPELINE_ICONS.get(n, "📌"),
+                "state": state,
+                "tasks": tasks,
+                "pct": pct,
+            }
+        )
     return phases
 
 
@@ -1853,6 +1936,15 @@ async def admin_run_detail(
     run = await session.get(ScriptRun, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Запуск не найден")
+    pipeline = _pipeline_phases(run.output, run.status) if run.script_name == "daily_pipeline" else None
+    active_phase = None
+    if pipeline:
+        for ph in pipeline:
+            if ph["state"] in ("running", "error"):
+                active_phase = ph
+                break
+        if active_phase is None and pipeline[-1]["state"] in ("done", "skipped"):
+            active_phase = pipeline[-1]
     context = await _base_context(session, user)
     context.update(
         {
@@ -1860,9 +1952,8 @@ async def admin_run_detail(
             "script_title": (get_script(run.script_name) or {}).get("title", run.script_name),
             "running": run.status == "running",
             "progress": _run_progress(run.output),
-            "pipeline": _pipeline_phases(run.output, run.status)
-            if run.script_name == "daily_pipeline"
-            else None,
+            "pipeline": pipeline,
+            "active_phase": active_phase,
         }
     )
     template = "admin_run_partial.html" if partial else "admin_run.html"

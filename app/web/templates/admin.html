@@ -116,11 +116,24 @@ fetch('/v1/indicators/futures')
       {% for r in runs %}
       <tr>
         <td><a href="/admin/runs/{{ r.id }}">#{{ r.id }}</a></td>
-        <td>{{ r.title }}</td>
+        <td>{{ r.title }}
+          {% if r.failed_phase %}
+          <div class="muted small" style="color:#c0392b">Упал на фазе {{ r.failed_phase }}</div>
+          {% endif %}
+        </td>
         <td><span class="run-status run-{{ r.status }}">{{ {'running': 'выполняется', 'success': 'успех', 'failed': 'ошибка'}[r.status] }}</span></td>
         <td>{{ r.exit_code if r.exit_code is not none else "—" }}</td>
         <td>{{ r.user }}</td>
         <td>{{ r.started_at.strftime("%d.%m.%Y %H:%M:%S") }}</td>
+        <td style="text-align:right;white-space:nowrap">
+          {% if r.failed_phase %}
+          <form method="post" action="/admin/scripts/run" class="inline" onsubmit="return confirm('Запустить Ежедневный конвейер с фазы {{ r.failed_phase.split(':')[0] }}?')">
+            <input type="hidden" name="script" value="daily_pipeline">
+            <input type="hidden" name="param_from-phase" value="{{ r.failed_phase.split(':')[0] }}">
+            <button type="submit" class="btn btn-small" title="Повторить конвейер с упавшей фазы">↻ Повторить с фазы</button>
+          </form>
+          {% endif %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>

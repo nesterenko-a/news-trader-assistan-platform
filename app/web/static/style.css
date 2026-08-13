@@ -672,3 +672,48 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 @keyframes p-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(59,130,246,.5); } 50% { box-shadow: 0 0 0 6px rgba(59,130,246,0); } }
 .p-label { font-size: 10px; color: var(--muted, #8b97ad); text-align: center; line-height: 1.15; }
 .p-link { flex: 1; height: 2px; background: var(--border, #2b3750); margin-top: 16px; min-width: 12px; }
+
+/* --- Дашборд Ежедневного конвейера --- */
+.dash { border: 1px solid var(--border, #e5e8ee); border-radius: 16px; background: var(--panel, #fff); overflow: hidden; }
+.dash-head { padding: 18px 22px; border-bottom: 1px solid var(--border, #e5e8ee); display: flex; gap: 14px; align-items: center; }
+.dash-icon { width: 46px; height: 46px; border-radius: 12px; background: #f2f6ff; color: #2867e8; display: grid; place-items: center; font-size: 22px; }
+.steps { display: grid; grid-template-columns: repeat(5, 1fr); padding: 22px 22px 12px; }
+.step { text-align: center; position: relative; }
+.step-line { position: absolute; top: 26px; left: calc(50% + 28px); width: calc(100% - 56px); height: 3px; background: #d9dee7; }
+.step.s-done .step-line, .step.s-skipped .step-line { background: var(--green, #35ad61); }
+.s-circle {
+  width: 52px; height: 52px; border-radius: 50%; border: 2px solid #cbd1db; background: #fff;
+  display: grid; place-items: center; font-weight: 700; font-size: 18px; color: #707888;
+  margin: 0 auto 12px; position: relative; z-index: 1; padding: 0;
+}
+.step.s-done .s-circle { border-color: var(--green, #35ad61); color: var(--green, #35ad61); }
+.step.s-skipped .s-circle { border-color: #7a8699; color: #7a8699; }
+.step.s-running .s-circle { border-color: #2867e8; color: #2867e8; }
+.step.s-error .s-circle { border-color: var(--red, #e05252); color: var(--red, #e05252); cursor: pointer; box-shadow: 0 0 0 4px rgba(224, 82, 82, 0.18); }
+.step.s-error .s-circle:hover { box-shadow: 0 0 0 7px rgba(224, 82, 82, 0.25); }
+.s-badge { position: absolute; right: -3px; bottom: -3px; background: var(--green, #35ad61); color: #fff; width: 20px; height: 20px; border-radius: 50%; font-size: 12px; display: grid; place-items: center; border: 2px solid #fff; }
+.s-lock { position: absolute; right: -4px; bottom: -3px; font-size: 13px; }
+.s-title { font-size: 13px; font-weight: 700; }
+.s-desc { font-size: 11px; color: var(--muted, #8b97ad); margin-top: 4px; min-height: 26px; }
+.dash-content { margin: 14px 22px 18px; border: 1px solid var(--border, #e5e8ee); border-radius: 12px; overflow: hidden; }
+.dash-content-head { padding: 14px 18px; border-bottom: 1px solid var(--border, #e5e8ee); font-size: 15px; font-weight: 700; }
+.task { display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 12px; padding: 13px 18px; border-bottom: 1px solid var(--border, #e5e8ee); }
+.task:last-child { border-bottom: 0; }
+.task-icon { width: 36px; height: 36px; border-radius: 9px; background: #f2f6ff; display: grid; place-items: center; font-size: 18px; }
+.task-name { font-weight: 650; font-size: 13px; }
+.task-desc { font-size: 11px; color: var(--muted, #8b97ad); margin-top: 3px; }
+.task-state { font-size: 11px; text-align: right; }
+.task-state strong { display: block; padding: 6px 9px; border-radius: 7px; font-weight: 600; }
+.t-success { color: #298e4d; background: #effaf3; border: 1px solid #ccebd5; }
+.t-running { color: #2867e8; background: #eef4ff; border: 1px solid #cbdcff; }
+.t-waiting { color: #6c7481; background: #f5f6f8; border: 1px solid #e1e4e9; }
+.count { color: var(--muted, #8b97ad); margin-top: 4px; }
+.dash-bottom { padding: 14px 18px; border-top: 1px solid var(--border, #e5e8ee); display: flex; align-items: center; gap: 16px; }
+.progress { height: 8px; background: #e8ebef; border-radius: 8px; overflow: hidden; flex: 1; }
+.fill { height: 100%; background: #2867e8; border-radius: 8px; transition: width .5s; }
+.pct { font-weight: 700; font-size: 13px; }
+.dash-note { margin: 0 22px 20px; padding: 12px 15px; border-radius: 9px; background: #f1fbf4; color: #2d8e50; font-size: 12px; }
+.dash-note:has(.s-error) { background: #fdf1f1; color: #c0392b; }
+.run-log { margin-top: 8px; }
+.run-log summary { cursor: pointer; font-weight: 600; color: var(--muted, #8b97ad); }
+.run-log[open] summary { margin-bottom: 8px; }

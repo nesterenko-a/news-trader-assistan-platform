@@ -1,24 +1,77 @@
 <span class="run-status run-{{ run.status }}">{{ {'running': 'выполняется…', 'success': 'успех', 'failed': 'ошибка'}[run.status] }}</span>
 {% if pipeline %}
-<div class="pipeline" style="margin-top:14px">
-  {% for ph in pipeline %}
-  <div class="p-step p-{{ ph.state }}">
-    {% if ph.state == 'error' %}
-    <form method="post" action="/admin/scripts/run" class="inline" onsubmit="return confirm('Запустить Ежедневный конвейер с фазы {{ ph.n }}?')">
-      <input type="hidden" name="script" value="daily_pipeline">
-      <input type="hidden" name="param_from-phase" value="{{ ph.n }}">
-      <button type="submit" class="p-circle" title="Продолжить с фазы {{ ph.n }} ({{ ph.title }})">{{ ph.n }}</button>
-    </form>
-    {% else %}
-    <span class="p-circle">{{ ph.n }}</span>
-    {% endif %}
-    <span class="p-label">{{ ph.title }}</span>
+<div class="dash" style="margin-top:14px">
+  <header class="dash-head">
+    <div class="dash-icon">{{ active_phase.icon if active_phase else '🔄' }}</div>
+    <div>
+      {% if active_phase %}
+      <h2 style="margin:0 0 5px">Фаза {{ active_phase.n }}/5: {{ active_phase.title }}</h2>
+      {% else %}
+      <h2 style="margin:0 0 5px">Ежедневный конвейер</h2>
+      {% endif %}
+      <div class="muted small">Управление фазами и задачами ежедневного цикла</div>
+    </div>
+  </header>
+
+  <div class="steps">
+    {% for ph in pipeline %}
+    <div class="step s-{{ ph.state }}">
+      <span class="step-line"></span>
+      {% if ph.state == 'error' %}
+      <form method="post" action="/admin/scripts/run" class="inline" onsubmit="return confirm('Запустить Ежедневный конвейер с фазы {{ ph.n }}?')">
+        <input type="hidden" name="script" value="daily_pipeline">
+        <input type="hidden" name="param_from-phase" value="{{ ph.n }}">
+        <button type="submit" class="s-circle" title="Продолжить с фазы {{ ph.n }} ({{ ph.title }})">{{ ph.n }}</button>
+      </form>
+      {% else %}
+      <span class="s-circle">{{ ph.n }}
+        {%- if ph.state == 'done' or ph.state == 'skipped' %}<span class="s-badge">✓</span>{% endif -%}
+        {%- if ph.state == 'pending' %}<span class="s-lock">🔒</span>{% endif -%}
+      </span>
+      {% endif %}
+      <div class="s-title">Фаза {{ ph.n }}/5</div>
+      <div class="s-desc">{{ ph.title }}</div>
+    </div>
+    {% endfor %}
   </div>
-  {% if not loop.last %}<span class="p-link"></span>{% endif %}
-  {% endfor %}
+
+  {% if active_phase %}
+  <section class="dash-content">
+    <div class="dash-content-head">Задачи фазы {{ active_phase.n }}</div>
+    {% for t in active_phase.tasks %}
+    <div class="task">
+      <div class="task-icon">{{ t.icon }}</div>
+      <div>
+        <div class="task-name">{{ t.title }}</div>
+        <div class="task-desc">{{ t.desc }}</div>
+      </div>
+      <div class="task-state">
+        {% if t.state == 'done' %}<strong class="t-success">✓ Выполнено</strong>
+        {% elif t.state == 'running' %}<strong class="t-running">◌ В процессе</strong>
+        {% elif t.state == 'waiting' %}<strong class="t-waiting">◷ Ожидает</strong>
+        {% else %}<strong class="t-waiting">—</strong>{% endif %}
+        {% if t.count %}<div class="count">{{ t.count }}</div>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    <div class="dash-bottom">
+      <span>Прогресс фазы</span>
+      <div class="progress"><div class="fill" style="width:{{ active_phase.pct }}%"></div></div>
+      <span class="pct">{{ active_phase.pct }}%</span>
+    </div>
+  </section>
+  <div class="dash-note">
+    {% if active_phase.state == 'error' %}
+    ● Фаза {{ active_phase.n }}/5 завершилась ошибкой. Нажмите на красный кружок, чтобы запустить конвейер с этой фазы.
+    {% elif active_phase.state == 'running' %}
+    ● Выполняется фаза {{ active_phase.n }}/5. Результаты будут доступны после завершения.
+    {% else %}
+    ● Фаза {{ active_phase.n }}/5 завершена.
+    {% endif %}
+  </div>
+  {% endif %}
 </div>
-{% endif %}
-{% if progress %}
+{% elif progress %}
 <div style="margin-top:10px">
   <div style="background:#e9ecef;border-radius:6px;height:14px;overflow:hidden;margin:8px 0">
     <div style="width:{{ progress.pct }}%;background:#2f7d32;height:100%;transition:width .5s"></div>
@@ -31,6 +84,9 @@
 </div>
 {% endif %}
 
-<h2>Вывод</h2>
+<h2 style="margin-top:18px">Вывод</h2>
 {% if run.status == 'running' %}<p class="muted small">Лог обновляется автоматически каждые 3 секунды.</p>{% endif %}
-<pre class="run-output">{{ run.output or "(лог пока пуст — скрипт ещё выполняется)" }}</pre>
+<details class="run-log" {% if run.status != 'running' %}open{% endif %}>
+  <summary>Лог запуска {% if run.status == 'running' %}— обновляется…{% endif %}</summary>
+  <pre class="run-output">{{ run.output or "(лог пока пуст — скрипт ещё выполняется)" }}</pre>
+</details>
