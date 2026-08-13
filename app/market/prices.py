@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,12 +23,16 @@ async def sync_security_prices(
     else:
         from_date = date.today() - timedelta(days=days or 5)
 
-    candles = await MOEXClient().fetch_candles(
-        ticker,
-        from_date=from_date,
-        till_date=date.today(),
-        security_type=security.security_type,
-    )
+    try:
+        candles = await MOEXClient().fetch_candles(
+            ticker,
+            from_date=from_date,
+            till_date=date.today(),
+            security_type=security.security_type,
+        )
+    except httpx.HTTPError as exc:
+        print(f"[prices] {ticker}: ошибка MOEX ({type(exc).__name__}) — пропускаю")
+        return 0
 
     inserted = 0
     for candle in candles:

@@ -336,20 +336,29 @@ class MOEXClient:
             params["start"] = str(start)
             params["limit"] = str(page_size)
             async with httpx.AsyncClient(timeout=30) as client:
-                # MOEX ISS иногда отвечает 302/5xx при троттлинге — ретраи
+                # MOEX ISS: троттлинг (302/429/5xx) и обрывы соединения (ReadError и др.)
                 resp = None
                 for attempt in range(6):
-                    resp = await client.get(url, params=params)
+                    try:
+                        resp = await client.get(url, params=params)
+                    except httpx.TransportError as exc:
+                        print(
+                            f"[moex] {ticker}: сетевой сбой {type(exc).__name__}, "
+                            f"попытка {attempt + 1}/6 — повтор"
+                        )
+                        await asyncio.sleep(2 + 3 * attempt)
+                        continue
                     if resp.status_code == 200:
                         break
                     if resp.status_code in (301, 302, 429, 500, 502, 503, 504):
                         await asyncio.sleep(2 + 3 * attempt)
                         continue
                     resp.raise_for_status()
-                if resp is None or resp.status_code != 200:
-                    if resp is not None:
-                        resp.raise_for_status()
-                    continue
+                if resp is None:
+                    print(f"[moex] {ticker}: соединение не восстановилось — пропускаю")
+                    return candles
+                if resp.status_code != 200:
+                    resp.raise_for_status()
                 data = resp.json()
 
             block = data.get("candles", {})

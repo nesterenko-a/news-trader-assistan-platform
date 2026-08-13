@@ -1,3 +1,5 @@
+from datetime import date
+
 from app.market.moex import _cursor_total
 
 
@@ -33,3 +35,69 @@ def test_candles_url():
     assert "securities/W4V6/candles.json" in fut
     assert fut == fut_custom
     assert "/iss/iss/" not in fut
+
+
+async def test_fetch_candles_retries_on_read_error(monkeypatch):
+    """Обрыв соединения (httpx.ReadError) — ретраи, затем успешный ответ."""
+    import httpx
+
+    from app.market import moex
+
+    class FakeResp:
+        status_code = 200
+
+        def json(self):
+            return {"candles": {"columns": ["begin", "close"], "data": []}}
+
+    class FakeClient:
+        calls = 0
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return None
+
+        async def get(self, url, params=None):
+            FakeClient.calls += 1
+            if FakeClient.calls <= 2:
+                raise httpx.ReadError("connection reset")
+            return FakeResp()
+
+    async def no_sleep(_s):
+        return None
+
+    monkeypatch.setattr(moex.asyncio, "sleep", no_sleep)
+    monkeypatch.setattr(moex.httpx, "AsyncClient", lambda **kw: FakeClient())
+    candles = await moex.MOEXClient().fetch_candles(
+        "SBER", date(2026, 1, 1), date(2026, 1, 10)
+    )
+    assert candles == []
+    assert FakeClient.calls == 3
+
+
+async def test_fetch_candles_skips_after_all_retries(monkeypatch):
+    """Постоянный обрыв соединения — fetch_candles возвращает [] (не падает, не виснет)."""
+    import httpx
+
+    from app.market import moex
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return None
+
+        async def get(self, url, params=None):
+            raise httpx.ReadError("connection reset")
+
+    async def no_sleep(_s):
+        return None
+
+    monkeypatch.setattr(moex.asyncio, "sleep", no_sleep)
+    monkeypatch.setattr(moex.httpx, "AsyncClient", lambda **kw: FakeClient())
+    candles = await moex.MOEXClient().fetch_candles(
+        "SBER", date(2026, 1, 1), date(2026, 1, 10)
+    )
+    assert candles == []
