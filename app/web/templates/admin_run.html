@@ -26,11 +26,16 @@
   // Автопрокрутка лога: если до обновления были у нижнего края — прокрутить вниз
   var out = document.querySelector('.run-output');
   var stick = !out || out.scrollTop + out.clientHeight >= out.scrollHeight - 40;
+  // Сохраняем раскрытое/свёрнутое состояние лога (details не должен закрываться при обновлении)
+  var logEl = document.querySelector('.run-log');
+  var logOpen = logEl ? logEl.open : true;
   fetch('/admin/runs/{{ run.id }}?partial=1')
     .then(function (r) { return r.text(); })
     .then(function (html) {
       var live = document.getElementById('run-live');
       if (live) live.innerHTML = html;
+      var l2 = document.querySelector('.run-log');
+      if (l2) l2.open = logOpen;
       if (stick) {
         var o2 = document.querySelector('.run-output');
         if (o2) o2.scrollTop = o2.scrollHeight;

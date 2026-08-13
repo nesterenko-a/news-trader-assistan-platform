@@ -16,7 +16,7 @@
   <div class="steps">
     {% for ph in pipeline %}
     <div class="step s-{{ ph.state }}">
-      <span class="step-line"></span>
+      {% if not loop.last %}<span class="step-line"></span>{% endif %}
       {% if ph.state == 'error' %}
       <form method="post" action="/admin/scripts/run" class="inline" onsubmit="return confirm('Запустить Ежедневный конвейер с фазы {{ ph.n }}?')">
         <input type="hidden" name="script" value="daily_pipeline">
