@@ -47,6 +47,12 @@ async def main() -> None:
         action="store_true",
         help="also collect news from company websites (kind='website')",
     )
+    parser.add_argument(
+        "--from-phase",
+        type=int,
+        default=1,
+        help="start from pipeline phase N (1-5), skipping already successful phases",
+    )
     args = parser.parse_args()
 
     since = _parse_since(args)
@@ -54,21 +60,28 @@ async def main() -> None:
         print(f"Collecting news published since {since.isoformat()}")
 
     await init_db()
+
+    phase_start = max(1, min(args.from_phase, 5))
+    if phase_start > 1:
+        print(f"Пропускаю фазы 1..{phase_start - 1} (запуск с фазы {phase_start}/5)", flush=True)
+
     async with SessionLocal() as session:
         print("Ежедневный конвейер запущен", flush=True)
-        print("Фаза 1/5: сбор и анализ новостей...", flush=True)
-        stored = await collect_news(session, since=since)
-        print(f"Новости: {stored} сохранено", flush=True)
 
-        if args.telegram:
-            print("Фаза 1b/5: Telegram-каналы...", flush=True)
-            tg_stored = await collect_telegram_news(session, since=since)
-            print(f"Telegram-новости: {tg_stored} сохранено", flush=True)
+        if phase_start <= 1:
+            print("Фаза 1/5: сбор и анализ новостей...", flush=True)
+            stored = await collect_news(session, since=since)
+            print(f"Новости: {stored} сохранено", flush=True)
 
-        if args.sites:
-            print("Фаза 1c/5: сайты компаний...", flush=True)
-            site_stored = await collect_website_news(session, since=since)
-            print(f"Сайты: {site_stored} сохранено", flush=True)
+            if args.telegram:
+                print("Фаза 1b/5: Telegram-каналы...", flush=True)
+                tg_stored = await collect_telegram_news(session, since=since)
+                print(f"Telegram-новости: {tg_stored} сохранено", flush=True)
+
+            if args.sites:
+                print("Фаза 1c/5: сайты компаний...", flush=True)
+                site_stored = await collect_website_news(session, since=since)
+                print(f"Сайты: {site_stored} сохранено", flush=True)
 
         tickers = [
             s.ticker
@@ -77,59 +90,63 @@ async def main() -> None:
             ).all()
         ]
 
-        print(f"Фаза 2/5: синхронизация свечей MOEX ({len(tickers)} бумаг)...", flush=True)
-        synced = 0
-        for i, ticker in enumerate(tickers, 1):
-            synced += await sync_security_prices(session, ticker, PRICE_LOOKBACK_DAYS)
-            print(f"  [{i}/{len(tickers)}] {ticker}: свечи синхронизированы", flush=True)
-        print(f"Цены: {synced} свечей обновлено", flush=True)
+        if phase_start <= 2:
+            print(f"Фаза 2/5: синхронизация свечей MOEX ({len(tickers)} бумаг)...", flush=True)
+            synced = 0
+            for i, ticker in enumerate(tickers, 1):
+                synced += await sync_security_prices(session, ticker, PRICE_LOOKBACK_DAYS)
+                print(f"  [{i}/{len(tickers)}] {ticker}: свечи синхронизированы", flush=True)
+            print(f"Цены: {synced} свечей обновлено", flush=True)
 
-        print("Фаза 3/5: генерация стратегий...", flush=True)
-        stored_strategies = []
-        rejected_strategies = []
-        for i, ticker in enumerate(tickers, 1):
-            print(f"  [{i}/{len(tickers)}] {ticker}: анализ...", flush=True)
-            result = await generate_strategy(session, ticker)
-            verdict = result["strategy"]["verdict"]
-            if verdict == "INSUFFICIENT_DATA":
-                rejected_strategies.append(ticker)
-                print(
-                    f"    {ticker}: REJECTED (insufficient data)",
-                    flush=True,
-                )
-            else:
-                stored_strategies.append(ticker)
-                print(
-                    f"    {ticker}: STORED "
-                    f"verdict={verdict} "
-                    f"confidence={result['strategy']['confidence']} "
-                    f"net_score={result['strategy']['net_score']}",
-                    flush=True,
-                )
-        print(
-            f"strategies stored: {len(stored_strategies)} "
-            f"({', '.join(stored_strategies) or '-'})"
-        )
-        print(
-            f"strategies rejected (insufficient data): {len(rejected_strategies)} "
-            f"({', '.join(rejected_strategies) or '-'})"
-        )
+        if phase_start <= 3:
+            print("Фаза 3/5: генерация стратегий...", flush=True)
+            stored_strategies = []
+            rejected_strategies = []
+            for i, ticker in enumerate(tickers, 1):
+                print(f"  [{i}/{len(tickers)}] {ticker}: анализ...", flush=True)
+                result = await generate_strategy(session, ticker)
+                verdict = result["strategy"]["verdict"]
+                if verdict == "INSUFFICIENT_DATA":
+                    rejected_strategies.append(ticker)
+                    print(
+                        f"    {ticker}: REJECTED (insufficient data)",
+                        flush=True,
+                    )
+                else:
+                    stored_strategies.append(ticker)
+                    print(
+                        f"    {ticker}: STORED "
+                        f"verdict={verdict} "
+                        f"confidence={result['strategy']['confidence']} "
+                        f"net_score={result['strategy']['net_score']}",
+                        flush=True,
+                    )
+            print(
+                f"strategies stored: {len(stored_strategies)} "
+                f"({', '.join(stored_strategies) or '-'})"
+            )
+            print(
+                f"strategies rejected (insufficient data): {len(rejected_strategies)} "
+                f"({', '.join(rejected_strategies) or '-'})"
+            )
 
-        print("Фаза 4/5: генерация алертов...", flush=True)
-        created_alerts = await process_alerts(
-            session,
-            since=datetime.now(timezone.utc) - timedelta(days=ALERT_LOOKBACK_DAYS),
-        )
-        print(f"Алерты: {len(created_alerts)} создано", flush=True)
-        telegram_sent = await deliver_telegram(session, created_alerts)
-        print(f"Telegram: отправлено {telegram_sent} алертов", flush=True)
+        if phase_start <= 4:
+            print("Фаза 4/5: генерация алертов...", flush=True)
+            created_alerts = await process_alerts(
+                session,
+                since=datetime.now(timezone.utc) - timedelta(days=ALERT_LOOKBACK_DAYS),
+            )
+            print(f"Алерты: {len(created_alerts)} создано", flush=True)
+            telegram_sent = await deliver_telegram(session, created_alerts)
+            print(f"Telegram: отправлено {telegram_sent} алертов", flush=True)
 
-        print("Фаза 5/5: виртуальный портфель (paper trading)...", flush=True)
-        paper_result = await process_all_accounts(session)
-        print(
-            f"Paper: открыто {paper_result['opened']}, закрыто {paper_result['closed']}",
-            flush=True,
-        )
+        if phase_start <= 5:
+            print("Фаза 5/5: виртуальный портфель (paper trading)...", flush=True)
+            paper_result = await process_all_accounts(session)
+            print(
+                f"Paper: открыто {paper_result['opened']}, закрыто {paper_result['closed']}",
+                flush=True,
+            )
         print("Конвейер завершён", flush=True)
 
 

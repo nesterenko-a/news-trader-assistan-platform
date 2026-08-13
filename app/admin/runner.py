@@ -29,6 +29,9 @@ SCRIPTS: list[dict] = [
             "и генерация алертов с push в Telegram. Запускать ежедневно."
         ),
         "param": None,
+        "params": [
+            ("--from-phase", "Начать с фазы (1–5)", 1, "int"),
+        ],
     },
     {
         "key": "collect_news",
