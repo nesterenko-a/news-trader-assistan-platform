@@ -1,6 +1,6 @@
 # 21. E2E-тесты веб-интерфейса (Playwright) — ТЗ и план тестирования
 
-**Статус:** утверждено v1.15  
+**Статус:** утверждено v1.16  
 **Система:** NewsTrader Assistant  
 **Связанные документы:** [14-web-interface.md](./14-web-interface.md), [16-working-process.md](./16-working-process.md), [13-operations.md](./13-operations.md), [17-quickstart.md](./17-quickstart.md)
 
@@ -22,6 +22,7 @@
 | Компонент | Значение |
 |---|---|
 | Node.js | 22 (LTS) |
+| npm-зависимости | `npm install` из корня проекта — обязателен первый раз: без него `node_modules/@playwright/test` отсутствует и запуск падает с `MODULE_NOT_FOUND` (`Cannot find module '...\node_modules\@playwright\test\cli.js'`). Лаунчер `scripts\run_e2e.bat` выполняет `npm install` автоматически при отсутствии пакета |
 | `@playwright/test` | `^1.62.1` (`package.json`, devDependency) |
 | Браузеры | Playwright (chromium по умолчанию); установка: `npx playwright install chromium` |
 | Python (стенд) | 3.13.7 (`.venv`) — uvicorn + сидинг `scripts/e2e_seed.py` |
