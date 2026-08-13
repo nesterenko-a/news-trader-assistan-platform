@@ -348,6 +348,17 @@ class MOEXClient:
                         )
                         await asyncio.sleep(2 + 3 * attempt)
                         continue
+                    except asyncio.CancelledError:
+                        # Внутренняя отмена из-за таймаута соединения (httpx/anyio):
+                        # реальная внешняя отмена задачи — пробрасывается
+                        if asyncio.current_task().cancelling():
+                            raise
+                        print(
+                            f"[moex] {ticker}: таймаут соединения (CancelledError), "
+                            f"попытка {attempt + 1}/6 — повтор"
+                        )
+                        await asyncio.sleep(2 + 3 * attempt)
+                        continue
                     if resp.status_code == 200:
                         break
                     if resp.status_code in (301, 302, 429, 500, 502, 503, 504):

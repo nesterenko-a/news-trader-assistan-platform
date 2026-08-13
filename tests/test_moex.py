@@ -1,4 +1,6 @@
+import asyncio
 from datetime import date
+
 
 from app.market.moex import _cursor_total
 
@@ -101,3 +103,75 @@ async def test_fetch_candles_skips_after_all_retries(monkeypatch):
         "SBER", date(2026, 1, 1), date(2026, 1, 10)
     )
     assert candles == []
+
+
+async def test_fetch_candles_retries_on_cancel_timeout(monkeypatch):
+    """Внутренняя отмена из-за таймаута (CancelledError без cancelling()) — ретрай, затем успех."""
+    from app.market import moex
+
+    class FakeResp:
+        status_code = 200
+
+        def json(self):
+            return {"candles": {"columns": ["begin", "close"], "data": []}}
+
+    class FakeClient:
+        calls = 0
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return None
+
+        async def get(self, url, params=None):
+            FakeClient.calls += 1
+            if FakeClient.calls <= 2:
+                raise asyncio.CancelledError()
+            return FakeResp()
+
+    async def no_sleep(_s):
+        return None
+
+    monkeypatch.setattr(moex.asyncio, "sleep", no_sleep)
+    monkeypatch.setattr(moex.httpx, "AsyncClient", lambda **kw: FakeClient())
+    candles = await moex.MOEXClient().fetch_candles(
+        "SBER", date(2026, 1, 1), date(2026, 1, 10)
+    )
+    assert candles == []
+    assert FakeClient.calls == 3
+
+
+async def test_fetch_candles_re_raises_external_cancel(monkeypatch):
+    """Внешняя отмена задачи (task.cancel) — CancelledError пробрасывается, ретраи не глотают."""
+    import httpx
+
+    from app.market import moex
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return None
+
+        async def get(self, url, params=None):
+            raise asyncio.CancelledError()
+
+    async def no_sleep(_s):
+        return None
+
+    monkeypatch.setattr(moex.asyncio, "sleep", no_sleep)
+    monkeypatch.setattr(moex.httpx, "AsyncClient", lambda **kw: FakeClient())
+
+    task = asyncio.create_task(
+        moex.MOEXClient().fetch_candles("SBER", date(2026, 1, 1), date(2026, 1, 10))
+    )
+    await asyncio.sleep(0)
+    task.cancel()
+    try:
+        await task
+        raised = False
+    except asyncio.CancelledError:
+        raised = True
+    assert raised

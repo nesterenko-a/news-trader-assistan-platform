@@ -295,6 +295,9 @@ async def _execute(run_id: int, script_key: str, param_values: dict | None) -> t
                     await _append_output(run_id, "".join(pending))
                     pending = []
                     last_flush = time.monotonic()
+            # Ждём полного завершения процесса: returncode может быть ещё None,
+            # когда stdout уже закрылся (процесс упал) — иначе exit_code = 0 («ложный успех»)
+            await proc.wait()
             exit_code = proc.returncode or 0
     except (asyncio.TimeoutError, TimeoutError):
         proc.kill()
@@ -331,6 +334,9 @@ async def run_script_task(run_id: int, script_key: str, param_values: dict | Non
         await _mark_status(run_id, status="running")
         try:
             exit_code, output = await _execute(run_id, script_key, param_values)
+            # Страховка: падение процесса с закрытым stdout иногда даёт код 0
+            if exit_code == 0 and "Traceback (most recent call last)" in output:
+                exit_code = 1
             status = "success" if exit_code == 0 else "failed"
         except Exception as exc:
             exit_code = -1
