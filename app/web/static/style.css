@@ -653,3 +653,22 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .selected-list { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .ft-mini { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border, #2b3750); border-radius: 14px; padding: 2px 4px 2px 10px; font-size: 12px; background: var(--panel, #1a2233); }
 .ft-mini .icon-btn { font-size: 14px; }
+
+/* --- Пайплайн фаз (Ежедневный конвейер) --- */
+.pipeline { display: flex; align-items: flex-start; gap: 4px; }
+.p-step { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 64px; }
+.p-circle {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; color: #fff; border: none; cursor: default;
+  font-size: 15px;
+}
+.p-step.p-error .p-circle { background: #c0392b; cursor: pointer; }
+.p-step.p-error .p-circle:hover { box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.35); }
+.p-step.p-done .p-circle { background: #2f7d32; }
+.p-step.p-skipped .p-circle { background: #7a8699; }
+.p-step.p-running .p-circle { background: #3b82f6; animation: p-pulse 1.2s infinite; }
+.p-step.p-pending .p-circle { background: #2b3750; }
+@keyframes p-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(59,130,246,.5); } 50% { box-shadow: 0 0 0 6px rgba(59,130,246,0); } }
+.p-label { font-size: 10px; color: var(--muted, #8b97ad); text-align: center; line-height: 1.15; }
+.p-link { flex: 1; height: 2px; background: var(--border, #2b3750); margin-top: 16px; min-width: 12px; }

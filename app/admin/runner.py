@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -308,6 +309,20 @@ async def _execute(run_id: int, script_key: str, param_values: dict | None) -> t
     return exit_code, "".join(all_parts)
 
 
+_PIPELINE_PHASE_RE = re.compile(r"Фаза (\d)/5: (.+?)\.\.\.")
+
+
+def _pipeline_failed_phase(output: str | None) -> str | None:
+    """Фаза Ежедневного конвейера, на которой произошёл сбой (из лога)."""
+    if not output:
+        return None
+    matches = list(_PIPELINE_PHASE_RE.finditer(output))
+    if not matches:
+        return None
+    last = matches[-1]
+    return f"{last.group(1)}/5: {last.group(2).strip()}"
+
+
 async def run_script_task(run_id: int, script_key: str, param_values: dict | None) -> None:
     status = "failed"
     exit_code = -1
@@ -335,10 +350,11 @@ async def run_script_task(run_id: int, script_key: str, param_values: dict | Non
         if status == "failed":
             script = get_script(script_key)
             title = script["title"] if script else script_key
+            phase = _pipeline_failed_phase(output) if script_key == "daily_pipeline" else None
             try:
                 from app.notices.service import notify_script_failed
 
-                await notify_script_failed(title, exit_code)
+                await notify_script_failed(title, exit_code, phase=phase)
             except Exception:
                 pass
         elif status == "success":

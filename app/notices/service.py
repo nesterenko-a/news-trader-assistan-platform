@@ -51,10 +51,12 @@ async def notice_state(session: AsyncSession, limit: int = 50) -> dict:
     }
 
 
-async def notify_script_failed(title: str, exit_code: int) -> None:
+async def notify_script_failed(title: str, exit_code: int, phase: str | None = None) -> None:
     from app.db.connection import SessionLocal
 
     text = f"Скрипт «{title}» завершился с ошибкой (код {exit_code})"
+    if phase:
+        text += f" на фазе {phase}"
     async with SessionLocal() as session:
         await add_notice(session, "critical", text, source="script_run")
 

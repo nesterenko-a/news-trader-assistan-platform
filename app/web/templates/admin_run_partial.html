@@ -1,4 +1,23 @@
 <span class="run-status run-{{ run.status }}">{{ {'running': 'выполняется…', 'success': 'успех', 'failed': 'ошибка'}[run.status] }}</span>
+{% if pipeline %}
+<div class="pipeline" style="margin-top:14px">
+  {% for ph in pipeline %}
+  <div class="p-step p-{{ ph.state }}">
+    {% if ph.state == 'error' %}
+    <form method="post" action="/admin/scripts/run" class="inline" onsubmit="return confirm('Запустить Ежедневный конвейер с фазы {{ ph.n }}?')">
+      <input type="hidden" name="script" value="daily_pipeline">
+      <input type="hidden" name="param_from-phase" value="{{ ph.n }}">
+      <button type="submit" class="p-circle" title="Продолжить с фазы {{ ph.n }} ({{ ph.title }})">{{ ph.n }}</button>
+    </form>
+    {% else %}
+    <span class="p-circle">{{ ph.n }}</span>
+    {% endif %}
+    <span class="p-label">{{ ph.title }}</span>
+  </div>
+  {% if not loop.last %}<span class="p-link"></span>{% endif %}
+  {% endfor %}
+</div>
+{% endif %}
 {% if progress %}
 <div style="margin-top:10px">
   <div style="background:#e9ecef;border-radius:6px;height:14px;overflow:hidden;margin:8px 0">

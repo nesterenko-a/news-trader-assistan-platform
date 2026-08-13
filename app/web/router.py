@@ -1777,6 +1777,47 @@ async def admin_futures_templates_delete(
     return RedirectResponse(url="/admin/futures-templates", status_code=303)
 
 
+_PIPELINE_TITLES = {
+    1: "Новости",
+    2: "Свечи MOEX",
+    3: "Стратегии",
+    4: "Алерты",
+    5: "Paper trading",
+}
+
+
+def _pipeline_phases(output: str | None, status: str | None) -> list[dict] | None:
+    """Состояния 5 фаз Ежедневного конвейера по логу: done/skipped/running/error/pending."""
+    if not output or "Фаза " not in output:
+        return None
+    skipped = None
+    m = re.search(r"Пропускаю фазы (\d+)\.\.(\d+)", output)
+    if m:
+        skipped = int(m.group(2))
+    started = [int(x) for x in re.findall(r"Фаза (\d+)/5:", output)]
+    started = [x for x in started if 1 <= x <= 5]
+    if not started and skipped is None:
+        return None
+    last = started[-1] if started else 0
+    phases = []
+    for n in range(1, 6):
+        if skipped is not None and n <= skipped:
+            state = "skipped"
+        elif n < last:
+            state = "done"
+        elif n == last:
+            if status == "failed":
+                state = "error"
+            elif status == "success":
+                state = "done"
+            else:
+                state = "running"
+        else:
+            state = "pending"
+        phases.append({"n": n, "title": _PIPELINE_TITLES.get(n, str(n)), "state": state})
+    return phases
+
+
 def _run_progress(output: str | None) -> dict | None:
     """Прогресс «[i/N]» из лога скрипта (например, фьючерсов загружено из общего числа)."""
     if not output:
@@ -1819,6 +1860,9 @@ async def admin_run_detail(
             "script_title": (get_script(run.script_name) or {}).get("title", run.script_name),
             "running": run.status == "running",
             "progress": _run_progress(run.output),
+            "pipeline": _pipeline_phases(run.output, run.status)
+            if run.script_name == "daily_pipeline"
+            else None,
         }
     )
     template = "admin_run_partial.html" if partial else "admin_run.html"

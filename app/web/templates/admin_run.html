@@ -23,11 +23,18 @@
 {% if running %}
 <script>
 (function pollRun() {
+  // Автопрокрутка лога: если до обновления были у нижнего края — прокрутить вниз
+  var out = document.querySelector('.run-output');
+  var stick = !out || out.scrollTop + out.clientHeight >= out.scrollHeight - 40;
   fetch('/admin/runs/{{ run.id }}?partial=1')
     .then(function (r) { return r.text(); })
     .then(function (html) {
       var live = document.getElementById('run-live');
       if (live) live.innerHTML = html;
+      if (stick) {
+        var o2 = document.querySelector('.run-output');
+        if (o2) o2.scrollTop = o2.scrollHeight;
+      }
       if (html.indexOf('run-running') !== -1) setTimeout(pollRun, 3000);
     })
     .catch(function () { setTimeout(pollRun, 3000); });

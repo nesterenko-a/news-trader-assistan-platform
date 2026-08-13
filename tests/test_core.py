@@ -1508,3 +1508,30 @@ async def test_admin_oi_template_skips_ticker(session, monkeypatch):
     assert resp.status_code == 303
     assert started["params"]["--tickers"] == "AFU6,SRU6"
     assert started["params"]["--ticker"] == ""
+
+
+def test_pipeline_phases_and_failed_phase():
+    """Состояния фаз конвейера (done/error/running/skipped) и фаза сбоя из лога."""
+    from app.admin.runner import _pipeline_failed_phase
+    from app.web.router import _pipeline_phases
+
+    out = (
+        "Пропускаю фазы 1..2 (запуск с фазы 3/5)\n"
+        "Фаза 3/5: генерация стратегий...\n"
+        "Фаза 4/5: генерация алертов...\n"
+        "Traceback (most recent call last):\n"
+    )
+    assert [p["state"] for p in _pipeline_phases(out, "failed")] == [
+        "skipped", "skipped", "done", "error", "pending",
+    ]
+    assert _pipeline_failed_phase(out) == "4/5: генерация алертов"
+
+    run_out = (
+        "Фаза 1/5: сбор и анализ новостей...\n"
+        "Фаза 2/5: синхронизация свечей MOEX (500 бумаг)...\n"
+    )
+    assert [p["state"] for p in _pipeline_phases(run_out, "running")] == [
+        "done", "running", "pending", "pending", "pending",
+    ]
+    assert _pipeline_phases("обычный скрипт без фаз", "failed") is None
+    assert _pipeline_failed_phase(None) is None
