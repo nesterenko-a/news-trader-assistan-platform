@@ -46,4 +46,20 @@
 })();
 </script>
 {% endif %}
+<script>
+// Клик по кружку фазы (не error) — показать задачи этой фазы (просмотр, без запуска)
+document.addEventListener('click', function (e) {
+  var step = e.target.closest ? e.target.closest('.step[data-phase]') : null;
+  if (!step) return;
+  var n = step.getAttribute('data-phase');
+  var sections = document.querySelectorAll('.dash-content[data-tasks]');
+  for (var i = 0; i < sections.length; i++) {
+    sections[i].style.display = sections[i].getAttribute('data-tasks') === n ? '' : 'none';
+  }
+  var head = document.querySelector('.dash-head .dash-title');
+  if (head && step.querySelector('.s-desc')) {
+    head.textContent = 'Фаза ' + n + '/5: ' + step.querySelector('.s-desc').textContent.trim();
+  }
+});
+</script>
 {% endblock %}

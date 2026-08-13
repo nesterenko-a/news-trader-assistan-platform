@@ -5,9 +5,9 @@
     <div class="dash-icon">{{ active_phase.icon if active_phase else '🔄' }}</div>
     <div>
       {% if active_phase %}
-      <h2 style="margin:0 0 5px">Фаза {{ active_phase.n }}/5: {{ active_phase.title }}</h2>
+      <h2 class="dash-title" style="margin:0 0 5px">Фаза {{ active_phase.n }}/5: {{ active_phase.title }}</h2>
       {% else %}
-      <h2 style="margin:0 0 5px">Ежедневный конвейер</h2>
+      <h2 class="dash-title" style="margin:0 0 5px">Ежедневный конвейер</h2>
       {% endif %}
       <div class="muted small">Управление фазами и задачами ежедневного цикла</div>
     </div>
@@ -15,7 +15,7 @@
 
   <div class="steps">
     {% for ph in pipeline %}
-    <div class="step s-{{ ph.state }}">
+    <div class="step s-{{ ph.state }}" {% if ph.state != 'error' %}data-phase="{{ ph.n }}"{% endif %}>
       {% if not loop.last %}<span class="step-line"></span>{% endif %}
       {% if ph.state == 'error' %}
       <form method="post" action="/admin/scripts/run" class="inline" onsubmit="return confirm('Запустить Ежедневный конвейер с фазы {{ ph.n }}?')">
@@ -24,7 +24,7 @@
         <button type="submit" class="s-circle" title="Продолжить с фазы {{ ph.n }} ({{ ph.title }})">{{ ph.n }}</button>
       </form>
       {% else %}
-      <span class="s-circle">{{ ph.n }}
+      <span class="s-circle" {% if ph.state == 'pending' %}title="Посмотреть задачи фазы {{ ph.n }}"{% elif ph.state in ('done', 'skipped') %}title="Посмотреть задачи фазы {{ ph.n }}"{% endif %}>{{ ph.n }}
         {%- if ph.state == 'done' or ph.state == 'skipped' %}<span class="s-badge">✓</span>{% endif -%}
         {%- if ph.state == 'pending' %}<span class="s-lock">🔒</span>{% endif -%}
       </span>
@@ -35,10 +35,10 @@
     {% endfor %}
   </div>
 
-  {% if active_phase %}
-  <section class="dash-content">
-    <div class="dash-content-head">Задачи фазы {{ active_phase.n }}</div>
-    {% for t in active_phase.tasks %}
+  {% for ph in pipeline %}
+  <section class="dash-content" data-tasks="{{ ph.n }}" {% if not active_phase or ph.n != active_phase.n %}style="display:none"{% endif %}>
+    <div class="dash-content-head">Задачи фазы {{ ph.n }}</div>
+    {% for t in ph.tasks %}
     <div class="task">
       <div class="task-icon">{{ t.icon }}</div>
       <div>
@@ -56,10 +56,13 @@
     {% endfor %}
     <div class="dash-bottom">
       <span>Прогресс фазы</span>
-      <div class="progress"><div class="fill" style="width:{{ active_phase.pct }}%"></div></div>
-      <span class="pct">{{ active_phase.pct }}%</span>
+      <div class="progress"><div class="fill" style="width:{{ ph.pct }}%"></div></div>
+      <span class="pct">{{ ph.pct }}%</span>
     </div>
   </section>
+  {% endfor %}
+
+  {% if active_phase %}
   <div class="dash-note">
     {% if active_phase.state == 'error' %}
     ● Фаза {{ active_phase.n }}/5 завершилась ошибкой. Нажмите на красный кружок, чтобы запустить конвейер с этой фазы.
