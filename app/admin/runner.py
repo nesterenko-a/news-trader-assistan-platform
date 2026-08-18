@@ -213,10 +213,12 @@ def build_argv(script_key: str, param_values: dict | None = None) -> list[str]:
 
     params = script.get("params")
     if params:
+        handled = set()
         for p in params:
             flag, label, default, *rest = p
             ptype = rest[0] if rest else "int"
             value = param_values.get(flag, default)
+            handled.add(flag)
             if ptype in ("text", "templates"):
                 argv += [flag, str(value) if value not in (None, "") else ""]
             else:
@@ -224,6 +226,12 @@ def build_argv(script_key: str, param_values: dict | None = None) -> list[str]:
                 if value <= 0:
                     raise ValueError("Параметр должен быть положительным числом")
                 argv += [flag, str(value)]
+        # Дополнительные параметры из param_values, не объявленные в SCRIPTS
+        # (например --tickers для daily_pipeline, подставляемые сервером)
+        for flag, value in (param_values or {}).items():
+            if flag in handled or value in (None, ""):
+                continue
+            argv += [flag, str(value)]
         return argv
 
     param = script["param"]

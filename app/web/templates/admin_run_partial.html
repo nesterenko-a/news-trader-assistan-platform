@@ -54,6 +54,26 @@
       </div>
     </div>
     {% endfor %}
+    {% if ph.n == 2 %}
+    <div class="task tpl-pick">
+      <div class="task-icon">🗂️</div>
+      <div>
+        <div class="task-name">Шаблон фьючерсов (для синхронизации)</div>
+        <div class="task-desc">Выберите сохранённый шаблон — будет применён к подзадаче «Синхронизация фьючерсов». Выбор сохраняется.</div>
+      </div>
+      <form method="post" action="/admin/pipeline/set-template" class="inline">
+        <input type="hidden" name="next" value="/admin/runs/{{ run.id }}">
+        <select name="template_id" style="padding:5px;border-radius:6px;border:1px solid #ced4da">
+          <option value="">— без шаблона (все фьючерсы) —</option>
+          {% for t in templates %}
+          <option value="{{ t.id }}" {% if t.id == user_template_id %}selected{% endif %}>{{ t.name }} ({{ t.tickers }})</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-small" style="margin-left:6px">Применить</button>
+      </form>
+    </div>
+    {% if user_template_tickers %}<div class="muted small" style="margin:4px 0 0 34px">Выбрано: {{ user_template_tickers }}</div>{% endif %}
+    {% endif %}
     <div class="dash-bottom">
       <span>Прогресс фазы</span>
       <div class="progress"><div class="fill" style="width:{{ ph.pct }}%"></div></div>

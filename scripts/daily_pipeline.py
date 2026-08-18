@@ -53,6 +53,11 @@ async def main() -> None:
         default=1,
         help="start from pipeline phase N (1-5), skipping already successful phases",
     )
+    parser.add_argument(
+        "--tickers",
+        default="",
+        help="COM-разделённый список SECID фьючерсов для синхронизации в фазе 2 (из шаблона)",
+    )
     args = parser.parse_args()
 
     since = _parse_since(args)
@@ -83,27 +88,50 @@ async def main() -> None:
                 site_stored = await collect_website_news(session, since=since)
                 print(f"Сайты: {site_stored} сохранено", flush=True)
 
-        tickers = [
-            s.ticker
-            for s in (
-                await session.scalars(select(Security).order_by(Security.ticker))
-            ).all()
+        securities = (
+            await session.scalars(select(Security).order_by(Security.ticker))
+        ).all()
+        all_tickers = [
+            (s.ticker, s.security_type)
+            for s in securities
         ]
 
         if phase_start <= 2:
-            print(f"Фаза 2/5: синхронизация свечей MOEX ({len(tickers)} бумаг)...", flush=True)
+            print(f"Фаза 2/5: синхронизация свечей MOEX ({len(all_tickers)} бумаг)...", flush=True)
             synced = 0
-            for i, ticker in enumerate(tickers, 1):
+            # Подзадача «Синхронизация акций»
+            stock_tickers = [t for t, st in all_tickers if st != "futures"]
+            for i, ticker in enumerate(stock_tickers, 1):
                 synced += await sync_security_prices(session, ticker, PRICE_LOOKBACK_DAYS)
-                print(f"  [{i}/{len(tickers)}] {ticker}: свечи синхронизированы", flush=True)
-            print(f"Цены: {synced} свечей обновлено", flush=True)
+                print(f"  [акции {i}/{len(stock_tickers)}] {ticker}: свечи синхронизированы", flush=True)
+            print(f"Синхронизация акций: {synced} свечей обновлено", flush=True)
+            # Подзадача «Синхронизация фьючерсов» (по шаблону, если передан --tickers)
+            template_tickers = [
+                t.strip().upper() for t in args.tickers.split(",") if t.strip()
+            ]
+            future_tickers = [t for t, st in all_tickers if st == "futures"]
+            if template_tickers:
+                future_tickers = [
+                    t for t in future_tickers if t in template_tickers
+                ]
+            if future_tickers:
+                synced = 0
+                for i, ticker in enumerate(future_tickers, 1):
+                    synced += await sync_security_prices(session, ticker, PRICE_LOOKBACK_DAYS)
+                    print(f"  [фьючерсы {i}/{len(future_tickers)}] {ticker}: свечи синхронизированы", flush=True)
+                print(f"Синхронизация фьючерсов: {synced} свечей обновлено", flush=True)
+            else:
+                print("Синхронизация фьючерсов: пропущено (шаблон пуст)", flush=True)
 
         if phase_start <= 3:
-            print("Фаза 3/5: генерация стратегий...", flush=True)
+            # Стратегии генерируются только для акций — фьючерсов нет в knowledge graph,
+            # для них систематический INSUFFICIENT_DATA (см. docs/09 §3).
+            strategy_tickers = [t for t, st in all_tickers if st != "futures"]
+            print(f"Фаза 3/5: генерация стратегий ({len(strategy_tickers)} акций)...", flush=True)
             stored_strategies = []
             rejected_strategies = []
-            for i, ticker in enumerate(tickers, 1):
-                print(f"  [{i}/{len(tickers)}] {ticker}: анализ...", flush=True)
+            for i, ticker in enumerate(strategy_tickers, 1):
+                print(f"  [{i}/{len(strategy_tickers)}] {ticker}: анализ...", flush=True)
                 result = await generate_strategy(session, ticker)
                 verdict = result["strategy"]["verdict"]
                 if verdict == "INSUFFICIENT_DATA":

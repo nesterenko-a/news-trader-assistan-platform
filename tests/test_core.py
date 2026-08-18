@@ -1510,6 +1510,54 @@ async def test_admin_oi_template_skips_ticker(session, monkeypatch):
     assert started["params"]["--ticker"] == ""
 
 
+async def test_admin_pipeline_injects_saved_template_for_phase2(session, monkeypatch):
+    """Ежедневный конвейер получает --tickers из шаблона, сохранённого пользователем."""
+    from app.web.router import admin_run_script
+    from app.db.models import FuturesTemplate, UserPipelinePref
+
+    admin = User(username="boss4", password_hash="x", role="admin")
+    session.add(admin)
+    await session.flush()
+    token = await create_session(session, admin)
+    tpl = FuturesTemplate(name="tpl_pipe", tickers="W4V6,SRZ6")
+    session.add(tpl)
+    await session.commit()
+    session.add(
+        UserPipelinePref(user_id=admin.id, last_futures_template_id=tpl.id)
+    )
+    await session.commit()
+
+    started = {}
+
+    def fake_launch(run_id, script_key, param_values):
+        started["params"] = param_values
+
+    monkeypatch.setattr("app.web.router.launch", fake_launch)
+
+    form = {
+        "type": "http",
+        "method": "POST",
+        "path": "/admin/scripts/run",
+        "headers": [(b"cookie", f"nt_token={token}".encode())],
+        "server": ("test", 80),
+        "query_string": b"",
+        "client": ("test", 80),
+        "scheme": "http",
+    }
+    req = Request(form)
+    # Запуск конвейера с фазы 1 — фаза 2 (фьючерсы) будет выполняться
+    req._form = {"script": "daily_pipeline", "param_from-phase": "1"}
+    resp = await admin_run_script(req, session)
+    assert resp.status_code == 303
+    assert started["params"]["--tickers"] == "W4V6,SRZ6"
+
+    # Запуск с фазы 3 — фаза 2 не выполняется, шаблон не подставляется
+    req._form = {"script": "daily_pipeline", "param_from-phase": "3"}
+    resp = await admin_run_script(req, session)
+    assert resp.status_code == 303
+    assert started["params"].get("--tickers") in (None, "")
+
+
 def test_pipeline_phases_and_failed_phase():
     """Состояния фаз конвейера (done/error/running/skipped) и фаза сбоя из лога."""
     from app.admin.runner import _pipeline_failed_phase
@@ -1535,3 +1583,57 @@ def test_pipeline_phases_and_failed_phase():
     ]
     assert _pipeline_phases("обычный скрипт без фаз", "failed") is None
     assert _pipeline_failed_phase(None) is None
+
+
+def test_pipeline_phase2_task_states_and_progress():
+    """Фаза 2: статусы подзадач акций/фьючерсов и прогресс от маркеров в логе."""
+    from app.web.router import _pipeline_phases
+
+    # Фаза 2 в процессе: акции ещё не завершены -> первая running, фьючерсы ждут
+    out_start = (
+        "Фаза 1/5: сбор и анализ новостей...\n"
+        "Новости: 3 сохранено\n"
+        "Фаза 2/5: синхронизация свечей MOEX (500 бумаг)...\n"
+        "  [акции 1/50] AFLT: свечи синхронизированы\n"
+    )
+    ph = _pipeline_phases(out_start, "running")
+    assert ph[1]["state"] == "running"
+    assert [t["state"] for t in ph[1]["tasks"]] == ["running", "waiting"]
+    assert ph[1]["pct"] == 0
+
+    # Акции завершены, фьючерсы начались -> первая done, вторая running
+    out_mid = out_start + "Синхронизация акций: 50 свечей обновлено\n  [фьючерсы 1/10] W4V6: свечи синхронизированы\n"
+    ph = _pipeline_phases(out_mid, "running")
+    assert [t["state"] for t in ph[1]["tasks"]] == ["done", "running"]
+    assert ph[1]["pct"] == 50
+
+    # Обе подзадачи завершены -> 100%
+    out_done = out_mid + "Синхронизация фьючерсов: 10 свечей обновлено\n"
+    ph = _pipeline_phases(out_done, "running")
+    assert [t["state"] for t in ph[1]["tasks"]] == ["done", "done"]
+    assert ph[1]["pct"] == 100
+    assert [t["count"] for t in ph[1]["tasks"]] == ["50", "10"]
+
+
+def test_pipeline_phase1_aux_tasks_filtered():
+    """Фаза 1: без флагов Telegram/сайты скрыты, прогресс достигает 100%."""
+    from app.web.router import _pipeline_phases
+
+    out = (
+        "Фаза 1/5: сбор и анализ новостей...\n"
+        "Новости: 5 сохранено\n"
+        "Фаза 2/5: синхронизация свечей MOEX (1 бумаг)...\n"
+    )
+    ph = _pipeline_phases(out, "running")
+    # Только «Сбор RSS новостей»; Telegram/сайты не показаны
+    titles = [t["title"] for t in ph[0]["tasks"]]
+    assert titles == ["Сбор RSS новостей"]
+
+    out_tg = (
+        "Фаза 1/5: сбор и анализ новостей...\n"
+        "Новости: 5 сохранено\n"
+        "Фаза 1b/5: Telegram-каналы...\n"
+        "Telegram-новости: 2 сохранено\n"
+    )
+    ph = _pipeline_phases(out_tg, "running")
+    assert [t["state"] for t in ph[0]["tasks"]] == ["done", "done"]

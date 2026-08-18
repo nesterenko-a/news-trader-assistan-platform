@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+
+    <changeSet id="0190-user-pipeline-prefs" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="user_pipeline_prefs"/>
+            </not>
+        </preConditions>
+        <createTable tableName="user_pipeline_prefs">
+            <column name="user_id" type="bigint">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="last_futures_template_id" type="bigint">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="0191-user-pipeline-prefs-fk-user" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <foreignKeyConstraintExists foreignKeyName="fk_user_pipeline_prefs_user"/>
+            </not>
+        </preConditions>
+        <addForeignKeyConstraint
+            baseColumnNames="user_id"
+            baseTableName="user_pipeline_prefs"
+            constraintName="fk_user_pipeline_prefs_user"
+            referencedColumnNames="id"
+            referencedTableName="users"/>
+    </changeSet>
+
+    <changeSet id="0192-user-pipeline-prefs-fk-template" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <foreignKeyConstraintExists foreignKeyName="fk_user_pipeline_prefs_template"/>
+            </not>
+        </preConditions>
+        <addForeignKeyConstraint
+            baseColumnNames="last_futures_template_id"
+            baseTableName="user_pipeline_prefs"
+            constraintName="fk_user_pipeline_prefs_template"
+            referencedColumnNames="id"
+            referencedTableName="futures_templates"/>
+    </changeSet>
+
+</databaseChangeLog>

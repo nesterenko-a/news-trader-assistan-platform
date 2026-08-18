@@ -57,3 +57,15 @@ def test_build_argv_args_flag():
 def test_build_argv_unknown_script():
     with pytest.raises(ValueError):
         build_argv("no_such_script", None)
+
+
+def test_build_argv_extra_param_passthrough():
+    """Необъявленные в SCRIPTS параметры (например --tickers у daily_pipeline)
+    пробрасываются в argv, если заданы в param_values."""
+    argv = build_argv("daily_pipeline", {"--from-phase": 2, "--tickers": "W4V6,SRZ6"})
+    assert "--tickers" in argv
+    assert argv[argv.index("--tickers") + 1] == "W4V6,SRZ6"
+
+    # Без --tickers в param_values он не добавляется
+    argv = build_argv("daily_pipeline", {"--from-phase": 1})
+    assert "--tickers" not in argv

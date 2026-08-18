@@ -441,3 +441,14 @@ class FuturesTemplate(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, server_default=func.now()
     )
+
+
+class UserPipelinePref(Base):
+    """Настройки Ежедневного конвейера пользователя (последний выбранный шаблон фьючерсов)."""
+
+    __tablename__ = "user_pipeline_prefs"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    last_futures_template_id: Mapped[int | None] = mapped_column(
+        ForeignKey("futures_templates.id"), nullable=True
+    )

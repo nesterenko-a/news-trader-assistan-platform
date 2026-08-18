@@ -54,6 +54,7 @@ from app.db.models import (
     Source,
     Strategy,
     User,
+    UserPipelinePref,
     UserSource,
     WatchlistItem,
 )
@@ -1511,6 +1512,41 @@ def _is_admin_user(user: User | None) -> bool:
     return user is not None and user.role == "admin"
 
 
+async def _user_pipeline_pref_template(
+    session: AsyncSession, user_id: int
+) -> FuturesTemplate | None:
+    """Шаблон фьючерсов, выбранный пользователем по умолчанию для фазы 2."""
+    pref = await session.get(UserPipelinePref, user_id)
+    if pref is None or pref.last_futures_template_id is None:
+        return None
+    return await session.get(FuturesTemplate, pref.last_futures_template_id)
+
+
+@router.post("/admin/pipeline/set-template")
+async def admin_pipeline_set_template(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
+    form = await request.form()
+    raw = str(form.get("template_id") or "").strip()
+    template_id = int(raw) if raw.isdigit() else 0
+    if template_id and await session.get(FuturesTemplate, template_id) is None:
+        return RedirectResponse(url="/admin?error=1", status_code=303)
+    pref = await session.get(UserPipelinePref, user.id)
+    if pref is None:
+        pref = UserPipelinePref(user_id=user.id, last_futures_template_id=template_id or None)
+        session.add(pref)
+    else:
+        pref.last_futures_template_id = template_id or None
+    await session.commit()
+    return RedirectResponse(url=str(form.get("next") or "/admin"), status_code=303)
+
+
 @router.get("/admin")
 async def admin_page(
     request: Request,
@@ -1608,6 +1644,13 @@ async def admin_run_script(
         # Если выбран шаблон фьючерсов — поле тикера блокируется и не передаётся
         if param_values.get("--tickers"):
             param_values["--ticker"] = ""
+        # Ежедневный конвейер: если будет выполняться фаза 2 (синхронизация
+        # фьючерсов), подставляем шаблон, сохранённый пользователем в Задачах
+        # фазы 2 (последний выбор), даже если не передан в форме запуска.
+        if script_key == "daily_pipeline" and param_values.get("--from-phase", 1) <= 2:
+            tpl = await _user_pipeline_pref_template(session, user.id)
+            if tpl is not None and not param_values.get("--tickers"):
+                param_values["--tickers"] = tpl.tickers
         run_params = {"params": param_values}
     else:
         param_raw = str(form.get("param") or "").strip()
@@ -1798,8 +1841,8 @@ _PIPELINE_TASKS = {
         ("🌐", "Сбор новостей с сайтов", "Парсинг новостей с сайтов СМИ и финансовых порталов", "Сайты:"),
     ],
     2: [
-        ("📈", "Синхронизация акций", "Обновление котировок и свечей акций (TQBR)", None),
-        ("📊", "Синхронизация фьючерсов", "Обновление контрактов срочного рынка (FORTS)", None),
+        ("📈", "Синхронизация акций", "Обновление котировок и свечей акций (TQBR)", "Синхронизация акций:"),
+        ("📊", "Синхронизация фьючерсов", "Обновление контрактов срочного рынка (FORTS)", "Синхронизация фьючерсов:"),
     ],
     3: [
         ("🎯", "Генерация стратегий", "Анализ данных, поиск паттернов и генерация стратегий", "strategies stored:"),
@@ -1827,17 +1870,14 @@ def _log_line(output: str, marker: str) -> str | None:
     return None
 
 
-def _task_state(phase_state: str, done: bool, index: int, has_marker: bool) -> str:
+def _task_state(phase_state: str, done: bool, index: int, has_marker: bool, active_idx: int | None = None) -> str:
     """Состояние подзадачи по состоянию фазы и наличию маркера завершения в логе."""
     if phase_state == "done":
         return "done" if (done or not has_marker) else "waiting"
     if phase_state == "running":
         if done:
             return "done"
-        if index == 0:
-            return "running"
-        prev = True  # маркер-свободные фазы: первая running, остальные waiting
-        return "waiting"
+        return "running" if active_idx == index else "waiting"
     if phase_state == "error":
         return "done" if done else "waiting"
     return "waiting"
@@ -1874,11 +1914,31 @@ def _pipeline_phases(output: str | None, status: str | None) -> list[dict] | Non
             state = "pending"
         tasks = []
         done_count = 0
-        for i, (icon, t_title, t_desc, marker) in enumerate(_PIPELINE_TASKS.get(n, [])):
+        # Фаза 1: вспомогательные задачи (Telegram/сайты) показываем, только если
+        # соответствующий флаг был передан (в логе есть «Фаза 1b/5»/«Фаза 1c/5»).
+        tpl_tasks = _PIPELINE_TASKS.get(n, [])
+        if n == 1:
+            tpl_tasks = [
+                t for t in tpl_tasks
+                if t[1] != "Сбор Telegram новостей" or "Фаза 1b/5:" in output
+            ]
+            tpl_tasks = [
+                t for t in tpl_tasks
+                if t[1] != "Сбор новостей с сайтов" or "Фаза 1c/5:" in output
+            ]
+        undones = []  # индексы ещё не выполненных подзадач (для текущей при running)
+        task_done = []
+        for i, (icon, t_title, t_desc, marker) in enumerate(tpl_tasks):
             done = bool(marker and marker in output)
+            task_done.append(done)
             if done:
                 done_count += 1
-            t_state = _task_state(state, done, i, marker is not None)
+            else:
+                undones.append(i)
+        active_idx = undones[0] if undones else None
+        for i, (icon, t_title, t_desc, marker) in enumerate(tpl_tasks):
+            done = task_done[i]
+            t_state = _task_state(state, done, i, marker is not None, active_idx)
             count = None
             if done and marker:
                 num = re.search(rf"{re.escape(marker)}\s*(\d+)", output)
@@ -1945,6 +2005,10 @@ async def admin_run_detail(
                 break
         if active_phase is None and pipeline[-1]["state"] in ("done", "skipped"):
             active_phase = pipeline[-1]
+    futures_templates = (
+        await session.scalars(select(FuturesTemplate).order_by(FuturesTemplate.name))
+    ).all()
+    user_template = await _user_pipeline_pref_template(session, user.id)
     context = await _base_context(session, user)
     context.update(
         {
@@ -1954,6 +2018,9 @@ async def admin_run_detail(
             "progress": _run_progress(run.output),
             "pipeline": pipeline,
             "active_phase": active_phase,
+            "templates": futures_templates,
+            "user_template_id": user_template.id if user_template else None,
+            "user_template_tickers": user_template.tickers if user_template else "",
         }
     )
     template = "admin_run_partial.html" if partial else "admin_run.html"
