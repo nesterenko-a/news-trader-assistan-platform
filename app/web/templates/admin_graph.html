@@ -78,41 +78,41 @@
 <section class="card">
   <h2>Связи ({{ total }} всего, по {{ 50 }} на страницу)</h2>
   {% if influences %}
-  <table class="table" style="margin-top:8px">
+  <div class="table-scroll">
+  <table class="table graph-table" style="margin-top:8px">
     <thead><tr>
-      <th>ID</th><th>От</th><th>К</th><th>Направление</th><th>Сила</th><th>Kind</th><th>Conf</th><th>Обоснование</th><th>Ссылки</th><th></th>
+      <th>От</th><th>К</th><th>Направление</th><th>Сила</th><th>Kind</th><th>Conf</th><th>Обоснование</th><th>Ссылки</th><th></th>
     </tr></thead>
     <tbody>
       {% for inf in influences %}
       <tr class="graph-row" data-id="{{ inf.id }}" data-action="graph">
-        <td>{{ inf.id }}</td>
-        <td><input class="graph-field graph-field-from" type="text" value="{{ inf.from }}" disabled title="Сущность-источник"></td>
-        <td><input class="graph-field graph-field-to" type="text" value="{{ inf.to }}" disabled title="Сущность-приёмник"></td>
-        <td>
+        <td class="graph-col-name"><input class="graph-field graph-field-from" type="text" value="{{ inf.from }}" disabled title="Сущность-источник"></td>
+        <td class="graph-col-name"><input class="graph-field graph-field-to" type="text" value="{{ inf.to }}" disabled title="Сущность-приёмник"></td>
+        <td class="graph-col-select">
           <select class="graph-field graph-field-direction" disabled>
             <option value="positive" {% if inf.direction == 'positive' %}selected{% endif %}>positive</option>
             <option value="negative" {% if inf.direction == 'negative' %}selected{% endif %}>negative</option>
           </select>
         </td>
-        <td>
+        <td class="graph-col-select">
           <select class="graph-field graph-field-strength" disabled>
             {% for s in ['weak', 'medium', 'strong'] %}
             <option value="{{ s }}" {% if inf.strength == s %}selected{% endif %}>{{ s }}</option>
             {% endfor %}
           </select>
         </td>
-        <td>
+        <td class="graph-col-select">
           <select class="graph-field graph-field-kind" disabled>
             {% for k in ['direct', 'indirect'] %}
             <option value="{{ k }}" {% if inf.kind == k %}selected{% endif %}>{{ k }}</option>
             {% endfor %}
           </select>
         </td>
-        <td><input class="graph-field graph-field-conf" type="number" min="0" max="1" step="0.05" value="{{ inf.confidence }}" disabled></td>
-        <td class="muted small" style="min-width:200px"><input class="graph-field graph-field-rationale" type="text" value="{{ inf.rationale }}" disabled></td>
-        <td class="small" style="min-width:140px"><input class="graph-field graph-field-src" type="text" value="{{ inf.source_ref }}" disabled title="{{ inf.source_ref }}"></td>
+        <td class="graph-col-conf"><input class="graph-field graph-field-conf" type="text" inputmode="decimal" value="{{ inf.confidence }}" disabled></td>
+        <td class="graph-col-wide"><input class="graph-field graph-field-rationale" type="text" value="{{ inf.rationale }}" disabled title="{{ inf.rationale }}"></td>
+        <td class="graph-col-src"><input class="graph-field graph-field-src" type="text" value="{{ inf.source_ref }}" disabled title="{{ inf.source_ref }}"></td>
         <td style="white-space:nowrap">
-          <button type="button" class="graph-edit" data-id="{{ inf.id }}" title="Редактировать" aria-label="Редактировать">✎</button>
+          <button type="button" class="graph-edit" title="Редактировать" aria-label="Редактировать">✎</button>
           <form method="post" action="/admin/graph/{{ inf.id }}/delete" class="inline" onsubmit="return confirm('Удалить связь #{{ inf.id }}?')">
             <button type="submit" class="graph-remove" title="Удалить связь" aria-label="Удалить связь">✕</button>
           </form>
@@ -121,6 +121,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
     {% if page > 1 %}<a class="btn btn-small" href="/admin/graph?page={{ page - 1 }}">← Предыдущая</a>{% endif %}
     <span class="muted small">Страница {{ page }} из {{ total_pages }}</span>

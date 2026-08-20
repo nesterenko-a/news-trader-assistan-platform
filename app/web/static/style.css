@@ -720,6 +720,14 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 
 /* Редактирование/удаление связей (admin/graph) — по образцу «Новостей» */
 .btn-small { font-size: 12px; padding: 2px 8px; }
+.table-scroll { overflow-x: auto; }
+.graph-table { table-layout: auto; }
+.graph-table th { white-space: nowrap; }
+.graph-table .graph-col-name { width: 14%; }
+.graph-table .graph-col-select { width: 11%; white-space: nowrap; }
+.graph-table .graph-col-conf { width: 7%; white-space: nowrap; }
+.graph-table .graph-col-wide { width: 26%; }
+.graph-table .graph-col-src { width: 16%; }
 .graph-remove {
   border: none; background: transparent; color: var(--muted, #999); cursor: pointer;
   font-size: 15px; line-height: 1; width: 22px; height: 22px; border-radius: 50%; padding: 0;
@@ -737,6 +745,11 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 }
 .graph-field:disabled { cursor: default; }
 .graph-field:not(:disabled) { border-color: var(--border); background: var(--panel-2); }
+/* компактные колонки: селекты и conf не обжимаются в ноль */
+.graph-col-select select, .graph-col-conf input {
+  width: auto; min-width: 96px; white-space: nowrap;
+}
+.graph-col-conf input { min-width: 56px; }
 
 /* Карта зависимостей */
 .depmap { width: 100%; height: auto; background: var(--panel, #1a2233); border-radius: 10px; }
