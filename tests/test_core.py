@@ -294,6 +294,40 @@ async def test_add_influence_with_source(session):
     assert await resolve_entity_id(session, "Электрогенерация") is not None
 
 
+async def test_pdf_relation_parse_and_analyze(session, monkeypatch):
+    """Парсинг LLM-результата и анализ PDF (мок текста и LLM-клиента)."""
+    from app.graph.pdf_analysis import (
+        analyze_pdf_relation,
+        parse_relation,
+    )
+
+    # Чистый парсинг
+    rel = parse_relation(
+        '{"from_name": "Нефть", "to_name": "Нефтегазовый сектор", '
+        '"direction": "positive", "rationale": "короткое обоснование", "confidence": 0.9}'
+    )
+    assert rel.is_valid
+    assert rel.from_name == "Нефть"
+    assert rel.to_name == "Нефтегазовый сектор"
+    assert rel.direction == "positive"
+
+    # analyze_pdf_relation с мок-клиентом и моком извлечения текста
+    monkeypatch.setattr(
+        "app.graph.pdf_analysis.extract_pdf_text", lambda *a, **k: "Цены на нефть влияют на нефтегазовый сектор."
+    )
+    expected = '{"from_name": "Нефть", "to_name": "Нефтегазовый сектор", "confidence": 0.85}'
+    import asyncio
+
+    class FakeClient:
+        async def chat(self, system_prompt, user_prompt):
+            return expected
+
+    result = await analyze_pdf_relation("whatever.pdf", client=FakeClient())
+    assert result.is_valid
+    assert result.from_name == "Нефть"
+    assert result.to_name == "Нефтегазовый сектор"
+
+
 async def test_generate_strategy_without_persist(session, monkeypatch):
     monkeypatch.setattr("app.market.moex.MOEXClient", lambda: FakeMOEX())
     await seed_graph(session)

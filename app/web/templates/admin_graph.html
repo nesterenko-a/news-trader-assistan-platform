@@ -4,37 +4,26 @@
   <h1 style="margin:0">Дополнение графа (научные ссылки)</h1>
   <a class="btn" href="/admin">← к админке</a>
 </div>
-<p class="muted small">Добавление/дополнение рёбер знания scientific-обоснованиями (FR-05-08): ссылка прикрепляется к существующему ребру влияния либо создаёт новое ребро (недостающие сущности создаются автоматически).</p>
-
-{% if result_ok %}<p style="color:#2f7d32">Ссылка обработана: {{ result }}.</p>{% endif %}
-{% if result and not result_ok %}<p style="color:#c0392b">{{ result }}.</p>{% endif %}
+<p class="muted small">Добавление/дополнение рёбер знания научными обоснованиями (FR-05-08): укажите несколько ссылок (URL) либо загрузите PDF-статью для анализа. По кнопке «Применить» запускается скрипт `add_research` (создаёт новые рёбра/сущности, дополняет существующие без дублей).</p>
 
 <section class="card">
-  <h2>Добавить ссылку к связи</h2>
-  <form method="post" action="/admin/graph/add">
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
-      <div>
-        <label class="muted small">Сущность-источник («от»)</label>
-        <input type="text" name="from_name" list="graph-entities" autocomplete="off" style="width:100%" placeholder="Например, Нефть">
-        <span class="muted small">Можно ввести новую сущность</span>
-      </div>
-      <div>
-        <label class="muted small">Сущность-приёмник («к»)</label>
-        <input type="text" name="to_name" list="graph-entities" autocomplete="off" style="width:100%" placeholder="Например, Нефтегазовый сектор">
-      </div>
-      <div>
-        <label class="muted small">Ссылка (научная/аналитическая)</label>
-        <input type="text" name="url" style="width:100%" placeholder="https://...">
+  <h2>Добавить ссылки (URL)</h2>
+  <form method="post" action="/admin/graph/add" enctype="multipart/form-data" id="links-form">
+    <div style="margin-bottom:8px">
+      <button type="button" class="btn btn-small" id="add-row">+ Строка ссылки</button>
+    </div>
+    <div id="link-rows">
+      <div class="link-row" style="display:grid;grid-template-columns:1fr 1fr 2fr 1.5fr;gap:6px;margin-bottom:6px">
+        <input type="text" name="from_name" list="graph-entities" placeholder="от (сущность)" autocomplete="off">
+        <input type="text" name="to_name" list="graph-entities" placeholder="к (сущность)" autocomplete="off">
+        <input type="text" name="url" placeholder="https://... (ссылка на статью)">
+        <input type="text" name="rationale" placeholder="обоснование (необяз.)">
       </div>
     </div>
     <datalist id="graph-entities">
       {% for e in entities %}<option value="{{ e.name }}"></option>{% endfor %}
     </datalist>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px">
-      <div>
-        <label class="muted small">Обоснование</label>
-        <input type="text" name="rationale" style="width:100%" placeholder="почему связь существует">
-      </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:6px">
       <div>
         <label class="muted small">Сила</label>
         <select name="strength" style="width:100%">
@@ -62,7 +51,17 @@
         </select>
       </div>
     </div>
-    <button class="btn" type="submit" style="margin-top:10px">Добавить</button>
+    <button class="btn" type="submit" style="margin-top:12px">Применить ссылки</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Добавить из PDF</h2>
+  <form method="post" action="/admin/graph/add" enctype="multipart/form-data">
+    <label class="muted small">Файл PDF (статья финаналитики/исследование)</label>
+    <input type="file" name="pdf" accept=".pdf,application/pdf" style="display:block;margin:6px 0">
+    <span class="muted small">Текст извлекается, LLM определяет связь «от → к» (почему это подтверждает влияние).</span>
+    <button class="btn" type="submit" style="margin-top:10px">Применить PDF</button>
   </form>
 </section>
 
@@ -93,6 +92,21 @@
   <p class="muted">Связей пока нет.</p>
   {% endif %}
 </section>
+
+<script>
+(function () {
+  var rows = document.getElementById('link-rows');
+  var addBtn = document.getElementById('add-row');
+  function cloneRow() {
+    var first = rows.querySelector('.link-row');
+    if (!first) return;
+    var el = first.cloneNode(true);
+    Array.prototype.forEach.call(el.querySelectorAll('input'), function (i) { i.value = ''; });
+    rows.appendChild(el);
+  }
+  if (addBtn) addBtn.addEventListener('click', cloneRow);
+})();
+</script>
 
 <p><a class="btn" href="/admin">← к админке</a></p>
 {% endblock %}

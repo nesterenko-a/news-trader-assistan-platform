@@ -1,6 +1,8 @@
 from pathlib import Path
 from datetime import date, datetime, timedelta, timezone
+import os
 import re
+import uuid
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -1877,33 +1879,80 @@ async def admin_graph_add(
         return RedirectResponse(url="/login", status_code=303)
     if not _is_admin_user(user):
         raise HTTPException(status_code=403, detail="Требуются права администратора")
+    from pathlib import Path
+
+    from starlette.datastructures import UploadFile as StarletteUploadFile
+
     form = await request.form()
-    from_name = str(form.get("from_name") or "").strip()
-    to_name = str(form.get("to_name") or "").strip()
-    url = str(form.get("url") or "").strip()
-    if not (from_name and to_name and url):
-        return RedirectResponse(url="/admin/graph?ok=0&result=Заполните from, to и url", status_code=303)
-    try:
-        res = await add_influence_with_source(
-            session,
-            from_name=from_name,
-            to_name=to_name,
-            url=url,
-            rationale=str(form.get("rationale") or ""),
-            strength=str(form.get("strength") or "medium"),
-            confidence=float(form.get("confidence") or 0.7),
-            direction=str(form.get("direction") or "positive"),
-            kind=str(form.get("kind") or "direct"),
-        )
+
+    # PDF-файл (анализ текста → связь определяется LLM в скрипте add_research --pdf)
+    pdf_file = form.get("pdf")
+    if isinstance(pdf_file, StarletteUploadFile) and pdf_file.filename:
+        upload_dir = Path(os.getenv("PROJECT_ROOT", str(Path(__file__).resolve().parents[2]))) / "uploads" / "pdf"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        safe_name = f"article_{uuid.uuid4().hex[:12]}.pdf"
+        pdf_path = upload_dir / safe_name
+        with open(pdf_path, "wb") as out:
+            out.write(await pdf_file.read())
+        param_values = {"--pdf": str(pdf_path)}
+        run = ScriptRun(script_name="add_research", params={"params": param_values}, user_id=user.id)
+        session.add(run)
         await session.commit()
-        msg = {
-            "created": "создано новое ребро",
-            "updated": "ссылка добавлена к существующему ребру",
-            "duplicate": "ссылка уже была (дубликат)",
-        }.get(res["status"], res["status"])
-        return RedirectResponse(url=f"/admin/graph?ok=1&result={msg}", status_code=303)
-    except ValueError as exc:
-        return RedirectResponse(url=f"/admin/graph?ok=0&result={exc}", status_code=303)
+        launch(run.id, "add_research", param_values)
+        return RedirectResponse(url=f"/admin/runs/{run.id}", status_code=303)
+
+    # Ссылки: несколько строк from/to/url (+ optional rationale/strength/confidence/direction/kind)
+    urls = [str(v).strip() for v in form.getlist("url") if str(v or "").strip()]
+    if not urls:
+        return RedirectResponse(url="/admin/graph?ok=0&result=Добавьте хотя бы одну ссылку или выберите PDF", status_code=303)
+    from_names = form.getlist("from_name")
+    to_names = form.getlist("to_name")
+    rationales = form.getlist("rationale")
+    strength = str(form.get("strength") or "medium")
+    direction = str(form.get("direction") or "positive")
+    kind = str(form.get("kind") or "direct")
+    try:
+        confidence = float(form.get("confidence") or 0.7)
+    except ValueError:
+        confidence = 0.7
+
+    rows = []
+    for i, url in enumerate(urls):
+        from_name = str((from_names[i] if i < len(from_names) else "") or "").strip()
+        to_name = str((to_names[i] if i < len(to_names) else "") or "").strip()
+        rationale = str((rationales[i] if i < len(rationales) else "") or "").strip()
+        if not (from_name and to_name):
+            continue
+        rows.append(
+            {
+                "from": from_name,
+                "to": to_name,
+                "url": url,
+                "rationale": rationale,
+                "strength": strength,
+                "confidence": confidence,
+                "direction": direction,
+                "kind": kind,
+            }
+        )
+    if not rows:
+        return RedirectResponse(url="/admin/graph?ok=0&result=Укажите from и to для каждой ссылки", status_code=303)
+
+    # Записать в CSV во временную папку и запустить add_research --file через раннер
+    upload_dir = Path(os.getenv("PROJECT_ROOT", str(Path(__file__).resolve().parents[2]))) / "uploads" / "csv"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = upload_dir / f"research_{uuid.uuid4().hex[:12]}.csv"
+    import csv
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["from", "to", "url", "rationale", "strength", "confidence", "direction", "kind"])
+        writer.writeheader()
+        writer.writerows(rows)
+    param_values = {"--file": str(csv_path)}
+    run = ScriptRun(script_name="add_research", params={"params": param_values}, user_id=user.id)
+    session.add(run)
+    await session.commit()
+    launch(run.id, "add_research", param_values)
+    return RedirectResponse(url=f"/admin/runs/{run.id}", status_code=303)
 
 
 _PIPELINE_TITLES = {

@@ -37,3 +37,4 @@ playwright-report/
 # Reasonix — локальные метаданные сессий/десктопа
 .reasonix/
 reasonix.toml
+uploads/

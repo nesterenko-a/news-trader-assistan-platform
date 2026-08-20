@@ -114,18 +114,19 @@ test.describe("News manager и админка", () => {
     await login(page, ADMIN.username, ADMIN.password);
     await page.goto("/admin/graph");
     await expect(page.locator("body")).toContainText("Дополнение графа");
-    await expect(page.locator('form[action="/admin/graph/add"]')).toHaveCount(1);
+    await expect(page.locator('form[action="/admin/graph/add"]')).toHaveCount(2);
 
-    // Добавить новое ребро ссылкой через форму
+    // Добавить новое ребро ссылкой через форму многих ссылок
     const suffix = crypto.randomUUID().replace(/-/g, "").slice(0, 6);
     await page.fill('input[name="from_name"]', "Нефть" + suffix);
     await page.fill('input[name="to_name"]', "Сектор" + suffix);
     await page.fill('input[name="url"]', "https://example.com/" + suffix);
+    const linksForm = page.locator('form[action="/admin/graph/add"][id="links-form"]').first();
     await Promise.all([
-      page.waitForURL("**/admin/graph*"),
-      page.click('button[type="submit"]:has-text("Добавить")'),
+      page.waitForURL("**/admin/runs/*"),
+      linksForm.locator('button[type="submit"]:has-text("Применить ссылки")').click(),
     ]);
-    await expect(page.locator("body")).toContainText("создано новое ребро");
+    await expect(page.locator("#run-live")).toHaveCount(1);
   });
 
 

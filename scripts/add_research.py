@@ -59,12 +59,39 @@ async def main() -> None:
     parser.add_argument("--confidence", type=float, default=0.7, help="уверенность (0..1)")
     parser.add_argument("--direction", default="positive", help="направление (positive/negative)")
     parser.add_argument("--kind", default="direct", help="характер (direct/indirect)")
+    parser.add_argument(
+        "--pdf",
+        default="",
+        help="путь к PDF-статье: текст извлекается (pypdf), LLM определяет связь «от→к», ребро добавляется",
+    )
     args = parser.parse_args()
 
     await init_db()
     async with SessionLocal() as session:
         records = []
-        if args.file.strip():
+        if args.pdf.strip():
+            from pathlib import Path
+
+            from app.graph.pdf_analysis import analyze_pdf_relation
+
+            pdf_path = args.pdf.strip()
+            rel = await analyze_pdf_relation(pdf_path)
+            if not rel.is_valid:
+                print(f"PDF {pdf_path}: не удалось определить связь из текста", flush=True)
+                return
+            records.append(
+                {
+                    "from_name": rel.from_name,
+                    "to_name": rel.to_name,
+                    "url": f"file://{Path(pdf_path).resolve()}",
+                    "rationale": rel.rationale,
+                    "strength": args.strength,
+                    "confidence": rel.confidence,
+                    "direction": rel.direction,
+                    "kind": args.kind,
+                }
+            )
+        elif args.file.strip():
             with open(args.file, newline="", encoding="utf-8") as f:
                 reader = csv.DictReader(f)
                 for raw in reader:
