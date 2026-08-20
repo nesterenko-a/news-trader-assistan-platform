@@ -66,6 +66,16 @@
 </section>
 
 <section class="card">
+  <h2>Добавить граф влияния (ASCII/текст)</h2>
+  <form method="post" action="/admin/graph/add" enctype="multipart/form-data">
+    <label class="muted small" style="display:block;margin-bottom:6px">Вставьте ASCII/текстовую схему влияния (стрелки вниз, знаки ↑/↓ у узлов — необязательно). LLM распарсит её в несколько связей.</label>
+    <textarea name="graph" rows="12" style="width:100%;font-family:monospace;font-size:12px" placeholder="Например:&#10;                 OIL&#10;                 |&#10;                 v&#10;              GAS&#10;..."></textarea>
+    <span class="muted small">Формат свободный — распознаётся через LLM. Новые сущности создаются автоматически (type best-effort).</span>
+    <button class="btn" type="submit" style="margin-top:10px">Применить граф</button>
+  </form>
+</section>
+
+<section class="card">
   <h2>Последние связи (до 50)</h2>
   {% if influences %}
   <table class="table" style="margin-top:8px">

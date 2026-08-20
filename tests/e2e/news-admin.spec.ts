@@ -114,7 +114,10 @@ test.describe("News manager и админка", () => {
     await login(page, ADMIN.username, ADMIN.password);
     await page.goto("/admin/graph");
     await expect(page.locator("body")).toContainText("Дополнение графа");
-    await expect(page.locator('form[action="/admin/graph/add"]')).toHaveCount(2);
+    await expect(page.locator('form[action="/admin/graph/add"]')).toHaveCount(3);
+    // секция «Граф влияния» — textarea для вставки ASCII-схемы и кнопка применения
+    await expect(page.locator('textarea[name="graph"]')).toHaveCount(1);
+    await expect(page.locator('button[type="submit"]:has-text("Применить граф")')).toHaveCount(1);
 
     // Добавить новое ребро ссылкой через форму многих ссылок
     const suffix = crypto.randomUUID().replace(/-/g, "").slice(0, 6);

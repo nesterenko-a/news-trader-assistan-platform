@@ -1995,10 +1995,25 @@ async def admin_graph_add(
         launch(run.id, "add_research", param_values)
         return RedirectResponse(url=f"/admin/runs/{run.id}", status_code=303)
 
+    # Граф влияния: вставленный ASCII/текст-схема → LLM разбирает в связи
+    graph_text = str(form.get("graph") or "").strip()
+    if graph_text:
+        upload_dir = Path(os.getenv("PROJECT_ROOT", str(Path(__file__).resolve().parents[2]))) / "uploads" / "graph"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        graph_path = upload_dir / f"graph_{uuid.uuid4().hex[:12]}.txt"
+        with open(graph_path, "w", encoding="utf-8") as out:
+            out.write(graph_text)
+        param_values = {"--graph": str(graph_path)}
+        run = ScriptRun(script_name="add_research", params={"params": param_values}, user_id=user.id)
+        session.add(run)
+        await session.commit()
+        launch(run.id, "add_research", param_values)
+        return RedirectResponse(url=f"/admin/runs/{run.id}", status_code=303)
+
     # Ссылки: несколько строк from/to/url (+ optional rationale/strength/confidence/direction/kind)
     urls = [str(v).strip() for v in form.getlist("url") if str(v or "").strip()]
     if not urls:
-        return RedirectResponse(url="/admin/graph?ok=0&result=Добавьте хотя бы одну ссылку или выберите PDF", status_code=303)
+        return RedirectResponse(url="/admin/graph?ok=0&result=Добавьте хотя бы одну ссылку, выберите PDF или вставьте граф влияния", status_code=303)
     from_names = form.getlist("from_name")
     to_names = form.getlist("to_name")
     rationales = form.getlist("rationale")

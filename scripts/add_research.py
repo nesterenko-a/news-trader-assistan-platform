@@ -62,7 +62,12 @@ async def main() -> None:
     parser.add_argument(
         "--pdf",
         default="",
-        help="путь к PDF-статье: текст извлекается (pypdf), LLM определяет связь «от→к», ребро добавляется",
+        help="путь к PDF-статье: текст извлекается (pypdf), LLM определяет связь «от->к», ребро добавляется",
+    )
+    parser.add_argument(
+        "--graph",
+        default="",
+        help="путь к файлу с ASCII/текстовым графом влияния: LLM парсит схему в несколько связей (from/to/direction)",
     )
     args = parser.parse_args()
 
@@ -91,6 +96,27 @@ async def main() -> None:
                     "kind": args.kind,
                 }
             )
+        elif args.graph.strip():
+            from app.graph.graph_analysis import (
+                analyze_graph_text,
+                graph_relations_to_csv,
+            )
+
+            graph_path = args.graph.strip()
+            with open(graph_path, encoding="utf-8") as f:
+                graph_text = f.read()
+            rels = await analyze_graph_text(graph_text)
+            if not rels:
+                print(f"Граф {graph_path}: не удалось определить связи из схемы", flush=True)
+                return
+            csv_text = graph_relations_to_csv(rels)
+            reader = csv.DictReader(
+                csv_text.splitlines(),
+                fieldnames=["from", "to", "url", "rationale", "strength", "confidence", "direction", "kind"],
+            )
+            next(reader, None)  # пропустить заголовок
+            for raw in reader:
+                records.append(_parse_row(raw))
         elif args.file.strip():
             with open(args.file, newline="", encoding="utf-8") as f:
                 reader = csv.DictReader(f)
