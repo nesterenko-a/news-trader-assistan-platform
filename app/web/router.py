@@ -1945,15 +1945,14 @@ async def admin_graph_page(
 
     entities = (await session.scalars(select(Entity).order_by(Entity.name))).all()
     total = (await session.scalar(select(func.count()).select_from(Influence))) or 0
-    per_page = 50
-    total_pages = max(1, -(-total // per_page))  # ceil
+    total_pages = max(1, -(-total // 10))  # ceil per_page=10
     page = max(1, min(page, total_pages))
     influences = (
         await session.scalars(
             select(Influence)
             .order_by(Influence.id.desc())
-            .offset((page - 1) * per_page)
-            .limit(per_page)
+            .offset((page - 1) * 10)
+            .limit(10)
         )
     ).all()
     entity_names = {e.id: e.name for e in entities}

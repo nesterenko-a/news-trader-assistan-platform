@@ -76,51 +76,59 @@
 </section>
 
 <section class="card">
-  <h2>Связи ({{ total }} всего, по {{ 50 }} на страницу)</h2>
+  <h2>Связи ({{ total }} всего, по 10 на страницу)</h2>
   {% if influences %}
-  <div class="table-scroll">
-  <table class="table graph-table" style="margin-top:8px">
-    <thead><tr>
-      <th>От</th><th>К</th><th>Направление</th><th>Сила</th><th>Kind</th><th>Conf</th><th>Обоснование</th><th>Ссылки</th><th></th>
-    </tr></thead>
-    <tbody>
-      {% for inf in influences %}
-      <tr class="graph-row" data-id="{{ inf.id }}" data-action="graph">
-        <td class="graph-col-name"><input class="graph-field graph-field-from" type="text" value="{{ inf.from }}" disabled title="Сущность-источник"></td>
-        <td class="graph-col-name"><input class="graph-field graph-field-to" type="text" value="{{ inf.to }}" disabled title="Сущность-приёмник"></td>
-        <td class="graph-col-select">
+  <div class="graph-cards">
+    {% for inf in influences %}
+    <div class="graph-card" data-id="{{ inf.id }}">
+      <div class="graph-card-head">
+        <span class="graph-card-title"><b>{{ inf.from }}</b> → <b>{{ inf.to }}</b></span>
+        <span class="graph-card-actions">
+          <button type="button" class="graph-edit" title="Редактировать" aria-label="Редактировать">✎</button>
+          <form method="post" action="/admin/graph/{{ inf.id }}/delete" class="inline" onsubmit="return confirm('Удалить связь «{{ inf.from }} → {{ inf.to }}»?')">
+            <button type="submit" class="graph-remove" title="Удалить связь" aria-label="Удалить связь">✕</button>
+          </form>
+        </span>
+      </div>
+      <div class="graph-card-grid">
+        <label class="graph-field-label">От
+          <input class="graph-field graph-field-from" type="text" value="{{ inf.from }}" disabled title="Сущность-источник">
+        </label>
+        <label class="graph-field-label">К
+          <input class="graph-field graph-field-to" type="text" value="{{ inf.to }}" disabled title="Сущность-приёмник">
+        </label>
+        <label class="graph-field-label">Направление
           <select class="graph-field graph-field-direction" disabled>
             <option value="positive" {% if inf.direction == 'positive' %}selected{% endif %}>positive</option>
             <option value="negative" {% if inf.direction == 'negative' %}selected{% endif %}>negative</option>
           </select>
-        </td>
-        <td class="graph-col-select">
+        </label>
+        <label class="graph-field-label">Сила
           <select class="graph-field graph-field-strength" disabled>
             {% for s in ['weak', 'medium', 'strong'] %}
             <option value="{{ s }}" {% if inf.strength == s %}selected{% endif %}>{{ s }}</option>
             {% endfor %}
           </select>
-        </td>
-        <td class="graph-col-select">
+        </label>
+        <label class="graph-field-label">Kind
           <select class="graph-field graph-field-kind" disabled>
             {% for k in ['direct', 'indirect'] %}
             <option value="{{ k }}" {% if inf.kind == k %}selected{% endif %}>{{ k }}</option>
             {% endfor %}
           </select>
-        </td>
-        <td class="graph-col-conf"><input class="graph-field graph-field-conf" type="text" inputmode="decimal" value="{{ inf.confidence }}" disabled></td>
-        <td class="graph-col-wide"><input class="graph-field graph-field-rationale" type="text" value="{{ inf.rationale }}" disabled title="{{ inf.rationale }}"></td>
-        <td class="graph-col-src"><input class="graph-field graph-field-src" type="text" value="{{ inf.source_ref }}" disabled title="{{ inf.source_ref }}"></td>
-        <td style="white-space:nowrap">
-          <button type="button" class="graph-edit" title="Редактировать" aria-label="Редактировать">✎</button>
-          <form method="post" action="/admin/graph/{{ inf.id }}/delete" class="inline" onsubmit="return confirm('Удалить связь #{{ inf.id }}?')">
-            <button type="submit" class="graph-remove" title="Удалить связь" aria-label="Удалить связь">✕</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+        </label>
+        <label class="graph-field-label">Conf
+          <input class="graph-field graph-field-conf" type="text" inputmode="decimal" value="{{ inf.confidence }}" disabled>
+        </label>
+        <label class="graph-field-label graph-field-wide">Обоснование
+          <input class="graph-field graph-field-rationale" type="text" value="{{ inf.rationale }}" disabled title="{{ inf.rationale }}">
+        </label>
+        <label class="graph-field-label graph-field-wide">Ссылки
+          <input class="graph-field graph-field-src" type="text" value="{{ inf.source_ref }}" disabled title="{{ inf.source_ref }}">
+        </label>
+      </div>
+    </div>
+    {% endfor %}
   </div>
   <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
     {% if page > 1 %}<a class="btn btn-small" href="/admin/graph?page={{ page - 1 }}">← Предыдущая</a>{% endif %}
@@ -151,7 +159,7 @@
   // Редактирование связей по образцу страницы «Новости»: ✎ включает поля, ✓ сохраняет, ✕ удаляет.
   document.querySelectorAll('.graph-edit').forEach(function (btn) {
     btn.addEventListener('click', function () {
-      var row = btn.closest('tr');
+      var row = btn.closest('.graph-card');
       var fields = row.querySelectorAll('.graph-field');
       var editing = !btn.classList.contains('active');
       if (editing) {
