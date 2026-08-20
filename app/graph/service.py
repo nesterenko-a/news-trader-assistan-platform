@@ -17,6 +17,7 @@ class InfluencePath:
     sign: float
     strength: float
     confidence: float
+    source_ref: str = ""
 
 
 async def seed_graph(session: AsyncSession) -> None:
@@ -129,17 +130,21 @@ async def find_influence_paths(
         edges.setdefault(edge.from_entity_id, []).append(edge)
 
     paths = []
-    queue = [(start_entity_id, [start_entity_id], 1.0, 1.0, 1.0)]
+    queue = [(start_entity_id, [start_entity_id], 1.0, 1.0, 1.0, [])]
 
     while queue:
-        current, visited, sign, strength, confidence = queue.pop(0)
+        current, visited, sign, strength, confidence, sources = queue.pop(0)
         if current == target_entity_id and len(visited) > 1:
+            # Наиболее значимая непустая ссылка обоснования вдоль цепочки;
+            # если таких нет — остаётся пустая (курируемая без документа).
+            source_ref = next((s for _, s in sources if s and s != "curated"), "")
             paths.append(
                 InfluencePath(
                     entities=[entity_names[i] for i in visited],
                     sign=sign,
                     strength=strength,
                     confidence=confidence,
+                    source_ref=source_ref,
                 )
             )
             continue
@@ -152,7 +157,14 @@ async def find_influence_paths(
             next_strength = min(strength, STRENGTH_WEIGHT.get(edge.strength, 2)) * HOP_DECAY
             next_confidence = confidence * edge.confidence
             queue.append(
-                (edge.to_entity_id, visited + [edge.to_entity_id], next_sign, next_strength, next_confidence)
+                (
+                    edge.to_entity_id,
+                    visited + [edge.to_entity_id],
+                    next_sign,
+                    next_strength,
+                    next_confidence,
+                    sources + [(edge.id, edge.source_ref)],
+                )
             )
 
     paths.sort(key=lambda p: (abs(p.sign) * p.strength * p.confidence, len(p.entities)), reverse=True)

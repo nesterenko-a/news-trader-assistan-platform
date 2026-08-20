@@ -26,6 +26,7 @@ class SignalView:
     weight: float
     weight_str: str
     path: str
+    source_ref: str = ""
 
 
 @dataclass
@@ -53,6 +54,7 @@ class StrategyView:
     news: list[NewsItemView] = field(default_factory=list)
     counterarguments: list[str] = field(default_factory=list)
     risks: list[str] = field(default_factory=list)
+    research: list[str] = field(default_factory=list)
     web_url: str = ""
 
 
@@ -65,8 +67,13 @@ def build_strategy_view(
     strategy = result["strategy"]
     levels = strategy["levels"]
     signals = []
+    research: list[str] = []
     for signal in result["signals"]:
         kind = signal["kind"]
+        ref = signal.get("path_source_ref") or ""
+        if ref and ref != "curated":
+            research.append(ref)
+            research = list(dict.fromkeys(research))  # уникальные
         signals.append(
             SignalView(
                 entity=signal["entity"],
@@ -76,6 +83,7 @@ def build_strategy_view(
                 weight=round(signal["weight"], 3),
                 weight_str="—" if kind in ("oi", "vp", "trend", "sr") else f"{signal['weight']:+.3f}",
                 path=" → ".join(signal["path"]),
+                source_ref=ref,
             )
         )
     return StrategyView(
@@ -97,5 +105,6 @@ def build_strategy_view(
         news=news or [],
         counterarguments=[ca["text"] for ca in result.get("counterarguments", [])],
         risks=result.get("risks", []),
+        research=research,
         web_url=web_url,
     )

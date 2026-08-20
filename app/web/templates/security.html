@@ -194,6 +194,19 @@
 
   <p class="rationale">{{ view.rationale }}</p>
 
+  {% if view.research %}
+  <div class="research" style="margin-top:10px">
+    <h3 style="margin:0 0 6px;font-size:15px">Научные/аналитические обоснования</h3>
+    <ul class="muted" style="margin:0;padding-left:18px">
+      {% for url in view.research %}
+      <li>
+        Цепочка влияния обоснована: <a href="{{ url }}" target="_blank" rel="noopener">{{ url }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
   {% if view.counterarguments or view.risks %}
   <div style="margin-top:16px">
     {% if view.counterarguments %}

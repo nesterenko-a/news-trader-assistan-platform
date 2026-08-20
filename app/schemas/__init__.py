@@ -45,6 +45,7 @@ class StrategyResponse(BaseModel):
     rationale_summary: str
     counterarguments: list[dict] = []
     risks: list[str] = []
+    research: list[str] = []
     strategy_id: int | None = None
 
 

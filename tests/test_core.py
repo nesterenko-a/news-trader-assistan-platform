@@ -193,6 +193,56 @@ async def test_oil_news_hits_aviation_and_oil_company(session, monkeypatch):
     assert lukoil_result["strategy"]["verdict"] == "BUY"
 
 
+async def test_research_source_ref_in_path_and_evidence(session, monkeypatch):
+    """Цепочки с не-empty source_ref переносят ссылку и создают research-обоснование."""
+    from app.db.models import EvidenceItem, Influence
+
+    monkeypatch.setattr("app.market.moex.MOEXClient", lambda: FakeMOEX())
+    await seed_graph(session)
+
+    # Добавляем курируемую связь с реальной ссылкой обоснования (FR-05-08):
+    # берём уже посеянную «Нефть → Нефтегазовый сектор» и проставляем ссылку.
+    oil_id = await resolve_entity_id(session, "Нефть")
+    sector_id = await resolve_entity_id(session, "Нефтегазовый сектор")
+    edge = (
+        await session.scalars(
+            select(Influence).where(
+                Influence.from_entity_id == oil_id,
+                Influence.to_entity_id == sector_id,
+            )
+        )
+    ).first()
+    edge.source_ref = "https://example.com/oil-gaz-research"
+    await session.flush()
+
+    # Существующая связь тоже оставляем без изменений; путь до сектора теперь
+    # проходит через связь со ссылкой.
+    lukoil_id = await resolve_entity_id(session, "Лукойл")
+    paths = await find_influence_paths(session, oil_id, lukoil_id)
+    assert paths
+    assert paths[0].source_ref == "https://example.com/oil-gaz-research"
+
+    # Генерация стратегии по Лукойлу (новая нефтяная новость) — должен
+    # появиться research-элемент обоснования в БД.
+    await _store_news(session, "http://test.ru/oil-research", "Нефть", "positive")
+    await session.commit()
+
+    result = await generate_strategy(session, "LKOH")
+    assert result["strategy_id"] is not None
+    assert "https://example.com/oil-gaz-research" in result["research"]
+
+    ev = (
+        await session.scalars(
+            select(EvidenceItem).where(
+                EvidenceItem.strategy_id == result["strategy_id"],
+                EvidenceItem.kind == "research",
+            )
+        )
+    ).all()
+    assert len(ev) >= 1
+    assert ev[0].url == "https://example.com/oil-gaz-research"
+
+
 async def test_insufficient_data(session, monkeypatch):
     monkeypatch.setattr("app.market.moex.MOEXClient", lambda: FakeMOEX())
     await seed_graph(session)

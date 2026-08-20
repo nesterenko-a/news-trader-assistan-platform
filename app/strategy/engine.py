@@ -266,6 +266,7 @@ async def generate_strategy(
                 "weight": contribution,
                 "path_strength": best.strength,
                 "path_confidence": best.confidence,
+                "path_source_ref": best.source_ref,
             }
         )
 
@@ -585,6 +586,25 @@ async def generate_strategy(
                 )
             )
 
+        # Научные/аналитические обоснования (FR-05-08): ссылки, которыми
+        # подкреплены цепочки влияния. По одной на уникальную ссылку.
+        research_done = set()
+        for s in signals:
+            ref = s.get("path_source_ref") or ""
+            if not ref or ref == "curated" or ref in research_done:
+                continue
+            research_done.add(ref)
+            session.add(
+                EvidenceItem(
+                    strategy_id=strategy.id,
+                    kind="research",
+                    quote=f"Цепочка влияния: {' → '.join(s['path'])}",
+                    url=ref,
+                    graph_path=s["path"],
+                    weight=0.0,
+                )
+            )
+
         for ca in counterarguments:
             if ca["text"]:
                 session.add(
@@ -598,6 +618,13 @@ async def generate_strategy(
 
         await session.commit()
         result["strategy_id"] = strategy.id
+    # Научные/аналитические обоснования цепочек (FR-05-08) — уникальные ссылки.
+    research = []
+    for s in signals:
+        ref = s.get("path_source_ref") or ""
+        if ref and ref != "curated" and ref not in research:
+            research.append(ref)
+    result["research"] = research
     return result
 
 

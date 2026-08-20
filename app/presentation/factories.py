@@ -39,6 +39,11 @@ class TelegramMessageFactory:
                     f"• [{e(signal.kind_label)}] {e(signal.entity)} "
                     f"({e(signal.sentiment)}): {signal.weight_str}"
                 )
+        if view.research:
+            lines.append("")
+            lines.append("Научные/аналитические обоснования:")
+            for url in view.research[:5]:
+                lines.append(f"• <a href=\"{e(url)}\">{e(url)}</a>")
         if view.news:
             lines.append("")
             lines.append("Новости:")
