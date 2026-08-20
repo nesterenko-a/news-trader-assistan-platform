@@ -126,7 +126,7 @@ async def main() -> None:
                 updated += 1
             else:
                 duplicate += 1
-            print(f"  {status.upper()}: {r['from_name']} → {r['to_name']} @ {r['url']}")
+            print(f"  {status.upper()}: {r['from_name']} -> {r['to_name']} @ {r['url']}")
         await session.commit()
         print(f"Итого: создано {created}, дополнено {updated}, дубликатов {duplicate}")
 
