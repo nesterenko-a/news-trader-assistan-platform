@@ -144,6 +144,7 @@ SCRIPTS: list[dict] = [
         "params": [
             ("--out", "Файл дампа (JSONL); без него — в stdout", "", "text"),
         ],
+        "hidden": True,
     },
     {
         "key": "import_graph",
@@ -158,6 +159,7 @@ SCRIPTS: list[dict] = [
         "params": [
             ("--file", "JSONL-файл экспорта", "", "text"),
         ],
+        "hidden": True,
     },
     {
         "key": "backtest",
