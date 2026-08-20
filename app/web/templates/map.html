@@ -7,7 +7,7 @@
   <h1 style="margin:0">Карта зависимостей</h1>
   <a class="btn" href="/">← Все бумаги</a>
 </header>
-<p class="muted small">Цепочки влияния из knowledge graph (причина → … → сектор → бумага). Механизм передачи — подпись на стрелке (rationale ребра); под узлом — «что отслеживать».</p>
+<p class="muted small">Интерактивная карта цепочек влияния из knowledge graph (причина → … → сектор → бумага). Колесо мыши — зум, перетаскивание — панорамирование. Стрелка с подписью — механизм передачи; знак ± — направление влияния; под узлом — «что отслеживать».</p>
 
 <section class="card">
   <form method="get" action="/map" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -23,20 +23,92 @@
   </form>
 </section>
 
-{% if dep_map %}
+{% if selected_ticker %}
 <section class="card">
   <div class="chart-head">
     <h2>{{ selected_ticker }} — {{ selected_name }}</h2>
-    <span class="muted small">узлов: {{ dep_count }}</span>
+    <span class="muted small">узлов: {{ dep_count }} · зум: колесо / панорама: drag</span>
   </div>
-  {{ dep_map | safe }}
+  <div id="cy" class="dep-cy" style="height:520px"></div>
   <div class="chart-legend">
     <span class="legend-item"><i class="legend-dot" style="background:var(--accent)"></i> целевая сущность</span>
     <span class="legend-item"><i class="legend-dot" style="background:#e67e22"></i> ключевой фактор</span>
     <span class="legend-item"><i class="legend-dot" style="background:#98a6b3"></i> влияющий узел · <b>+</b> / <b>−</b> — знак влияния</span>
   </div>
 </section>
-{% elif selected_ticker %}
-<section class="card"><p class="muted">Для этой бумаги карта зависимостей пуста (нет связанных сущностей графа).</p></section>
 {% endif %}
+
+<noscript><p class="muted">Для интерактивной карты включите JavaScript. (Запасная SVG-версия)</p>
+  {% if dep_map %}{{ dep_map | safe }}{% endif %}
+</noscript>
+
+<script src="/static/cytoscape.min.js"></script>
+<script>
+window.__DEP_GRAPH = {{ graph_json | safe }};
+(function () {
+  if (!window.cytoscape) return;
+  var graph = window.__DEP_GRAPH;
+  if (!graph || !graph.nodes || !graph.nodes.length) return;
+  var container = document.getElementById("cy");
+  if (!container) return;
+
+  var style = [
+    { selector: "node", style: {
+        "label": "data(label)",
+        "width": 160, "height": 60,
+        "shape": "round-rectangle",
+        "background-color": "#202a40",
+        "border-color": "#2b3750", "border-width": 1,
+        "color": "#e6ebf5", "font-size": 13, "text-valign": "center",
+        "text-wrap": "wrap", "text-max-width": 150,
+        "padding": 6
+    }},
+    { selector: "node[is_key]", style: {
+        "border-color": "#f5a623", "border-width": 2
+    }},
+    { selector: "node[is_target]", style: {
+        "border-color": "#4f8cff", "border-width": 2.5,
+        "background-color": "#1e2f4d"
+    }},
+    { selector: "edge", style: {
+        "width": 2, "line-color": "#2fbf71",
+        "target-arrow-color": "#2fbf71", "target-arrow-shape": "triangle",
+        "curve-style": "bezier",
+        "label": "data(label)",
+        "font-size": 10, "color": "#9fb3c8", "text-background-color": "#1a2233",
+        "text-background-opacity": 0.85, "text-background-padding": 3,
+        "text-rotation": "autorotate",
+        "text-wrap": "wrap", "text-max-width": 150
+    }},
+    { selector: "edge[sign < 0]", style: {
+        "line-color": "#e5484d", "target-arrow-color": "#e5484d", "color": "#e5484d"
+    }}
+  ];
+  // знак в подписи
+  graph.edges.forEach(function (e) {
+    e.data.label = (e.data.sign < 0 ? "− " : "+ ") + e.data.label;
+  });
+
+  var cy = cytoscape({
+    container: container,
+    elements: graph.nodes.concat(graph.edges),
+    style: style,
+    layout: { name: "breadthfirst", directed: true, spacingFactor: 1.2 },
+    minZoom: 0.3, maxZoom: 3,
+    wheelSensitivity: 0.2,
+    boxSelectionEnabled: false,
+  });
+
+  // подсказка «что отслеживать» — добавляем к подписи узла
+  cy.nodes().forEach(function (nd) {
+    var name = nd.data("label");
+    var m = nd.data("metrics") || [];
+    if (m.length) {
+      var labels = m.slice(0, 3).map(function (x) { return x.label; });
+      var extra = labels.join(", ") + (m.length > 3 ? "…" : "");
+      nd.data("label", name + "\n(" + extra + ")");
+    }
+  });
+})();
+</script>
 {% endblock %}

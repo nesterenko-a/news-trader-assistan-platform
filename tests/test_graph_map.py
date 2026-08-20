@@ -90,3 +90,28 @@ async def test_build_map_svg(session):
     # если есть стрелки — подпись/знак
     if graph["edges"]:
         assert "+" in svg or "−" in svg
+
+
+async def test_map_to_cytoscape(session):
+    """Преобразование графа в структуру Cytoscape: узлы с для JS, рёбра с sign/label."""
+    from app.web.router import _map_to_cytoscape
+
+    await seed_graph(session)
+    lkoh_id = await _security_id(session, "LKOH")
+    graph = await build_dependency_map(session, lkoh_id)
+    cy = _map_to_cytoscape(graph)
+
+    assert cy["nodes"] and cy["edges"]
+    # каждый узел несёт id = имя и флаги
+    for node in cy["nodes"]:
+        d = node["data"]
+        assert d["id"] and d["label"]
+        assert isinstance(d["is_target"], bool)
+        assert isinstance(d["is_key"], bool)
+    # рёбра: source/target по именам, sign float, label — механизм (обрезанный)
+    for edge in cy["edges"]:
+        d = edge["data"]
+        assert d["source"] and d["target"]
+        assert isinstance(d["sign"], float)
+        assert d["label"]
+        assert len(d["label"]) <= 61

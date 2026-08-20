@@ -90,12 +90,11 @@ test.describe("Публичные страницы", () => {
     await expect(page.locator(".depmap")).toHaveCount(1);
   });
 
-  test("/map: открывается и отрисовывает карту для выбранного тикера", async ({ page }) => {
+  test("/map: открывается и отрисовывает интерактивную карту (Cytoscape)", async ({ page }) => {
     await page.goto("/map?ticker=AFLT");
     await expect(page.locator("body")).toContainText("Карта зависимостей");
-    // хотя бы одна страница/SVG-контейнер
-    const svgs = await page.locator(".depmap").count();
-    expect(svgs).toBeGreaterThanOrEqual(1);
+    // Cytoscape рендерит стопку canvas-слоёв внутри #cy
+    await expect(page.locator("#cy canvas")).not.toHaveCount(0, { timeout: 8000 });
   });
 
   test("карточка: неизвестный тикер — 404", async ({ page }) => {

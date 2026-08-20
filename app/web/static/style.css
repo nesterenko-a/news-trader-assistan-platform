@@ -720,6 +720,8 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 
 /* Карта зависимостей */
 .depmap { width: 100%; height: auto; background: var(--panel, #1a2233); border-radius: 10px; }
+.dep-cy { width: 100%; background: var(--panel, #1a2233); border: 1px solid var(--border, #2b3750); border-radius: 10px; }
+.dep-cy canvas { border-radius: 10px; }
 .depmap text { font-family: "Segoe UI", system-ui, sans-serif; }
 .dep-name { fill: var(--text, #e6ebf5); font-size: 13px; font-weight: 700; }
 .dep-metric { fill: var(--muted, #8b97ad); font-size: 10px; }

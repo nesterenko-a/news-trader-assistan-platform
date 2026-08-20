@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta, timezone
 import os
 import re
 import uuid
+import json
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -655,6 +656,42 @@ async def index(
     return templates.TemplateResponse(request, "index.html", context)
 
 
+def _map_to_cytoscape(graph: dict) -> dict:
+    """Преобразовать граф зависимостей в структуру для Cytoscape.js (nodes/edges)."""
+    nodes = []
+    for n in graph.get("nodes", []):
+        nodes.append(
+            {
+                "data": {
+                    "id": n["name"],
+                    "label": n["name"],
+                    "type": n.get("type"),
+                    "is_target": bool(n.get("is_target")),
+                    "is_key": bool(n.get("is_key")),
+                    "metrics": n.get("metrics") or [],
+                }
+            }
+        )
+    edges = []
+    for e in graph.get("edges", []):
+        mechanism = (e.get("mechanism") or "").strip() or "связь"
+        if len(mechanism) > 60:
+            mechanism = mechanism[:57] + "…"
+        edges.append(
+            {
+                "data": {
+                    "id": f"{e['from']}→{e['to']}",
+                    "source": e["from"],
+                    "target": e["to"],
+                    "sign": float(e.get("sign", 1.0)),
+                    "label": mechanism,
+                    "kind": e.get("kind"),
+                }
+            }
+        )
+    return {"nodes": nodes, "edges": edges}
+
+
 @router.get("/map")
 async def map_page(
     request: Request,
@@ -667,6 +704,7 @@ async def map_page(
     selected = None
     dep_map = ""
     dep_count = 0
+    graph_json = "null"
     if ticker.strip():
         selected = await session.scalar(
             select(Security).where(Security.ticker == ticker.strip().upper())
@@ -676,6 +714,7 @@ async def map_page(
         graph = await build_dependency_map(session, selected.id)
         dep_map = build_map_svg(graph)["svg"]
         dep_count = len(graph["nodes"])
+        graph_json = json.dumps(_map_to_cytoscape(graph), ensure_ascii=False)
 
     context = await _base_context(session, user)
     context.update(
@@ -693,6 +732,7 @@ async def map_page(
             "selected_name": selected.name if selected else "",
             "dep_map": dep_map,
             "dep_count": dep_count,
+            "graph_json": graph_json,
         }
     )
     return templates.TemplateResponse(request, "map.html", context)
