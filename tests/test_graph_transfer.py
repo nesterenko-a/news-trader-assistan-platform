@@ -6,6 +6,7 @@ from app.db.connection import Base
 from app.db.models import Entity, Influence
 from app.graph.service import (
     export_graph_records,
+    graph_to_jsonl,
     import_graph_records,
     resolve_entity_id,
     seed_graph,
@@ -115,3 +116,22 @@ async def test_import_preserves_attrs_and_creates_missing_entities(session):
     assert inf.confidence == 0.42
     assert inf.source_ref == "https://example.com/x"
     assert inf.is_approved is False
+
+
+async def test_graph_to_jsonl_format(session):
+    """graph_to_jsonl выдаёт поток строк с маркерами record и полем edge_kind у рёбер."""
+    await seed_graph(session)
+    entities, influences = await export_graph_records(session)
+
+    import json
+
+    lines = [l for l in graph_to_jsonl(entities, influences).splitlines() if l.strip()]
+    entity_lines = [l for l in lines if json.loads(l)["record"] == "entity"]
+    influence_lines = [l for l in lines if json.loads(l)["record"] == "influence"]
+    assert len(entity_lines) == len(entities)
+    assert len(influence_lines) == len(influences)
+    # маркер record отделён от поля характера ребра kind — нет коллизии
+    sample = json.loads(influence_lines[0])
+    assert sample["record"] == "influence"
+    assert sample["kind"] in ("direct", "indirect")
+    assert "from" in sample and "to" in sample

@@ -6,7 +6,7 @@ import uuid
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -95,7 +95,7 @@ from app.presentation.factories import WebContextFactory
 from app.presentation.view import build_strategy_view
 from app.macro.service import event_tickers, list_events, list_security_events
 from app.strategy.engine import generate_strategy
-from app.graph.service import add_influence_with_source
+from app.graph.service import add_influence_with_source, export_graph_records, graph_to_jsonl
 
 router = APIRouter(tags=["web"])
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
@@ -1952,6 +1952,67 @@ async def admin_graph_add(
     session.add(run)
     await session.commit()
     launch(run.id, "add_research", param_values)
+    return RedirectResponse(url=f"/admin/runs/{run.id}", status_code=303)
+
+
+@router.get("/admin/graph/export")
+async def admin_graph_export(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    """Скачать дамп графа (JSONL) через браузер с именем {YYYYMMDD_HHMMSS}_seed_dump.jsonl."""
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
+
+    entities, influences = await export_graph_records(session)
+    payload = graph_to_jsonl(entities, influences)
+
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{stamp}_seed_dump.jsonl"
+    return Response(
+        content=payload,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/admin/graph/import")
+async def admin_graph_import(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    """Загрузка JSONL-дампа графа и запуск идемпотентного импорта (scripts.import_graph --file)."""
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
+
+    from starlette.datastructures import UploadFile as StarletteUploadFile
+
+    form = await request.form()
+    up = form.get("file")
+    if not (isinstance(up, StarletteUploadFile) and up.filename):
+        return RedirectResponse(url="/admin/graph?ok=0&result=Выберите JSONL-файл дампа графа", status_code=303)
+
+    content = (await up.read()).decode("utf-8", errors="replace").strip()
+    if not content:
+        return RedirectResponse(url="/admin/graph?ok=0&result=Файл пуст", status_code=303)
+
+    upload_dir = Path(os.getenv("PROJECT_ROOT", str(Path(__file__).resolve().parents[2]))) / "uploads" / "graph"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    dump_path = upload_dir / f"import_graph_{uuid.uuid4().hex[:12]}.jsonl"
+    with open(dump_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    param_values = {"--file": str(dump_path)}
+    run = ScriptRun(script_name="import_graph", params={"params": param_values}, user_id=user.id)
+    session.add(run)
+    await session.commit()
+    launch(run.id, "import_graph", param_values)
     return RedirectResponse(url=f"/admin/runs/{run.id}", status_code=303)
 
 

@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+import json
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -409,3 +411,13 @@ async def _entity_by_id_or_name(session: AsyncSession, name: str) -> Entity | No
         return None
     mapped = await load_entities(session)
     return mapped.get(name.strip()) or mapped.get(name.strip().lower())
+
+
+def graph_to_jsonl(entities: list[dict], influences: list[dict]) -> str:
+    """Сериализовать списки записей графа (формат export_graph_records) в JSONL."""
+    lines: list[str] = []
+    for e in entities:
+        lines.append(json.dumps({"record": "entity", **e}, ensure_ascii=False))
+    for i in influences:
+        lines.append(json.dumps({"record": "influence", **i}, ensure_ascii=False))
+    return "\n".join(lines) + "\n"

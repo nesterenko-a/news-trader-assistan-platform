@@ -74,6 +74,24 @@
   <a class="btn" href="/admin/graph" style="margin-top:8px">Дополнение графа →</a>
 </section>
 
+<section class="card">
+  <h2>Перенос графа (экспорт / импорт)</h2>
+  <p class="muted small" style="margin-top:6px">Выгрузка и восстановление всего графа (сущности типа/алиасы/мета и рёбра с обоснованиями) в формате JSONL — для переноса на другую БД или резервной копии.</p>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;align-items:center">
+    <div>
+      <a class="btn" href="/admin/graph/export">⬇ Скачать дамп графа (JSONL)</a>
+      <div class="muted small" style="margin-top:4px">Имя файла: {ГГГГММДД_ЧЧ:ММ:СС}_seed_dump.jsonl</div>
+    </div>
+    <div>
+      <form method="post" action="/admin/graph/import" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center">
+        <input type="file" name="file" accept=".jsonl,application/json,text/plain" required>
+        <button class="btn" type="submit">Импортировать</button>
+      </form>
+      <div class="muted small" style="margin-top:4px">Идемпотентно — повторная загрузка не дублирует записи.</div>
+    </div>
+  </div>
+</section>
+
 <datalist id="futures-datalist"></datalist>
 <script>
 fetch('/v1/indicators/futures')
