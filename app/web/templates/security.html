@@ -124,8 +124,9 @@
       <h2>Карта зависимостей</h2>
       <a class="btn small" href="/map?ticker={{ view.ticker }}">Развернуть /map →</a>
     </div>
-    <p class="muted small">Цепочки влияния из knowledge graph: причина → … → сектор → бумага. Подпись на стрелке — механизм передачи (rationale ребра); под узлом — «что отслеживать».</p>
-    {{ dep_map | safe }}
+    <p class="muted small">Цепочки влияния из knowledge graph: причина → … → сектор → бумага. Зум — колесо мыши, панорама — перетаскивание. Подпись на стрелке — механизм передачи; под узлом — «что отслеживать».</p>
+    <div id="cy-security" class="dep-cy" style="height:420px"></div>
+    <noscript>{{ dep_map | safe }}</noscript>
     <div class="chart-legend">
       <span class="legend-item"><i class="legend-dot" style="background:var(--accent)"></i> целевая сущность</span>
       <span class="legend-item"><i class="legend-dot" style="background:#e67e22"></i> ключевой фактор</span>
@@ -335,5 +336,15 @@
 {% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="/static/cytoscape.min.js"></script>
+<script src="/static/depmap.js"></script>
+<script>
+(function () {
+  var el = document.getElementById('cy-security');
+  if (el && window.initDependencyMap) {
+    window.initDependencyMap(el, {{ dep_graph | safe }});
+  }
+})();
+</script>
 <script src="/static/app.js"></script>
 {% endblock %}

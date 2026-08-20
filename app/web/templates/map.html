@@ -7,20 +7,15 @@
   <h1 style="margin:0">Карта зависимостей</h1>
   <a class="btn" href="/">← Все бумаги</a>
 </header>
-<p class="muted small">Интерактивная карта цепочек влияния из knowledge graph (причина → … → сектор → бумага). Колесо мыши — зум, перетаскивание — панорамирование. Стрелка с подписью — механизм передачи; знак ± — направление влияния; под узлом — «что отслеживать».</p>
+<p class="muted small">Акции — интерактивная карта цепочек влияния из knowledge graph (причина → … → сектор → бумага). Колесо мыши — зум, перетаскивание — панорамирование. Стрелка с подписью — механизм передачи; знак ± — направление влияния; под узлом — «что отслеживать».</p>
 
 <section class="card">
-  <form method="get" action="/map" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <select name="ticker" style="min-width:260px">
-      <option value="">— выберите бумагу —</option>
-      {% for s in securities %}
-      <option value="{{ s.ticker }}" {% if s.ticker == selected_ticker %}selected{% endif %}>
-        {{ s.ticker }} — {{ s.name }}{% if s.is_futures %} (фьючерс){% endif %}
-      </option>
-      {% endfor %}
-    </select>
-    <button class="btn" type="submit">Показать карту</button>
+  <form class="search" method="get" action="/map">
+    <input type="text" name="ticker" value="{{ selected_ticker }}" placeholder="Тикер, например AFLT" list="map-tickers-datalist" autocomplete="off" autofocus>
+    <button type="submit">Показать карту</button>
   </form>
+  <datalist id="map-tickers-datalist" data-source="tickers" data-filter="stocks"></datalist>
+  <p class="muted small" style="margin-top:6px">Только акции (для фьючерсов граф не строится).</p>
 </section>
 
 {% if selected_ticker %}
@@ -36,79 +31,17 @@
     <span class="legend-item"><i class="legend-dot" style="background:#98a6b3"></i> влияющий узел · <b>+</b> / <b>−</b> — знак влияния</span>
   </div>
 </section>
+<noscript><p class="muted">Для интерактивной карты включите JavaScript.</p>{% if dep_map %}{{ dep_map | safe }}{% endif %}</noscript>
 {% endif %}
 
-<noscript><p class="muted">Для интерактивной карты включите JavaScript. (Запасная SVG-версия)</p>
-  {% if dep_map %}{{ dep_map | safe }}{% endif %}
-</noscript>
-
 <script src="/static/cytoscape.min.js"></script>
+<script src="/static/depmap.js"></script>
 <script>
 window.__DEP_GRAPH = {{ graph_json | safe }};
 (function () {
-  if (!window.cytoscape) return;
-  var graph = window.__DEP_GRAPH;
-  if (!graph || !graph.nodes || !graph.nodes.length) return;
-  var container = document.getElementById("cy");
-  if (!container) return;
-
-  var style = [
-    { selector: "node", style: {
-        "label": "data(label)",
-        "width": 160, "height": 60,
-        "shape": "round-rectangle",
-        "background-color": "#202a40",
-        "border-color": "#2b3750", "border-width": 1,
-        "color": "#e6ebf5", "font-size": 13, "text-valign": "center",
-        "text-wrap": "wrap", "text-max-width": 150,
-        "padding": 6
-    }},
-    { selector: "node[is_key]", style: {
-        "border-color": "#f5a623", "border-width": 2
-    }},
-    { selector: "node[is_target]", style: {
-        "border-color": "#4f8cff", "border-width": 2.5,
-        "background-color": "#1e2f4d"
-    }},
-    { selector: "edge", style: {
-        "width": 2, "line-color": "#2fbf71",
-        "target-arrow-color": "#2fbf71", "target-arrow-shape": "triangle",
-        "curve-style": "bezier",
-        "label": "data(label)",
-        "font-size": 10, "color": "#9fb3c8", "text-background-color": "#1a2233",
-        "text-background-opacity": 0.85, "text-background-padding": 3,
-        "text-rotation": "autorotate",
-        "text-wrap": "wrap", "text-max-width": 150
-    }},
-    { selector: "edge[sign < 0]", style: {
-        "line-color": "#e5484d", "target-arrow-color": "#e5484d", "color": "#e5484d"
-    }}
-  ];
-  // знак в подписи
-  graph.edges.forEach(function (e) {
-    e.data.label = (e.data.sign < 0 ? "− " : "+ ") + e.data.label;
-  });
-
-  var cy = cytoscape({
-    container: container,
-    elements: graph.nodes.concat(graph.edges),
-    style: style,
-    layout: { name: "breadthfirst", directed: true, spacingFactor: 1.2 },
-    minZoom: 0.3, maxZoom: 3,
-    wheelSensitivity: 0.2,
-    boxSelectionEnabled: false,
-  });
-
-  // подсказка «что отслеживать» — добавляем к подписи узла
-  cy.nodes().forEach(function (nd) {
-    var name = nd.data("label");
-    var m = nd.data("metrics") || [];
-    if (m.length) {
-      var labels = m.slice(0, 3).map(function (x) { return x.label; });
-      var extra = labels.join(", ") + (m.length > 3 ? "…" : "");
-      nd.data("label", name + "\n(" + extra + ")");
-    }
-  });
+  if (window.initDependencyMap) {
+    window.initDependencyMap(document.getElementById('cy'), window.__DEP_GRAPH);
+  }
 })();
 </script>
 {% endblock %}

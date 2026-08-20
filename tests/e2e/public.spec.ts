@@ -83,11 +83,11 @@ test.describe("Публичные страницы", () => {
     await expect(page.locator("body")).toContainText("Сигналы");
   });
 
-  test("карточка: карта зависимостей и её рендер", async ({ page }) => {
+  test("карточка: карта зависимостей (Cytoscape) на карточке бумаги", async ({ page }) => {
     await page.goto("/securities/SBER");
     await expect(page.locator("body")).toContainText("Карта зависимостей");
-    // SVG-карта присутствует
-    await expect(page.locator(".depmap")).toHaveCount(1);
+    // Cytoscape рендерит canvas-слои внутри #cy-security
+    await expect(page.locator("#cy-security canvas")).not.toHaveCount(0, { timeout: 8000 });
   });
 
   test("/map: открывается и отрисовывает интерактивную карту (Cytoscape)", async ({ page }) => {
@@ -95,6 +95,12 @@ test.describe("Публичные страницы", () => {
     await expect(page.locator("body")).toContainText("Карта зависимостей");
     // Cytoscape рендерит стопку canvas-слоёв внутри #cy
     await expect(page.locator("#cy canvas")).not.toHaveCount(0, { timeout: 8000 });
+  });
+
+  test("/map: поиск бумаги из тикер-листа только для акций", async ({ page }) => {
+    await page.goto("/map");
+    // дата-фильтр акций в datalist автодополнения (как в Аналитике)
+    await expect(page.locator('#map-tickers-datalist[data-filter="stocks"]')).toHaveCount(1);
   });
 
   test("карточка: неизвестный тикер — 404", async ({ page }) => {

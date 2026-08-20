@@ -699,7 +699,13 @@ async def map_page(
     session: AsyncSession = Depends(get_session),
 ):
     user = await _optional_user(request, session)
-    securities = (await session.scalars(select(Security).order_by(Security.ticker))).all()
+    securities = (
+        await session.scalars(
+            select(Security)
+            .where(Security.security_type != "futures")
+            .order_by(Security.ticker)
+        )
+    ).all()
 
     selected = None
     dep_map = ""
@@ -1188,6 +1194,7 @@ async def security_page(
         news=news,
     )
     context = _web_context_factory.build(view)
+    dep_map_data = await build_dependency_map(session, security.id)
     last_strategy = await session.scalar(
         select(Strategy)
         .where(Strategy.security_id == security.id)
@@ -1228,7 +1235,8 @@ async def security_page(
             "vp": vp,
             "vp_period": vp_days,
             "vp_options": [30, 60, 90, 180, 365],
-            "dep_map": build_map_svg(await build_dependency_map(session, security.id))["svg"],
+            "dep_map": build_map_svg(dep_map_data)["svg"],
+            "dep_graph": json.dumps(_map_to_cytoscape(dep_map_data), ensure_ascii=False),
         }
     )
     return templates.TemplateResponse(request, "security.html", context)
