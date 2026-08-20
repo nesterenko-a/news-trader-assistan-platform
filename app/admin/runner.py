@@ -132,6 +132,34 @@ SCRIPTS: list[dict] = [
         ],
     },
     {
+        "key": "export_graph",
+        "module": "scripts.export_graph",
+        "title": "Экспорт графа (JSONL)",
+        "description": (
+            "Выгрузка всего графа — сущностей (type/aliases/meta) и рёбер "
+            "(имена, direction/strength/kind/confidence/rationale/source_ref/"
+            "created_by/is_approved) — в JSONL для переноса на новую БД или "
+            "резервной копии. Восстановление: seed_db, затем import_graph."
+        ),
+        "params": [
+            ("--out", "Файл дампа (JSONL); без него — в stdout", "", "text"),
+        ],
+    },
+    {
+        "key": "import_graph",
+        "module": "scripts.import_graph",
+        "title": "Импорт графа (JSONL)",
+        "description": (
+            "Идемпотентный импорт графа из JSONL (формат export_graph): "
+            "создаёт недостающие сущности и рёбра, дополняет source_ref без "
+            "дублей. Использовать после пересоздания/переезда БД для "
+            "восстановления связей и обоснований (в т.ч. FAQ/SEC)."
+        ),
+        "params": [
+            ("--file", "JSONL-файл экспорта", "", "text"),
+        ],
+    },
+    {
         "key": "backtest",
         "module": "scripts.backtest",
         "title": "Бэктест",

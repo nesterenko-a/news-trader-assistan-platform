@@ -255,3 +255,157 @@ async def _get_or_create_entity(
     session.add(entity)
     await session.flush()
     return entity, True
+
+
+async def export_graph_records(session: AsyncSession) -> tuple[list[dict], list[dict]]:
+    """Собрать все сущности и рёбра графа как списки dict-записей (для переноса/резервной копии).
+
+    Возвращает (entities, influences), где influences ссылаются на сущности по имени,
+    что делает дамп переносимым между БД.
+    """
+    entities = (await session.scalars(select(Entity))).all()
+    influences = (await session.scalars(select(Influence))).all()
+    names = {e.id: e.name for e in entities}
+    e_records = [
+        {
+            "name": e.name,
+            "type": e.type,
+            "aliases": e.aliases or [],
+            "meta": e.meta or {},
+        }
+        for e in entities
+    ]
+    i_records = [
+        {
+            "from": names.get(i.from_entity_id, ""),
+            "to": names.get(i.to_entity_id, ""),
+            "direction": i.direction,
+            "strength": i.strength,
+            "kind": i.kind,
+            "confidence": i.confidence,
+            "rationale": i.rationale or "",
+            "source_ref": i.source_ref or "",
+            "created_by": i.created_by,
+            "is_approved": i.is_approved,
+        }
+        for i in influences
+    ]
+    return e_records, i_records
+
+
+async def import_graph_records(
+    session: AsyncSession,
+    entities: list[dict],
+    influences: list[dict],
+) -> dict[str, int]:
+    """Идемпотентный импорт записей графа (формат export_graph_records).
+
+    Сущности создаются/дополняются по имени (type/aliases/meta), рёбра —
+    по паре (from_name, to_name, created_by). Существующие рёбра не дублируются,
+    при этом source_ref безопасно дополняется без повторов.
+    Возвращает счётчики: created_e, touched_e, created_i, skipped_i, merged_i.
+    """
+    created_e = touched_e = created_i = skipped_i = merged_i = 0
+
+    for rec in entities:
+        name = (rec.get("name") or "").strip()
+        if not name:
+            continue
+        entity = await session.scalar(select(Entity).where(Entity.name == name))
+        if entity is None:
+            entity = Entity(
+                name=name,
+                type=(rec.get("type") or "sector"),
+                aliases=rec.get("aliases") or [],
+                meta=rec.get("meta") or {},
+            )
+            session.add(entity)
+            await session.flush()
+            created_e += 1
+        else:
+            changed = False
+            if not entity.type and rec.get("type"):
+                entity.type = rec["type"]
+                changed = True
+            if not entity.aliases and rec.get("aliases"):
+                entity.aliases = rec["aliases"]
+                changed = True
+            if not entity.meta and rec.get("meta"):
+                entity.meta = rec["meta"]
+                changed = True
+            if changed:
+                touched_e += 1
+
+    for rec in influences:
+        from_name = (rec.get("from") or "").strip()
+        to_name = (rec.get("to") or "").strip()
+        if not from_name or not to_name:
+            continue
+
+        from_entity = await _entity_by_id_or_name(session, from_name)
+        if from_entity is None:
+            from_entity = Entity(name=from_name, type="sector", aliases=[], meta={})
+            session.add(from_entity)
+            await session.flush()
+        to_entity = await _entity_by_id_or_name(session, to_name)
+        if to_entity is None:
+            to_entity = Entity(name=to_name, type="sector", aliases=[], meta={})
+            session.add(to_entity)
+            await session.flush()
+
+        created_by = rec.get("created_by") or "curator"
+        existing = await session.scalar(
+            select(Influence).where(
+                Influence.from_entity_id == from_entity.id,
+                Influence.to_entity_id == to_entity.id,
+                Influence.created_by == created_by,
+            )
+        )
+        if existing is not None:
+            new_ref = (rec.get("source_ref") or "").strip()
+            if new_ref and new_ref != "curated":
+                cur = [s.strip() for s in (existing.source_ref or "").split(",") if s.strip()]
+                merged = False
+                for s in new_ref.split(","):
+                    s = s.strip()
+                    if s and s not in cur:
+                        cur.append(s)
+                        merged = True
+                if merged:
+                    existing.source_ref = ",".join(cur)
+                    merged_i += 1
+                else:
+                    skipped_i += 1
+            else:
+                skipped_i += 1
+            continue
+
+        influence = Influence(
+            from_entity_id=from_entity.id,
+            to_entity_id=to_entity.id,
+            direction=(rec.get("direction") or "positive")[:10],
+            strength=(rec.get("strength") or "medium")[:10],
+            kind=(rec.get("kind") or "direct")[:10],
+            confidence=float(rec.get("confidence") or 0.5),
+            rationale=rec.get("rationale") or "",
+            source_ref=(rec.get("source_ref") or "").strip(),
+            created_by=(created_by or "curator")[:20],
+            is_approved=bool(rec.get("is_approved", True)),
+        )
+        session.add(influence)
+        created_i += 1
+
+    return {
+        "created_e": created_e,
+        "touched_e": touched_e,
+        "created_i": created_i,
+        "skipped_i": skipped_i,
+        "merged_i": merged_i,
+    }
+
+
+async def _entity_by_id_or_name(session: AsyncSession, name: str) -> Entity | None:
+    if not name.strip():
+        return None
+    mapped = await load_entities(session)
+    return mapped.get(name.strip()) or mapped.get(name.strip().lower())
