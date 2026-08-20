@@ -5,7 +5,7 @@ import json
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Entity, Influence, Security, security_entity
+from app.db.models import Entity, EntityWatchMetric, Influence, Security, security_entity
 from app.graph.seed_data import ENTITIES, INFLUENCES, SECURITIES
 
 STRENGTH_WEIGHT = {"weak": 1, "medium": 2, "strong": 3}
@@ -268,12 +268,24 @@ async def export_graph_records(session: AsyncSession) -> tuple[list[dict], list[
     entities = (await session.scalars(select(Entity))).all()
     influences = (await session.scalars(select(Influence))).all()
     names = {e.id: e.name for e in entities}
+
+    # «что отслеживать» — подсказки ключевых сущностей (карта зависимостей)
+    metric_rows = (
+        await session.scalars(select(EntityWatchMetric).order_by(EntityWatchMetric.entity_id, EntityWatchMetric.sort_order))
+    ).all()
+    metrics_by_entity: dict[int, list[dict]] = {}
+    for m in metric_rows:
+        metrics_by_entity.setdefault(m.entity_id, []).append(
+            {"label": m.label, "metric": m.metric}
+        )
+
     e_records = [
         {
             "name": e.name,
             "type": e.type,
             "aliases": e.aliases or [],
             "meta": e.meta or {},
+            "metrics": metrics_by_entity.get(e.id, []),
         }
         for e in entities
     ]
@@ -337,6 +349,30 @@ async def import_graph_records(
                 changed = True
             if changed:
                 touched_e += 1
+
+        # «что отслеживать» (watch_metrics): идемпотентное восстановление
+        for m in rec.get("metrics") or []:
+            label = (m.get("label") or "").strip()
+            metric = (m.get("metric") or "").strip()
+            if not label:
+                continue
+            exists = await session.scalar(
+                select(EntityWatchMetric).where(
+                    EntityWatchMetric.entity_id == entity.id,
+                    EntityWatchMetric.label == label,
+                    EntityWatchMetric.metric == metric,
+                )
+            )
+            if exists is None:
+                session.add(
+                    EntityWatchMetric(
+                        entity_id=entity.id,
+                        label=label,
+                        metric=metric,
+                        sort_order=0,
+                    )
+                )
+                created_e += 1
 
     for rec in influences:
         from_name = (rec.get("from") or "").strip()

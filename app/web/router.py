@@ -96,6 +96,8 @@ from app.presentation.view import build_strategy_view
 from app.macro.service import event_tickers, list_events, list_security_events
 from app.strategy.engine import generate_strategy
 from app.graph.service import add_influence_with_source, export_graph_records, graph_to_jsonl
+from app.graph.map import build_dependency_map
+from app.graph.map_view import build_map_svg
 
 router = APIRouter(tags=["web"])
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
@@ -653,6 +655,49 @@ async def index(
     return templates.TemplateResponse(request, "index.html", context)
 
 
+@router.get("/map")
+async def map_page(
+    request: Request,
+    ticker: str = "",
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    securities = (await session.scalars(select(Security).order_by(Security.ticker))).all()
+
+    selected = None
+    dep_map = ""
+    dep_count = 0
+    if ticker.strip():
+        selected = await session.scalar(
+            select(Security).where(Security.ticker == ticker.strip().upper())
+        )
+        if selected is None:
+            raise HTTPException(status_code=404, detail="Бумага не найдена")
+        graph = await build_dependency_map(session, selected.id)
+        dep_map = build_map_svg(graph)["svg"]
+        dep_count = len(graph["nodes"])
+
+    context = await _base_context(session, user)
+    context.update(
+        {
+            "securities": [
+                {
+                    "ticker": s.ticker,
+                    "name": s.name,
+                    "sector": s.sector,
+                    "is_futures": s.security_type == "futures",
+                }
+                for s in securities
+            ],
+            "selected_ticker": selected.ticker if selected else "",
+            "selected_name": selected.name if selected else "",
+            "dep_map": dep_map,
+            "dep_count": dep_count,
+        }
+    )
+    return templates.TemplateResponse(request, "map.html", context)
+
+
 @router.get("/indicators")
 async def indicators_page(
     request: Request,
@@ -1143,6 +1188,7 @@ async def security_page(
             "vp": vp,
             "vp_period": vp_days,
             "vp_options": [30, 60, 90, 180, 365],
+            "dep_map": build_map_svg(await build_dependency_map(session, security.id))["svg"],
         }
     )
     return templates.TemplateResponse(request, "security.html", context)

@@ -135,3 +135,32 @@ async def test_graph_to_jsonl_format(session):
     assert sample["record"] == "influence"
     assert sample["kind"] in ("direct", "indirect")
     assert "from" in sample and "to" in sample
+
+
+async def test_roundtrip_watch_metrics(session):
+    """watch_metrics переносятся экспортом/импортом в чистую БД (карта зависимостей)."""
+    from app.db.models import EntityWatchMetric
+
+    await seed_graph(session)
+    oil = (await session.scalars(select(Entity).where(Entity.name == "Нефть"))).one()
+    session.add(EntityWatchMetric(entity_id=oil.id, label="Brent", metric="Марка Brent", sort_order=0))
+    await session.commit()
+
+    entities, influences = await export_graph_records(session)
+    oil_rec = next(n for n in entities if n["name"] == "Нефть")
+    assert any(m.get("label") == "Brent" for m in oil_rec.get("metrics") or [])
+
+    # импорт в чистую БД
+    fresh = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with fresh.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(fresh, expire_on_commit=False)
+    async with factory() as target:
+        await import_graph_records(target, entities, influences)
+        await target.commit()
+        oil2 = (await target.scalars(select(Entity).where(Entity.name == "Нефть"))).one()
+        metrics = (
+            await target.scalars(select(EntityWatchMetric).where(EntityWatchMetric.entity_id == oil2.id))
+        ).all()
+        assert any(m.label == "Brent" for m in metrics)
+    await fresh.dispose()

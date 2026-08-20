@@ -83,6 +83,21 @@ test.describe("Публичные страницы", () => {
     await expect(page.locator("body")).toContainText("Сигналы");
   });
 
+  test("карточка: карта зависимостей и её рендер", async ({ page }) => {
+    await page.goto("/securities/SBER");
+    await expect(page.locator("body")).toContainText("Карта зависимостей");
+    // SVG-карта присутствует
+    await expect(page.locator(".depmap")).toHaveCount(1);
+  });
+
+  test("/map: открывается и отрисовывает карту для выбранного тикера", async ({ page }) => {
+    await page.goto("/map?ticker=AFLT");
+    await expect(page.locator("body")).toContainText("Карта зависимостей");
+    // хотя бы одна страница/SVG-контейнер
+    const svgs = await page.locator(".depmap").count();
+    expect(svgs).toBeGreaterThanOrEqual(1);
+  });
+
   test("карточка: неизвестный тикер — 404", async ({ page }) => {
     const response = await page.goto("/securities/XXXX");
     expect(response?.status()).toBe(404);

@@ -91,6 +91,18 @@ SCRIPTS: list[dict] = [
         "param": None,
     },
     {
+        "key": "seed_watch_metrics",
+        "module": "scripts.seed_watch_metrics",
+        "title": "Наполнить метрики «что отслеживать»",
+        "description": (
+            "Кураторское наполнение подсказок «что отслеживать» для ключевых "
+            "сущностей карты зависимостей (Нефть→Brent/WTI, Авиаперевозки→"
+            "топливо/загрузка и т.п.). Идемпотентно — повторный запуск не "
+            "дублирует метрики. Запускать после seed_db."
+        ),
+        "param": None,
+    },
+    {
         "key": "calibrate",
         "module": "scripts.calibrate",
         "title": "Калибровка порогов",

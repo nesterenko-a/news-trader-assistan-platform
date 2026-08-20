@@ -214,6 +214,16 @@ class Entity(Base):
     meta: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class EntityWatchMetric(Base):
+    __tablename__ = "entity_watch_metrics"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    entity_id: Mapped[int] = mapped_column(ForeignKey("entities.id"), index=True)
+    label: Mapped[str] = mapped_column(String(200))
+    metric: Mapped[str] = mapped_column(String(500))
+    sort_order: Mapped[int] = mapped_column(default=0)
+
+
 class Influence(Base):
     __tablename__ = "influences"
 

@@ -717,3 +717,17 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .run-log { margin-top: 8px; }
 .run-log summary { cursor: pointer; font-weight: 600; color: var(--muted, #8b97ad); }
 .run-log[open] summary { margin-bottom: 8px; }
+
+/* Карта зависимостей */
+.depmap { width: 100%; height: auto; background: var(--panel, #1a2233); border-radius: 10px; }
+.depmap text { font-family: "Segoe UI", system-ui, sans-serif; }
+.dep-name { fill: var(--text, #e6ebf5); font-size: 13px; font-weight: 700; }
+.dep-metric { fill: var(--muted, #8b97ad); font-size: 10px; }
+.dep-mech { font-size: 10px; }
+.dep-mech.dep-pos { fill: var(--green, #2fbf71); }
+.dep-mech.dep-neg { fill: var(--red, #e5484d); }
+.dep-node { fill: var(--panel-2, #202a40); stroke: var(--border, #2b3750); stroke-width: 1; }
+.dep-key { fill: #3a2f22; stroke: var(--amber, #f5a623); stroke-width: 1.5; }
+.dep-target { fill: #1e2f4d; stroke: var(--accent, #4f8cff); stroke-width: 2; }
+.dep-pos { stroke: var(--green, #2fbf71); stroke-width: 1.5; }
+.dep-neg { stroke: var(--red, #e5484d); stroke-width: 1.5; }

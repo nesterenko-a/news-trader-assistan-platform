@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Карта зависимостей — NewsTrader Assistant{% endblock %}
+
+{% block content %}
+<header style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+  <h1 style="margin:0">Карта зависимостей</h1>
+  <a class="btn" href="/">← Все бумаги</a>
+</header>
+<p class="muted small">Цепочки влияния из knowledge graph (причина → … → сектор → бумага). Механизм передачи — подпись на стрелке (rationale ребра); под узлом — «что отслеживать».</p>
+
+<section class="card">
+  <form method="get" action="/map" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <select name="ticker" style="min-width:260px">
+      <option value="">— выберите бумагу —</option>
+      {% for s in securities %}
+      <option value="{{ s.ticker }}" {% if s.ticker == selected_ticker %}selected{% endif %}>
+        {{ s.ticker }} — {{ s.name }}{% if s.is_futures %} (фьючерс){% endif %}
+      </option>
+      {% endfor %}
+    </select>
+    <button class="btn" type="submit">Показать карту</button>
+  </form>
+</section>
+
+{% if dep_map %}
+<section class="card">
+  <div class="chart-head">
+    <h2>{{ selected_ticker }} — {{ selected_name }}</h2>
+    <span class="muted small">узлов: {{ dep_count }}</span>
+  </div>
+  {{ dep_map | safe }}
+  <div class="chart-legend">
+    <span class="legend-item"><i class="legend-dot" style="background:var(--accent)"></i> целевая сущность</span>
+    <span class="legend-item"><i class="legend-dot" style="background:#e67e22"></i> ключевой фактор</span>
+    <span class="legend-item"><i class="legend-dot" style="background:#98a6b3"></i> влияющий узел · <b>+</b> / <b>−</b> — знак влияния</span>
+  </div>
+</section>
+{% elif selected_ticker %}
+<section class="card"><p class="muted">Для этой бумаги карта зависимостей пуста (нет связанных сущностей графа).</p></section>
+{% endif %}
+{% endblock %}

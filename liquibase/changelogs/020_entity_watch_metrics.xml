@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+
+    <changeSet id="0200-entity-watch-metrics" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="entity_watch_metrics"/>
+            </not>
+        </preConditions>
+        <createTable tableName="entity_watch_metrics">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="entity_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="label" type="varchar(200)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="metric" type="varchar(500)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sort_order" type="int" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="0201-entity-watch-metrics-fk-entity" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <foreignKeyConstraintExists foreignKeyName="fk_entity_watch_metrics_entity"/>
+            </not>
+        </preConditions>
+        <addForeignKeyConstraint
+            baseColumnNames="entity_id"
+            baseTableName="entity_watch_metrics"
+            constraintName="fk_entity_watch_metrics_entity"
+            referencedColumnNames="id"
+            referencedTableName="entities"/>
+    </changeSet>
+
+    <changeSet id="0202-entity-watch-metrics-idx-entity" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_entity_watch_metrics_entity"/>
+            </not>
+        </preConditions>
+        <createIndex
+            indexName="idx_entity_watch_metrics_entity"
+            tableName="entity_watch_metrics">
+            <column name="entity_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

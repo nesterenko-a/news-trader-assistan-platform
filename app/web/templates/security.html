@@ -118,6 +118,22 @@
   </section>
   {% endif %}
 
+  {% if dep_map %}
+  <section class="card chart-card">
+    <div class="chart-head">
+      <h2>Карта зависимостей</h2>
+      <a class="btn small" href="/map?ticker={{ view.ticker }}">Развернуть /map →</a>
+    </div>
+    <p class="muted small">Цепочки влияния из knowledge graph: причина → … → сектор → бумага. Подпись на стрелке — механизм передачи (rationale ребра); под узлом — «что отслеживать».</p>
+    {{ dep_map | safe }}
+    <div class="chart-legend">
+      <span class="legend-item"><i class="legend-dot" style="background:var(--accent)"></i> целевая сущность</span>
+      <span class="legend-item"><i class="legend-dot" style="background:#e67e22"></i> ключевой фактор</span>
+      <span class="legend-item"><i class="legend-dot" style="background:#98a6b3"></i> влияющий узел · <b>+</b> / <b>−</b> — знак влияния</span>
+    </div>
+  </section>
+  {% endif %}
+
   {% if futures %}
   <section class="card">
     <h2>Фьючерсы на акцию</h2>
