@@ -126,6 +126,15 @@
     </div>
     <p class="muted small">Цепочки влияния из knowledge graph: причина → … → сектор → бумага. Зум — колесо мыши, панорама — перетаскивание. Подпись на стрелке — механизм передачи; под узлом — «что отслеживать».</p>
     <div id="cy-security" class="dep-cy" style="height:420px"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+      <label class="muted small" for="cy-security-strength">Сила влияния:</label>
+      <select id="cy-security-strength" class="muted small">
+        <option value="all" selected>все</option>
+        <option value="weak">weak+ и выше</option>
+        <option value="medium">medium+ и выше</option>
+        <option value="strong">только strong</option>
+      </select>
+    </div>
     <noscript>{{ dep_map | safe }}</noscript>
     <div class="chart-legend">
       <span class="legend-item"><i class="legend-dot" style="background:var(--accent)"></i> целевая сущность</span>
@@ -342,7 +351,11 @@
 (function () {
   var el = document.getElementById('cy-security');
   if (el && window.initDependencyMap) {
-    window.initDependencyMap(el, {{ dep_graph | safe }});
+    window.__SEC_DEP_CTL = window.initDependencyMap(el, {{ dep_graph | safe }});
+  }
+  var sel = document.getElementById('cy-security-strength');
+  if (sel && window.__SEC_DEP_CTL) {
+    sel.addEventListener('change', function () { window.__SEC_DEP_CTL.applyStrength(sel.value); });
   }
 })();
 </script>

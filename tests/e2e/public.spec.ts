@@ -88,6 +88,8 @@ test.describe("Публичные страницы", () => {
     await expect(page.locator("body")).toContainText("Карта зависимостей");
     // Cytoscape рендерит canvas-слои внутри #cy-security
     await expect(page.locator("#cy-security canvas")).not.toHaveCount(0, { timeout: 8000 });
+    // фильтр по силе влияния
+    await expect(page.locator("#cy-security-strength")).toHaveCount(1);
   });
 
   test("/map: открывается и отрисовывает интерактивную карту (Cytoscape)", async ({ page }) => {
@@ -95,6 +97,8 @@ test.describe("Публичные страницы", () => {
     await expect(page.locator("body")).toContainText("Карта зависимостей");
     // Cytoscape рендерит стопку canvas-слоёв внутри #cy
     await expect(page.locator("#cy canvas")).not.toHaveCount(0, { timeout: 8000 });
+    // фильтр по силе влияния
+    await expect(page.locator("#cy-strength")).toHaveCount(1);
   });
 
   test("/map: поиск бумаги из тикер-листа только для акций", async ({ page }) => {

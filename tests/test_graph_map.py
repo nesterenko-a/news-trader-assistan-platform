@@ -113,5 +113,6 @@ async def test_map_to_cytoscape(session):
         d = edge["data"]
         assert d["source"] and d["target"]
         assert isinstance(d["sign"], float)
+        assert d["strength"] in ("weak", "medium", "strong")
         assert d["label"]
         assert len(d["label"]) <= 61

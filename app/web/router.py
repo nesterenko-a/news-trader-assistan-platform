@@ -96,7 +96,12 @@ from app.presentation.factories import WebContextFactory
 from app.presentation.view import build_strategy_view
 from app.macro.service import event_tickers, list_events, list_security_events
 from app.strategy.engine import generate_strategy
-from app.graph.service import add_influence_with_source, export_graph_records, graph_to_jsonl
+from app.graph.service import (
+    add_influence_with_source,
+    export_graph_records,
+    graph_to_jsonl,
+    resolve_entity_id,
+)
 from app.graph.map import build_dependency_map
 from app.graph.map_view import build_map_svg
 
@@ -684,6 +689,7 @@ def _map_to_cytoscape(graph: dict) -> dict:
                     "source": e["from"],
                     "target": e["to"],
                     "sign": float(e.get("sign", 1.0)),
+                    "strength": e.get("strength") or "medium",
                     "label": mechanism,
                     "kind": e.get("kind"),
                 }
@@ -1928,15 +1934,27 @@ async def admin_futures_templates_delete(
 async def admin_graph_page(
     request: Request,
     session: AsyncSession = Depends(get_session),
+    page: int = 1,
 ):
     user = await _optional_user(request, session)
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
     if not _is_admin_user(user):
         raise HTTPException(status_code=403, detail="Требуются права администратора")
+    from sqlalchemy import func
+
     entities = (await session.scalars(select(Entity).order_by(Entity.name))).all()
+    total = (await session.scalar(select(func.count()).select_from(Influence))) or 0
+    per_page = 50
+    total_pages = max(1, -(-total // per_page))  # ceil
+    page = max(1, min(page, total_pages))
     influences = (
-        await session.scalars(select(Influence).order_by(Influence.id.desc()).limit(50))
+        await session.scalars(
+            select(Influence)
+            .order_by(Influence.id.desc())
+            .offset((page - 1) * per_page)
+            .limit(per_page)
+        )
     ).all()
     entity_names = {e.id: e.name for e in entities}
     context = await _base_context(session, user)
@@ -1950,12 +1968,16 @@ async def admin_graph_page(
                     "to": entity_names.get(inf.to_entity_id, "?"),
                     "direction": inf.direction,
                     "strength": inf.strength,
+                    "kind": inf.kind,
                     "confidence": inf.confidence,
                     "rationale": inf.rationale,
                     "source_ref": inf.source_ref,
                 }
                 for inf in influences
             ],
+            "page": page,
+            "total_pages": total_pages,
+            "total": total,
             "result": request.query_params.get("result", ""),
             "result_ok": request.query_params.get("ok") == "1",
         }
@@ -2062,6 +2084,85 @@ async def admin_graph_add(
     await session.commit()
     launch(run.id, "add_research", param_values)
     return RedirectResponse(url=f"/admin/runs/{run.id}", status_code=303)
+
+
+@router.post("/admin/graph/{influence_id}/delete")
+async def admin_graph_delete(
+    influence_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
+    influence = await session.get(Influence, influence_id)
+    if influence is not None:
+        await session.delete(influence)
+        await session.commit()
+    return RedirectResponse(url=request.headers.get("referer", "/admin/graph"), status_code=303)
+
+
+@router.post("/admin/graph/{influence_id}/update")
+async def admin_graph_update(
+    influence_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
+
+    influence = await session.get(Influence, influence_id)
+    if influence is None:
+        raise HTTPException(status_code=404, detail="Связь не найдена")
+
+    form = await request.form()
+    to_entity_id = influence.to_entity_id
+    from_entity_id = influence.from_entity_id
+    from_name = str(form.get("from") or "").strip()
+    to_name = str(form.get("to") or "").strip()
+    if from_name:
+        resolved = await resolve_entity_id(session, from_name)
+        if resolved is None:
+            raise HTTPException(status_code=400, detail=f"Сущность «{from_name}» не найдена")
+        from_entity_id = resolved
+    if to_name:
+        resolved = await resolve_entity_id(session, to_name)
+        if resolved is None:
+            raise HTTPException(status_code=400, detail=f"Сущность «{to_name}» не найдена")
+        to_entity_id = resolved
+    influence.from_entity_id = from_entity_id
+    influence.to_entity_id = to_entity_id
+
+    direction = str(form.get("direction") or "").strip()
+    if direction in ("positive", "negative"):
+        influence.direction = direction
+    strength = str(form.get("strength") or "").strip()
+    if strength in ("weak", "medium", "strong"):
+        influence.strength = strength
+    kind = str(form.get("kind") or "").strip()
+    if kind in ("direct", "indirect"):
+        influence.kind = kind
+    try:
+        confidence = float(form.get("confidence") or "")
+    except (TypeError, ValueError):
+        confidence = influence.confidence
+    if 0.0 <= confidence <= 1.0:
+        influence.confidence = confidence
+
+    rationale = str(form.get("rationale") or "").strip()
+    if form.get("rationale") is not None:
+        influence.rationale = rationale
+    source_ref = str(form.get("source_ref") or "").strip()
+    if form.get("source_ref") is not None:
+        influence.source_ref = source_ref or "curated"
+
+    await session.commit()
+    return RedirectResponse(url=request.headers.get("referer", "/admin/graph"), status_code=303)
 
 
 @router.get("/admin/graph/export")

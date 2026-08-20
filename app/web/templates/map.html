@@ -25,6 +25,16 @@
     <span class="muted small">узлов: {{ dep_count }} · зум: колесо / панорама: drag</span>
   </div>
   <div id="cy" class="dep-cy" style="height:520px"></div>
+  <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+    <label class="muted small" for="cy-strength">Сила влияния:</label>
+    <select id="cy-strength" class="muted small">
+      <option value="all" selected>все</option>
+      <option value="weak">weak+ и выше</option>
+      <option value="medium">medium+ и выше</option>
+      <option value="strong">только strong</option>
+    </select>
+    <span class="muted small">(более слабые рёбра скрываются)</span>
+  </div>
   <div class="chart-legend">
     <span class="legend-item"><i class="legend-dot" style="background:var(--accent)"></i> целевая сущность</span>
     <span class="legend-item"><i class="legend-dot" style="background:#e67e22"></i> ключевой фактор</span>
@@ -40,7 +50,11 @@
 window.__DEP_GRAPH = {{ graph_json | safe }};
 (function () {
   if (window.initDependencyMap) {
-    window.initDependencyMap(document.getElementById('cy'), window.__DEP_GRAPH);
+    window.__DEP_CTL = window.initDependencyMap(document.getElementById('cy'), window.__DEP_GRAPH);
+  }
+  var sel = document.getElementById('cy-strength');
+  if (sel && window.__DEP_CTL) {
+    sel.addEventListener('change', function () { window.__DEP_CTL.applyStrength(sel.value); });
   }
 })();
 </script>

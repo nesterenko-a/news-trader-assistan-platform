@@ -2,13 +2,17 @@
    Используется на карточке бумаги и на странице /map:
    initDependencyMap(containerEl, graph, options)
      graph — объект {nodes:[{data:{id,label,type,is_target,is_key,metrics}}],
-                     edges:[{data:{source,target,sign,label,kind}}]}
-     options — { height } — высота контейнера в px (если не задана инлайно).
+                     edges:[{data:{source,target,sign,strength,label,kind}}]}
+   Возвращает контроллер { cy, applyStrength(min) }:
+     applyStrength(min) — «all» | "weak" | "medium" | "strong": скрывает рёбра
+     слабее выбранного порога, изолированные узлы делает полупрозрачными.
    Данные обычно попадают в window.__DEP_GRAPH из шаблона. */
 window.initDependencyMap = function (container, graph, options) {
   if (!window.cytoscape) return null;
   if (!graph || !graph.nodes || !graph.nodes.length) return null;
   if (!container) return null;
+
+  var STR_ORDER = { weak: 1, medium: 2, strong: 3 };
 
   var style = [
     { selector: "node", style: {
@@ -19,12 +23,13 @@ window.initDependencyMap = function (container, graph, options) {
         "border-color": "#2b3750", "border-width": 1,
         "color": "#e6ebf5", "font-size": 13, "text-valign": "center",
         "text-wrap": "wrap", "text-max-width": 150,
-        "padding": 6
+        "padding": 6, "opacity": 1
     }},
     { selector: "node[is_key]", style: { "border-color": "#f5a623", "border-width": 2 }},
     { selector: "node[is_target]", style: {
         "border-color": "#4f8cff", "border-width": 2.5, "background-color": "#1e2f4d"
     }},
+    { selector: "node.dep-dim", style: { "opacity": 0.2 }},
     { selector: "edge", style: {
         "width": 2, "line-color": "#2fbf71",
         "target-arrow-color": "#2fbf71", "target-arrow-shape": "triangle",
@@ -40,8 +45,9 @@ window.initDependencyMap = function (container, graph, options) {
     }}
   ];
 
-  // префикс знака и механизм
+  // префикс знака и механизм + сила
   graph.edges.forEach(function (e) {
+    e.data.s = STR_ORDER[e.data.strength] || 2;
     e.data.label = (e.data.sign < 0 ? "− " : "+ ") + e.data.label;
   });
 
@@ -65,5 +71,23 @@ window.initDependencyMap = function (container, graph, options) {
       nd.data("label", name + "\n(" + extra + ")");
     }
   });
-  return cy;
+
+  function applyStrength(min) {
+    if (min === "all" || !min) { min = "weak"; }
+    var threshold = STR_ORDER[min] || 1;
+    cy.edges().forEach(function (el) {
+      var visible = (el.data("s") || 1) >= threshold;
+      el.style("display", visible ? "element" : "none");
+    });
+    // узлы без видимых рёбер — затемняем
+    cy.nodes().forEach(function (nd) {
+      var connected = nd.connectedEdges().filter(function (e) {
+        return e.style("display") !== "none";
+      }).length;
+      if (connected === 0) { nd.addClass("dep-dim"); } else { nd.removeClass("dep-dim"); }
+    });
+  }
+
+  applyStrength((options && options.strength) || "all");
+  return { cy: cy, applyStrength: applyStrength };
 };
