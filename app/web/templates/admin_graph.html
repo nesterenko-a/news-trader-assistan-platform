@@ -84,20 +84,37 @@
     </tr></thead>
     <tbody>
       {% for inf in influences %}
-      <tr class="graph-row" data-id="{{ inf.id }}">
+      <tr class="graph-row" data-id="{{ inf.id }}" data-action="graph">
         <td>{{ inf.id }}</td>
-        <td class="cell-edit" data-field="from">{{ inf.from }}</td>
-        <td class="cell-edit" data-field="to">{{ inf.to }}</td>
-        <td class="cell-edit" data-field="direction">{{ inf.direction }}</td>
-        <td class="cell-edit" data-field="strength">{{ inf.strength }}</td>
-        <td class="cell-edit" data-field="kind">{{ inf.kind }}</td>
-        <td class="cell-edit" data-field="confidence">{{ inf.confidence }}</td>
-        <td class="muted small cell-edit" data-field="rationale" style="min-width:200px">{{ inf.rationale }}</td>
-        <td class="small cell-edit" data-field="source_ref" style="min-width:120px">{{ inf.source_ref }}</td>
+        <td><input class="graph-field graph-field-from" type="text" value="{{ inf.from }}" disabled title="Сущность-источник"></td>
+        <td><input class="graph-field graph-field-to" type="text" value="{{ inf.to }}" disabled title="Сущность-приёмник"></td>
+        <td>
+          <select class="graph-field graph-field-direction" disabled>
+            <option value="positive" {% if inf.direction == 'positive' %}selected{% endif %}>positive</option>
+            <option value="negative" {% if inf.direction == 'negative' %}selected{% endif %}>negative</option>
+          </select>
+        </td>
+        <td>
+          <select class="graph-field graph-field-strength" disabled>
+            {% for s in ['weak', 'medium', 'strong'] %}
+            <option value="{{ s }}" {% if inf.strength == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td>
+          <select class="graph-field graph-field-kind" disabled>
+            {% for k in ['direct', 'indirect'] %}
+            <option value="{{ k }}" {% if inf.kind == k %}selected{% endif %}>{{ k }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td><input class="graph-field graph-field-conf" type="number" min="0" max="1" step="0.05" value="{{ inf.confidence }}" disabled></td>
+        <td class="muted small" style="min-width:200px"><input class="graph-field graph-field-rationale" type="text" value="{{ inf.rationale }}" disabled></td>
+        <td class="small" style="min-width:140px"><input class="graph-field graph-field-src" type="text" value="{{ inf.source_ref }}" disabled title="{{ inf.source_ref }}"></td>
         <td style="white-space:nowrap">
-          <button class="btn btn-small" data-act="save">Сохранить</button>
-          <form method="post" action="/admin/graph/{{ inf.id }}/delete" style="display:inline" onsubmit="return confirm('Удалить связь #{{ inf.id }}?')">
-            <button type="submit" class="btn btn-small btn-danger">Удалить</button>
+          <button type="button" class="graph-edit" data-id="{{ inf.id }}" title="Редактировать" aria-label="Редактировать">✎</button>
+          <form method="post" action="/admin/graph/{{ inf.id }}/delete" class="inline" onsubmit="return confirm('Удалить связь #{{ inf.id }}?')">
+            <button type="submit" class="graph-remove" title="Удалить связь" aria-label="Удалить связь">✕</button>
           </form>
         </td>
       </tr>
@@ -109,7 +126,7 @@
     <span class="muted small">Страница {{ page }} из {{ total_pages }}</span>
     {% if page < total_pages %}<a class="btn btn-small" href="/admin/graph?page={{ page + 1 }}">Следующая →</a>{% endif %}
   </div>
-  <p class="muted small" style="margin-top:8px">Кликните по ячейке, чтобы отредактировать (кроме ID), затем «Сохранить».</p>
+  <p class="muted small" style="margin-top:8px">Нажмите ✎, чтобы отредактировать, затем ✓ — сохранить. ✕ — удалить связь.</p>
   {% else %}
   <p class="muted">Связей пока нет.</p>
   {% endif %}
@@ -130,33 +147,36 @@
 })();
 
 (function () {
-  // inline-редактирование ячеек «Связей»
-  var rows = document.querySelectorAll('tr.graph-row');
-  function setupRow(row) {
-    var cells = row.querySelectorAll('.cell-edit');
-    Array.prototype.forEach.call(cells, function (td) {
-      td.setAttribute('contenteditable', 'true');
-      td.title = 'Кликните, чтобы редактировать';
-      td.spellcheck = false;
-    });
-    var saveBtn = row.querySelector('[data-act="save"]');
-    if (saveBtn) {
-      saveBtn.addEventListener('click', function () {
-        var payload = { id: row.getAttribute('data-id') };
-        Array.prototype.forEach.call(cells, function (td) {
-          payload[td.getAttribute('data-field')] = td.innerText.replace(/\s+/g, ' ').trim();
-        });
+  // Редактирование связей по образцу страницы «Новости»: ✎ включает поля, ✓ сохраняет, ✕ удаляет.
+  document.querySelectorAll('.graph-edit').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var row = btn.closest('tr');
+      var fields = row.querySelectorAll('.graph-field');
+      var editing = !btn.classList.contains('active');
+      if (editing) {
+        fields.forEach(function (f) { f.disabled = false; });
+        btn.classList.add('active');
+        btn.textContent = '\u2713';   // ✓
+        btn.title = 'Сохранить изменения';
+      } else {
         var fd = new FormData();
-        Object.keys(payload).forEach(function (k) { fd.append(k, payload[k]); });
-        fetch('/admin/graph/' + row.getAttribute('data-id') + '/update', {
-          method: 'POST', body: fd, headers: { 'x-csrf': '1' }, redirect: 'follow'
-        }).then(function (r) {
-          if (r.ok) { location.reload(); } else { r.text().then(function (t) { alert('Не удалось сохранить: ' + t); }); }
-        }).catch(function () { alert('Ошибка сети при сохранении'); });
-      });
-    }
-  }
-  Array.prototype.forEach.call(rows, setupRow);
+        fd.append('from', row.querySelector('.graph-field-from').value);
+        fd.append('to', row.querySelector('.graph-field-to').value);
+        fd.append('direction', row.querySelector('.graph-field-direction').value);
+        fd.append('strength', row.querySelector('.graph-field-strength').value);
+        fd.append('kind', row.querySelector('.graph-field-kind').value);
+        fd.append('confidence', row.querySelector('.graph-field-conf').value);
+        fd.append('rationale', row.querySelector('.graph-field-rationale').value);
+        fd.append('source_ref', row.querySelector('.graph-field-src').value);
+        btn.classList.remove('active');
+        btn.textContent = '\u270E';   // ✎
+        btn.title = 'Редактировать';
+        fetch('/admin/graph/' + row.getAttribute('data-id') + '/update', { method: 'POST', body: fd })
+          .then(function (r) { location.reload(); })
+          .catch(function () { location.reload(); });
+      }
+    });
+  });
 })();
 </script>
 

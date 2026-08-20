@@ -718,13 +718,25 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .run-log summary { cursor: pointer; font-weight: 600; color: var(--muted, #8b97ad); }
 .run-log[open] summary { margin-bottom: 8px; }
 
-/* Редактирование ячеек связей (admin/graph) */
+/* Редактирование/удаление связей (admin/graph) — по образцу «Новостей» */
 .btn-small { font-size: 12px; padding: 2px 8px; }
-.btn-danger { border-color: var(--red, #e5484d); color: var(--red, #e5484d); }
-.btn-danger:hover { background: var(--red, #e5484d); color: #fff; }
-.cell-edit { outline: none; cursor: text; min-width: 40px; }
-.cell-edit:hover { background: rgba(79,140,255,0.08); }
-.cell-edit:focus { background: rgba(79,140,255,0.12); box-shadow: inset 0 0 0 1px var(--accent, #4f8cff); }
+.graph-remove {
+  border: none; background: transparent; color: var(--muted, #999); cursor: pointer;
+  font-size: 15px; line-height: 1; width: 22px; height: 22px; border-radius: 50%; padding: 0;
+}
+.graph-remove:hover { background: rgba(229, 72, 77, 0.15); color: var(--red); }
+.graph-edit {
+  border: none; background: transparent; color: var(--muted, #999); cursor: pointer;
+  font-size: 14px; line-height: 1; width: 22px; height: 22px; border-radius: 50%; padding: 0; margin-right: 4px;
+}
+.graph-edit:hover { background: rgba(91, 140, 255, 0.15); color: var(--accent); }
+.graph-edit.active { background: rgba(91, 140, 255, 0.18); color: var(--accent); }
+.graph-field {
+  border: 1px solid transparent; background: transparent; color: var(--text);
+  padding: 2px 4px; border-radius: 4px; width: 100%; box-sizing: border-box; font: inherit;
+}
+.graph-field:disabled { cursor: default; }
+.graph-field:not(:disabled) { border-color: var(--border); background: var(--panel-2); }
 
 /* Карта зависимостей */
 .depmap { width: 100%; height: auto; background: var(--panel, #1a2233); border-radius: 10px; }
