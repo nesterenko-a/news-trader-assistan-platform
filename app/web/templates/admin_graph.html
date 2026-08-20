@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+  <h1 style="margin:0">Дополнение графа (научные ссылки)</h1>
+  <a class="btn" href="/admin">← к админке</a>
+</div>
+<p class="muted small">Добавление/дополнение рёбер знания scientific-обоснованиями (FR-05-08): ссылка прикрепляется к существующему ребру влияния либо создаёт новое ребро (недостающие сущности создаются автоматически).</p>
+
+{% if result_ok %}<p style="color:#2f7d32">Ссылка обработана: {{ result }}.</p>{% endif %}
+{% if result and not result_ok %}<p style="color:#c0392b">{{ result }}.</p>{% endif %}
+
+<section class="card">
+  <h2>Добавить ссылку к связи</h2>
+  <form method="post" action="/admin/graph/add">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+      <div>
+        <label class="muted small">Сущность-источник («от»)</label>
+        <input type="text" name="from_name" list="graph-entities" autocomplete="off" style="width:100%" placeholder="Например, Нефть">
+        <span class="muted small">Можно ввести новую сущность</span>
+      </div>
+      <div>
+        <label class="muted small">Сущность-приёмник («к»)</label>
+        <input type="text" name="to_name" list="graph-entities" autocomplete="off" style="width:100%" placeholder="Например, Нефтегазовый сектор">
+      </div>
+      <div>
+        <label class="muted small">Ссылка (научная/аналитическая)</label>
+        <input type="text" name="url" style="width:100%" placeholder="https://...">
+      </div>
+    </div>
+    <datalist id="graph-entities">
+      {% for e in entities %}<option value="{{ e.name }}"></option>{% endfor %}
+    </datalist>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px">
+      <div>
+        <label class="muted small">Обоснование</label>
+        <input type="text" name="rationale" style="width:100%" placeholder="почему связь существует">
+      </div>
+      <div>
+        <label class="muted small">Сила</label>
+        <select name="strength" style="width:100%">
+          <option value="weak">weak</option>
+          <option value="medium" selected>medium</option>
+          <option value="strong">strong</option>
+        </select>
+      </div>
+      <div>
+        <label class="muted small">Направление</label>
+        <select name="direction" style="width:100%">
+          <option value="positive" selected>positive (+)</option>
+          <option value="negative">negative (−)</option>
+        </select>
+      </div>
+      <div>
+        <label class="muted small">Уверенность</label>
+        <input type="number" name="confidence" min="0" max="1" step="0.05" value="0.7" style="width:100%">
+      </div>
+      <div>
+        <label class="muted small">Характер</label>
+        <select name="kind" style="width:100%">
+          <option value="direct" selected>direct</option>
+          <option value="indirect">indirect</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn" type="submit" style="margin-top:10px">Добавить</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Последние связи (до 50)</h2>
+  {% if influences %}
+  <table class="table" style="margin-top:8px">
+    <thead><tr><th>ID</th><th>Связь</th><th>Направление</th><th>Сила</th><th>Conf</th><th>Обоснование</th><th>Ссылки</th></tr></thead>
+    <tbody>
+      {% for inf in influences %}
+      <tr>
+        <td>{{ inf.id }}</td>
+        <td>{{ inf.from }} → {{ inf.to }}</td>
+        <td>{{ '+' if inf.direction == 'positive' else '−' }}</td>
+        <td>{{ inf.strength }}</td>
+        <td>{{ inf.confidence }}</td>
+        <td class="muted small">{{ inf.rationale }}</td>
+        <td class="small">
+          {% for u in inf.source_ref.split(',') if u.strip() %}
+          <div><a href="{{ u }}" target="_blank" rel="noopener">{{ u[:60] }}{% if u|length > 60 %}…{% endif %}</a></div>
+          {% endfor %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Связей пока нет.</p>
+  {% endif %}
+</section>
+
+<p><a class="btn" href="/admin">← к админке</a></p>
+{% endblock %}

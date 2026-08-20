@@ -178,3 +178,80 @@ async def security_entity_ids(session: AsyncSession, security_id: int) -> list[i
         )
     )
     return [r[0] for r in rows]
+
+
+async def add_influence_with_source(
+    session: AsyncSession,
+    from_name: str,
+    to_name: str,
+    url: str,
+    rationale: str = "",
+    strength: str = "medium",
+    confidence: float = 0.7,
+    direction: str = "positive",
+    kind: str = "direct",
+) -> dict:
+    """Добавить/дополнить ребро графа научной/аналитической ссылкой (FR-05-08).
+
+    - Ребро `from → to` нацеливается по именам сущностей (entities.name уникален).
+    - Если ребро уже существует — в его `source_ref` добавляется ссылка
+      (без дублей); иначе создаётся новое ребро.
+    - Если сущности `from`/`to` нет — создаётся автоматически (type выбирается
+      по best-effort из известных; при неизвестном — default).
+    Возвращает {"status": "created"|"updated"|"duplicate", "influence_id": int}.
+    """
+    from_entity, from_created = await _get_or_create_entity(session, from_name)
+    to_entity, to_created = await _get_or_create_entity(session, to_name)
+
+    influence = await session.scalar(
+        select(Influence).where(
+            Influence.from_entity_id == from_entity.id,
+            Influence.to_entity_id == to_entity.id,
+        )
+    )
+
+    if influence is None:
+        influence = Influence(
+            from_entity_id=from_entity.id,
+            to_entity_id=to_entity.id,
+            direction=direction,
+            strength=strength,
+            kind=kind,
+            confidence=confidence,
+            rationale=rationale,
+            source_ref=url,
+            created_by="curator",
+        )
+        session.add(influence)
+        await session.flush()
+        return {"status": "created", "influence_id": influence.id}
+
+    # Существующее ребро: дополнить source_ref без дублей.
+    existing = [s.strip() for s in (influence.source_ref or "").split(",") if s.strip()]
+    if url in existing:
+        await session.flush()
+        return {"status": "duplicate", "influence_id": influence.id}
+    existing.append(url)
+    influence.source_ref = ",".join(existing)
+    if not influence.rationale and rationale:
+        influence.rationale = rationale
+    await session.flush()
+    return {"status": "updated", "influence_id": influence.id}
+
+
+async def _get_or_create_entity(
+    session: AsyncSession, name: str
+) -> tuple[Entity, bool]:
+    name = name.strip()
+    entity_id = await resolve_entity_id(session, name)
+    if entity_id is not None:
+        entity = await session.get(Entity, entity_id)
+        return entity, False
+    entity = Entity(
+        name=name,
+        type="sector",  # best-effort; уточняется при расширении
+        aliases=[],
+    )
+    session.add(entity)
+    await session.flush()
+    return entity, True

@@ -110,6 +110,25 @@ test.describe("News manager и админка", () => {
     expect((await page.locator("pre.run-output").innerText()).trim().length).toBeGreaterThan(0);
   });
 
+  test("admin: дополнение графа — страница и добавление ссылки", async ({ page }) => {
+    await login(page, ADMIN.username, ADMIN.password);
+    await page.goto("/admin/graph");
+    await expect(page.locator("body")).toContainText("Дополнение графа");
+    await expect(page.locator('form[action="/admin/graph/add"]')).toHaveCount(1);
+
+    // Добавить новое ребро ссылкой через форму
+    const suffix = crypto.randomUUID().replace(/-/g, "").slice(0, 6);
+    await page.fill('input[name="from_name"]', "Нефть" + suffix);
+    await page.fill('input[name="to_name"]', "Сектор" + suffix);
+    await page.fill('input[name="url"]', "https://example.com/" + suffix);
+    await Promise.all([
+      page.waitForURL("**/admin/graph*"),
+      page.click('button[type="submit"]:has-text("Добавить")'),
+    ]);
+    await expect(page.locator("body")).toContainText("создано новое ребро");
+  });
+
+
   test("admin: шаблоны фьючерсов — создание и удаление", async ({ page }) => {
     await login(page, ADMIN.username, ADMIN.password);
     await page.goto("/admin/futures-templates");

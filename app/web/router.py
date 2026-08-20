@@ -46,6 +46,8 @@ from app.notices.service import notice_state
 from app.db.connection import get_session
 from app.db.models import (
     FuturesTemplate,
+    Influence,
+    Entity,
     MarketCandle,
     MarketOpenPosition,
     PortfolioPosition,
@@ -91,6 +93,7 @@ from app.presentation.factories import WebContextFactory
 from app.presentation.view import build_strategy_view
 from app.macro.service import event_tickers, list_events, list_security_events
 from app.strategy.engine import generate_strategy
+from app.graph.service import add_influence_with_source
 
 router = APIRouter(tags=["web"])
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
@@ -1823,6 +1826,84 @@ async def admin_futures_templates_delete(
         await session.delete(template)
         await session.commit()
     return RedirectResponse(url="/admin/futures-templates", status_code=303)
+
+
+@router.get("/admin/graph")
+async def admin_graph_page(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
+    entities = (await session.scalars(select(Entity).order_by(Entity.name))).all()
+    influences = (
+        await session.scalars(select(Influence).order_by(Influence.id.desc()).limit(50))
+    ).all()
+    entity_names = {e.id: e.name for e in entities}
+    context = await _base_context(session, user)
+    context.update(
+        {
+            "entities": entities,
+            "influences": [
+                {
+                    "id": inf.id,
+                    "from": entity_names.get(inf.from_entity_id, "?"),
+                    "to": entity_names.get(inf.to_entity_id, "?"),
+                    "direction": inf.direction,
+                    "strength": inf.strength,
+                    "confidence": inf.confidence,
+                    "rationale": inf.rationale,
+                    "source_ref": inf.source_ref,
+                }
+                for inf in influences
+            ],
+            "result": request.query_params.get("result", ""),
+            "result_ok": request.query_params.get("ok") == "1",
+        }
+    )
+    return templates.TemplateResponse(request, "admin_graph.html", context)
+
+
+@router.post("/admin/graph/add")
+async def admin_graph_add(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
+    form = await request.form()
+    from_name = str(form.get("from_name") or "").strip()
+    to_name = str(form.get("to_name") or "").strip()
+    url = str(form.get("url") or "").strip()
+    if not (from_name and to_name and url):
+        return RedirectResponse(url="/admin/graph?ok=0&result=Заполните from, to и url", status_code=303)
+    try:
+        res = await add_influence_with_source(
+            session,
+            from_name=from_name,
+            to_name=to_name,
+            url=url,
+            rationale=str(form.get("rationale") or ""),
+            strength=str(form.get("strength") or "medium"),
+            confidence=float(form.get("confidence") or 0.7),
+            direction=str(form.get("direction") or "positive"),
+            kind=str(form.get("kind") or "direct"),
+        )
+        await session.commit()
+        msg = {
+            "created": "создано новое ребро",
+            "updated": "ссылка добавлена к существующему ребру",
+            "duplicate": "ссылка уже была (дубликат)",
+        }.get(res["status"], res["status"])
+        return RedirectResponse(url=f"/admin/graph?ok=1&result={msg}", status_code=303)
+    except ValueError as exc:
+        return RedirectResponse(url=f"/admin/graph?ok=0&result={exc}", status_code=303)
 
 
 _PIPELINE_TITLES = {

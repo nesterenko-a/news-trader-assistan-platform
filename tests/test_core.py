@@ -251,6 +251,49 @@ async def test_insufficient_data(session, monkeypatch):
     assert result["strategy"]["verdict"] == "INSUFFICIENT_DATA"
 
 
+async def test_add_influence_with_source(session):
+    """Сервис добавления ребра/ссылки: создание, дополнение без дублей, новый entity."""
+    from app.graph.service import add_influence_with_source
+    from app.db.models import Influence
+
+    await seed_graph(session)
+
+    # Новое ребро «Сталь → Электрогенерация» с недостающей сущностью
+    res = await add_influence_with_source(
+        session,
+        from_name="Сталь",
+        to_name="Электрогенерация",
+        url="https://example.com/steel-power",
+        direction="negative",
+    )
+    assert res["status"] == "created"
+    await session.commit()
+
+    # Повторное добавление той же ссылки — дубликат
+    res2 = await add_influence_with_source(
+        session, from_name="Сталь", to_name="Электрогенерация",
+        url="https://example.com/steel-power", direction="negative",
+    )
+    assert res2["status"] == "duplicate"
+    await session.commit()
+
+    # Дополнение существующего ребра новой ссылкой
+    res3 = await add_influence_with_source(
+        session, from_name="Сталь", to_name="Электрогенерация",
+        url="https://example.com/steel-power-2", direction="negative",
+    )
+    assert res3["status"] == "updated"
+    await session.commit()
+
+    inf = await session.get(Influence, res["influence_id"])
+    assert inf.source_ref == (
+        "https://example.com/steel-power,https://example.com/steel-power-2"
+    )
+    # Сущность создана
+    from app.graph.service import resolve_entity_id
+    assert await resolve_entity_id(session, "Электрогенерация") is not None
+
+
 async def test_generate_strategy_without_persist(session, monkeypatch):
     monkeypatch.setattr("app.market.moex.MOEXClient", lambda: FakeMOEX())
     await seed_graph(session)

@@ -116,6 +116,22 @@ SCRIPTS: list[dict] = [
         "param": None,
     },
     {
+        "key": "add_research",
+        "module": "scripts.add_research",
+        "title": "Добавить научную ссылку в граф",
+        "description": (
+            "Дополнение knowledge graph научными/аналитическими обоснованиями "
+            "(FR-05-08): прикрепляет ссылку к существующему ребру влияния "
+            "или создаёт новое ребро (и недостающие сущности). Одиночно — "
+            "--from/--to/--url, либо пакетно --file articles.csv с колонками "
+            "from,to,url[,rationale,strength,confidence,direction,kind]. "
+            "Повторные запуски не дублируют ссылки."
+        ),
+        "params": [
+            ("--file", "CSV-файл со ссылками (from,to,url,...)", "", "text"),
+        ],
+    },
+    {
         "key": "backtest",
         "module": "scripts.backtest",
         "title": "Бэктест",
