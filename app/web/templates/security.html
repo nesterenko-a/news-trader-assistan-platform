@@ -361,7 +361,15 @@
     <div class="progress"><div id="ta-bar" class="progress-bar" style="width:25%"></div></div>
   </div>
   {% else %}
-  <form method="post" action="/securities/{{ view.ticker }}/tech-analysis" class="inline-add" style="margin:0">
+  <form method="post" action="/securities/{{ view.ticker }}/tech-analysis" class="inline-add" style="margin:0;flex-wrap:wrap;gap:10px;align-items:flex-end">
+    <div>
+      <label class="muted small" style="display:block">LLM для анализа</label>
+      <select name="provider">
+        <option value="">Авто (приоритет ChatGPT)</option>
+        <option value="chatgpt">ChatGPT: {{ llm_models.chatgpt }}</option>
+        <option value="deepseek">DeepSeek: {{ llm_models.deepseek }}</option>
+      </select>
+    </div>
     <button class="btn" type="submit">Запустить теханализ</button>
   </form>
   {% endif %}

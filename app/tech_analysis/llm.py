@@ -58,27 +58,44 @@ class ResolvedLlm:
     timeout: float
 
 
-def resolve_llm() -> ResolvedLlm:
-    """Определяет провайдера для тех.анализа: ChatGPT или DeepSeek (fallback).
+def resolve_llm(provider: str | None = None) -> ResolvedLlm:
+    """Определяет провайдера для тех.анализа.
 
-    Возвращает None-значимые поля пустыми, если нет ни одного ключа.
+    provider: 'chatgpt' | 'deepseek' | None/''/'auto' (fallback).
+    Если провайдер указан, но ключ для него не задан — возвращает пустой результат.
     """
     from app.config import get_settings
 
     settings = get_settings()
-    if settings.chatgpt_api_key:
-        return ResolvedLlm(
-            api_key=settings.chatgpt_api_key,
-            base_url=settings.chatgpt_base_url,
-            model=settings.chatgpt_model,
-            timeout=settings.chatgpt_request_timeout,
-        )
-    if settings.llm_api_key:
-        return ResolvedLlm(
-            api_key=settings.llm_api_key,
-            base_url=settings.llm_base_url,
-            model=settings.llm_model,
-            timeout=settings.llm_request_timeout,
-        )
-    return ResolvedLlm(api_key="", base_url="", model="", timeout=0.0)
+
+    def _chatgpt() -> ResolvedLlm:
+        if settings.chatgpt_api_key:
+            return ResolvedLlm(
+                api_key=settings.chatgpt_api_key,
+                base_url=settings.chatgpt_base_url,
+                model=settings.chatgpt_model,
+                timeout=settings.chatgpt_request_timeout,
+            )
+        return ResolvedLlm(api_key="", base_url="", model="", timeout=0.0)
+
+    def _deepseek() -> ResolvedLlm:
+        if settings.llm_api_key:
+            return ResolvedLlm(
+                api_key=settings.llm_api_key,
+                base_url=settings.llm_base_url,
+                model=settings.llm_model,
+                timeout=settings.llm_request_timeout,
+            )
+        return ResolvedLlm(api_key="", base_url="", model="", timeout=0.0)
+
+    provider = (provider or "").strip().lower()
+    if provider == "chatgpt":
+        return _chatgpt()
+    if provider == "deepseek":
+        return _deepseek()
+    # auto/empty: ChatGPT первично, иначе DeepSeek
+    r = _chatgpt()
+    if r.api_key:
+        return r
+    return _deepseek()
 

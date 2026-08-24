@@ -107,3 +107,23 @@ def test_chatgpt_client_from_settings_fallback(monkeypatch):
     client = ChatGPTClient.from_settings()
     assert client.provider == "deepseek"
 
+
+def test_resolve_llm_force_chatgpt(monkeypatch):
+    # явный choice=chatgpt, даже если есть только DeepSeek -> пусто (ключей ChatGPT нет)
+    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="", llm_key="dk"))
+    r = resolve_llm("chatgpt")
+    assert r.api_key == ""
+    # с обоими ключами force-deepseek отдаёт именно DeepSeek
+    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="ck", llm_key="dk"))
+    r = resolve_llm("deepseek")
+    assert r.api_key == "dk"
+    assert r.model == "deepseek-reasoner"
+
+
+def test_resolve_llm_force_deepseek_ignores_chatgpt(monkeypatch):
+    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="ck", llm_key="dk"))
+    r = resolve_llm("deepseek")
+    assert r.api_key == "dk"
+    r2 = resolve_llm("chatgpt")
+    assert r2.api_key == "ck"
+

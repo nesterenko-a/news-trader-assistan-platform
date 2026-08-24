@@ -1,6 +1,6 @@
 """REST API «Теханализ в LLM» (/v1)."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,18 +28,25 @@ async def _get_row(analysis_id: int) -> TechAnalysis:
 @router.post("/start")
 async def tech_analysis_start(
     ticker: str = "",
+    provider: str | None = Query(None),
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ) -> dict:
     if not ticker.strip():
         raise HTTPException(status_code=400, detail="Тикер не указан")
     try:
-        analysis = await start_analysis(session, ticker, user_id=user.id)
+        analysis = await start_analysis(session, ticker, user_id=user.id, provider=provider)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
-    return {"id": analysis.id, "ticker": analysis.ticker, "status": analysis.status}
+    return {
+        "id": analysis.id,
+        "ticker": analysis.ticker,
+        "status": analysis.status,
+        "provider": analysis.provider,
+        "model": analysis.model,
+    }
 
 
 @router.get("")

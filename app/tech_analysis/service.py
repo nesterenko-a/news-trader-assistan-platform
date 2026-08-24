@@ -58,7 +58,9 @@ def has_active(ticker: str) -> bool:
     return ticker.upper() in _active
 
 
-async def start_analysis(session, ticker: str, user_id: int | None = None) -> TechAnalysis:
+async def start_analysis(
+    session, ticker: str, user_id: int | None = None, provider: str | None = None
+) -> TechAnalysis:
     """Создаёт запись и запускает фоновый анализ. Возвращает запись."""
     ticker = ticker.upper()
     security = await _load_security(session, ticker)
@@ -67,7 +69,8 @@ async def start_analysis(session, ticker: str, user_id: int | None = None) -> Te
     if ticker in _active:
         raise RuntimeError("Анализ по этому тикеру уже выполняется")
 
-    resolved = resolve_llm()
+    provider = (provider or "").strip().lower() or None
+    resolved = resolve_llm(provider)
     if not resolved.api_key:
         raise RuntimeError(
             "Не задан ключ LLM (CHATGPT_API_KEY или LLM_API_KEY) в настройках "
@@ -81,6 +84,7 @@ async def start_analysis(session, ticker: str, user_id: int | None = None) -> Te
         status="running",
         stage="refreshing_data",
         model=resolved.model,
+        provider=provider or ("chatgpt" if "openai.com" in resolved.base_url else "deepseek"),
     )
     session.add(analysis)
     await session.commit()
@@ -120,7 +124,11 @@ async def _analyze(analysis_id: int, ticker: str) -> None:
             # Этап 3: отправка в LLM (этот момент — кнопка «Скачать запрос» уже активна)
             row.stage = "awaiting_llm"
             await session.commit()
-            client = ChatGPTClient.from_settings()
+            resolved = resolve_llm(row.provider)
+            client = ChatGPTClient(
+                base_url=resolved.base_url, api_key=resolved.api_key,
+                model=resolved.model, timeout=resolved.timeout,
+            )
             response = await client.chat(
                 system_prompt="Ты — опытный технический аналитик.",
                 user_prompt=row.request_md,
@@ -188,7 +196,11 @@ async def _analyze_retry(analysis_id: int, ticker: str) -> None:
             row = await session.get(TechAnalysis, analysis_id)
             if row is None or not row.request_md:
                 raise RuntimeError("Запрос не сформирован")
-            client = ChatGPTClient.from_settings()
+            resolved = resolve_llm(row.provider)
+            client = ChatGPTClient(
+                base_url=resolved.base_url, api_key=resolved.api_key,
+                model=resolved.model, timeout=resolved.timeout,
+            )
             response = await client.chat(
                 system_prompt="Ты — опытный технический аналитик.",
                 user_prompt=row.request_md,

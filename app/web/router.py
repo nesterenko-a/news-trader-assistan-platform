@@ -6,6 +6,8 @@ import uuid
 import json
 
 import httpx
+
+from app.config import get_settings as get_cfg
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
@@ -1411,6 +1413,11 @@ async def security_page(
         except Exception as exc:  # noqa: BLE001
             print(f"[security_page] list_analyses error: {type(exc).__name__}: {exc}", flush=True)
             context["tech_analyses"] = {"items": [], "pages": 1, "page": 1}
+        _cfg = get_cfg()
+        context["llm_models"] = {
+            "chatgpt": _cfg.chatgpt_model,
+            "deepseek": _cfg.llm_model,
+        }
     else:
         context["tech_analyses"] = {"items": [], "pages": 1, "page": 1}
     return templates.TemplateResponse(request, "security.html", context)
@@ -1430,8 +1437,10 @@ async def security_tech_analysis_start(
     )
     if security is None or security.security_type not in ("stock", "futures"):
         return RedirectResponse(url=f"/securities/{ticker}", status_code=303)
+    form = await request.form()
+    provider = (str(form.get("provider") or "").strip()) or None
     try:
-        await start_analysis(session, ticker, user_id=user.id)
+        await start_analysis(session, ticker, user_id=user.id, provider=provider)
     except (ValueError, RuntimeError):
         pass
     return RedirectResponse(url=f"/securities/{ticker}", status_code=303)
