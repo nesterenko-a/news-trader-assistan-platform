@@ -794,3 +794,7 @@ a.ta-card:hover { border-color: var(--accent, #3b82f6); }
 
 .ta-click { cursor: pointer; }
 .ta-click:hover { border-color: var(--accent, #3b82f6); }
+
+.ta-entry { color: var(--accent, #4f8cff); }
+.ta-tp { color: var(--green, #2fbf71); }
+.ta-sl { color: var(--red, #e5484d); }
