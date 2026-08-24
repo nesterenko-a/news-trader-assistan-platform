@@ -21,6 +21,9 @@ from app.market.indicators.support_resistance import (
 )
 from app.market.indicators.ema import calculate_ema
 from app.market.indicators.macd import calculate_macd
+from app.market.indicators.bollinger import calculate_bollinger
+from app.market.indicators.atr import calculate_atr
+from app.market.indicators.adx import calculate_adx
 from app.market.moex import MOEXClient
 from app.market.oi_data import client_groups_series
 
@@ -121,6 +124,7 @@ async def calculate_indicator(
     fast: int | None = Query(None, ge=2, le=500),
     slow: int | None = Query(None, ge=3, le=500),
     signal: int | None = Query(None, ge=2, le=100),
+    k: float | None = Query(None, gt=0, le=5),
     window: int | None = Query(None, ge=10, le=500),
     fractal_k: int | None = Query(None, ge=1, le=10),
     min_touches: int | None = Query(None, ge=1, le=20),
@@ -209,6 +213,30 @@ async def calculate_indicator(
                 },
             )
         )
+
+    if name in ("bollinger", "atr", "adx"):
+        candle_q = (
+            select(MarketCandle)
+            .where(
+                MarketCandle.security_id == security.id,
+                MarketCandle.close.is_not(None),
+            )
+            .order_by(MarketCandle.trading_date)
+        )
+        if from_ is not None:
+            candle_q = candle_q.where(MarketCandle.trading_date >= from_)
+        if to is not None:
+            candle_q = candle_q.where(MarketCandle.trading_date <= to)
+        candles = (await session.scalars(candle_q)).all()
+        if limit is not None:
+            candles = candles[-limit:]
+        if name == "bollinger":
+            return _result_to_dict(
+                calculate_bollinger(candles, params={"period": period, "k": k})
+            )
+        if name == "atr":
+            return _result_to_dict(calculate_atr(candles, params={"period": period}))
+        return _result_to_dict(calculate_adx(candles, params={"period": period}))
 
     if name in ("ema", "macd"):
         eff_fast = fast if fast is not None else 12

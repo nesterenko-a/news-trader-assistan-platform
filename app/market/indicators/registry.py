@@ -7,8 +7,43 @@ from app.market.indicators.macd import DEFAULT_PARAMS as MACD_DEFAULT_PARAMS
 from app.market.indicators.support_resistance import (
     DEFAULT_PARAMS as SUPPORT_RESISTANCE_DEFAULT_PARAMS,
 )
+from app.market.indicators.bollinger import (
+    DEFAULT_PARAMS as BOLLINGER_DEFAULT_PARAMS,
+)
+from app.market.indicators.atr import DEFAULT_PARAMS as ATR_DEFAULT_PARAMS
+from app.market.indicators.adx import DEFAULT_PARAMS as ADX_DEFAULT_PARAMS
 
 REGISTRY: dict[str, dict] = {
+    "bollinger": {
+        "title": "Полосы Боллинджера",
+        "description": (
+            "Средняя SMA(period) ± k·σ; %B и bandwidth; сигналы touch_upper/"
+            "touch_lower, revert_in, squeeze (сжатие полос)"
+        ),
+        "params": BOLLINGER_DEFAULT_PARAMS,
+        "complexity": "easy",
+        "markets": ["stocks", "futures"],
+    },
+    "atr": {
+        "title": "ATR (средний истинный диапазон)",
+        "description": (
+            "Волатильность (сглаживание Уайлдера); atr_pct — ATR в % от цены "
+            "для сравнения бумаг; сигналов не даёт"
+        ),
+        "params": ATR_DEFAULT_PARAMS,
+        "complexity": "easy",
+        "markets": ["stocks", "futures"],
+    },
+    "adx": {
+        "title": "ADX / DI",
+        "description": (
+            "Сила и направление тренда: +DI/−DI, ADX; сигналы trend "
+            "(ADX≥25), range (ADX<20), bullish/bearish (пересечение DI)"
+        ),
+        "params": ADX_DEFAULT_PARAMS,
+        "complexity": "medium",
+        "markets": ["stocks", "futures"],
+    },
     "ema": {
         "title": "EMA (скользящие средние)",
         "description": (
