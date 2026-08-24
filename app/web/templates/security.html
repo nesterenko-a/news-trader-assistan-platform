@@ -15,9 +15,7 @@
       <div class="badge badge-{{ view.verdict }}">{{ view.verdict }}</div>
       <button class="btn" onclick="capturePage()">Сделать скриншот</button>
       {% if is_analyzable %}
-      <form method="post" action="/securities/{{ view.ticker }}/tech-analysis" class="inline-add" style="margin:0">
-        <button class="btn" type="submit">Теханализ в LLM</button>
-      </form>
+      <a class="btn" href="#tech-analysis-section">Теханализ в LLM</a>
       {% endif %}
     </div>
   </div>
@@ -352,7 +350,7 @@
 {% if is_analyzable %}
 <section class="card" id="tech-analysis-section">
   <div class="chart-head" style="align-items:center">
-    <h2>Теханализ в LLM (ChatGPT)</h2>
+    <h2>Теханализ в LLM</h2>
     {% if ta_active %}<span class="run-status run-warning">запрос обрабатывается…</span>{% endif %}
   </div>
   {% if ta_active %}
@@ -377,7 +375,7 @@
   {% if tech_analyses and tech_analyses['items'] %}
   <div class="ta-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:14px">
     {% for a in tech_analyses['items'] %}
-    <a class="card ta-card" style="display:block;text-decoration:none;color:inherit" href="/tech_analysis/{{ a.id }}">
+    <div class="card ta-card">
       <div class="chart-head" style="justify-content:space-between">
         <span class="muted small">{{ a.created_at }}</span>
         {% if a.status == 'success' %}
@@ -393,7 +391,14 @@
         <div><span class="label">SL</span><span class="value">{{ a.sl or '—' }}</span></div>
       </div>
       {% if a.status == 'failed' and a.error %}<p class="muted small">{{ a.error[:80] }}</p>{% endif %}
-    </a>
+      <div class="ta-footer" style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+        <a class="btn-link" href="/tech_analysis/{{ a.id }}">Открыть →</a>
+        <span class="ta-provider" title="Модель анализа">{{ a.model or '—' }}</span>
+        <form method="post" action="/tech_analysis/{{ a.id }}/delete" class="inline" onsubmit="return confirm('Удалить карточку анализа?');">
+          <button type="submit" class="feed-remove" title="Удалить карточку" aria-label="Удалить карточку">✕</button>
+        </form>
+      </div>
+    </div>
     {% endfor %}
   </div>
   {% if tech_analyses['pages'] and tech_analyses['pages'] > 1 %}

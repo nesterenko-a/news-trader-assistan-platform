@@ -1,14 +1,17 @@
 import { test, expect } from "@playwright/test";
-import { login, USER } from "./helpers";
 
 test.describe("Теханализ в LLM", () => {
-  test("карточка акции: кнопка и блок «Теханализ в LLM»", async ({ page }) => {
+  test("карточка акции: якорь и блок «Теханализ в LLM»", async ({ page }) => {
     await page.goto("/securities/AFLT");
-    await expect(page.locator("body")).toContainText("Теханализ в LLM");
-    // кнопка над кнопкой «Сделать скриншот»
-    await expect(page.locator("button", { hasText: "Теханализ в LLM" })).toBeVisible();
-    // блок карточек результатов присутствует (seed может быть пуст — тогда текст «Анализов пока нет»)
-    await expect(page.locator("body")).toContainText("Теханализ в LLM (ChatGPT)");
+    // наверху — якорь-ссылка на блок тех.анализа
+    await expect(
+      page.locator('a[href="#tech-analysis-section"]', { hasText: "Теханализ в LLM" })
+    ).toBeVisible();
+    // заголовок блока без привязки к ChatGPT
+    await expect(page.locator("h2", { hasText: "Теханализ в LLM" }).first()).toBeVisible();
+    await expect(page.locator("body")).not.toContainText("Теханализ в LLM (ChatGPT)");
+    // селектор выбора LLM присутствует
+    await expect(page.locator('select[name="provider"]')).toBeVisible();
   });
 
   test("неавторизованный запуск редиректит на /login", async ({ request }) => {
@@ -18,9 +21,14 @@ test.describe("Теханализ в LLM", () => {
   });
 
   test("страница ответа доступна и рендерит сценарии", async ({ page }) => {
-    // создадим запись tech_analysis напрямую через API невозможно без ключа;
     // проверяем, что страница отдаёт 404 на несуществующий id без падения
     const resp = await page.goto("/tech_analysis/999999");
     expect(resp ? resp.status() : 500).toBe(404);
+  });
+
+  test("карточка акции: кнопка удаления заглушка (нет данных — нет карточек)", async ({ page }) => {
+    await page.goto("/securities/AFLT");
+    // если карточек нет — текст «Анализов пока нет»
+    await expect(page.locator("body")).toContainText("Анализов пока нет");
   });
 });

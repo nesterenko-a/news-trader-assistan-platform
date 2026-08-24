@@ -1473,11 +1473,19 @@ async def tech_analysis_page(
             }
         except (ValueError, TypeError):
             scenarios = {"a": {}, "b": {}, "c": {}}
+    provider = (row.provider or "").lower()
+    model = row.model or ""
+    llm_name = (
+        "DeepSeek" if provider == "deepseek" or "deepseek" in model
+        else "ChatGPT" if provider == "chatgpt" or "gpt" in model.lower()
+        else provider or ""
+    )
     context.update(
         {
             "analysis": row,
             "security_name": security.name if security else row.ticker,
             "scenarios": scenarios,
+            "llm_name": llm_name,
         }
     )
     return templates.TemplateResponse(request, "tech_analysis.html", context)
@@ -1499,6 +1507,24 @@ async def tech_analysis_retry_form(
     return RedirectResponse(
         url=f"/tech_analysis/{analysis_id}", status_code=303
     )
+
+
+@router.post("/tech_analysis/{analysis_id}/delete")
+async def tech_analysis_delete_form(
+    analysis_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    row = await session.get(TechAnalysis, analysis_id)
+    redirect = "/"
+    if row is not None:
+        redirect = f"/securities/{row.ticker}"
+        await session.delete(row)
+        await session.commit()
+    return RedirectResponse(url=redirect, status_code=303)
 
 
 @router.get("/login")

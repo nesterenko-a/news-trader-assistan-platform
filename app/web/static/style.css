@@ -788,3 +788,6 @@ a.ta-card:hover { border-color: var(--accent, #3b82f6); }
 .md-body th, .md-body td { border: 1px solid var(--border, #2b3750); padding: 6px 10px; text-align: left; }
 .md-body code { background: var(--panel-2, #202a40); padding: 2px 5px; border-radius: 4px; }
 .md-body pre { background: var(--panel-2, #202a40); padding: 10px; border-radius: 8px; overflow-x: auto; }
+.ta-provider { font-size: 12px; font-weight: 600; color: var(--accent, #4f8cff); max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ta-provider { font-size: 12px; font-weight: 600; color: var(--accent, #4f8cff); max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

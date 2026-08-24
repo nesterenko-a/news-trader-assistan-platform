@@ -270,6 +270,8 @@ async def list_analyses(ticker: str, page: int = 1, per_page: int = 4) -> dict:
                     "entry": r.entry,
                     "tp": r.tp,
                     "sl": r.sl,
+                    "model": r.model,
+                    "provider": r.provider,
                     "created_at": r.created_at.strftime("%d.%m.%Y %H:%M")
                     if r.created_at
                     else "",

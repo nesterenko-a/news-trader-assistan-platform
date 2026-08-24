@@ -62,7 +62,7 @@
 {% endif %}
 
 <section class="card" style="margin-top:12px">
-  <div class="chart-head"><h2>Ответ LLM (ChatGPT)</h2></div>
+  <div class="chart-head"><h2>Ответ LLM ({{ llm_name }} · {{ analysis.model or '—' }})</h2></div>
   <div id="md-output" class="md-body">{{ analysis.response_md or '' }}</div>
 </section>
 
@@ -72,10 +72,22 @@
 (function () {
   var raw = {{ analysis.response_md or '' | tojson }};
   var out = document.getElementById('md-output');
-  if (out && window.marked && window.DOMPurify) {
-    marked.setOptions({ breaks: true, gfm: true });
-    var html = marked.parse(raw || '');
-    out.innerHTML = DOMPurify.sanitize(html);
+  function render() {
+    if (out && window.marked && window.DOMPurify) {
+      marked.setOptions({ breaks: true, gfm: true });
+      var html = marked.parse(raw || '');
+      out.innerHTML = DOMPurify.sanitize(html);
+      return true;
+    }
+    return false;
+  }
+  if (!render()) {
+    // файлы могли не успеть загрузиться — ждём и пробуем ещё раз
+    var tries = 0;
+    var t = setInterval(function () {
+      tries += 1;
+      if (render() || tries > 10) clearInterval(t);
+    }, 200);
   }
 })();
 </script>
