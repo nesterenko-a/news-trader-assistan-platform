@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import MarketCandle, Security
 from app.market.moex import MOEXClient
+from app.market.renames import actual_ticker
 
 
 async def sync_security_prices(
@@ -33,6 +34,24 @@ async def sync_security_prices(
     except httpx.HTTPError as exc:
         print(f"[prices] {ticker}: ошибка MOEX ({type(exc).__name__}) — пропускаю")
         return 0
+
+    # Если по запрошенному тикеру MOEX не отдаёт данных (напр. тикер переименован:
+    # FIVE → X5), пробуем актуальный биржевой тикер, сохраняя свечи к этой бумаге.
+    if not candles:
+        live = actual_ticker(ticker)
+        if live != ticker.strip().upper():
+            try:
+                candles = await MOEXClient().fetch_candles(
+                    live,
+                    from_date=from_date,
+                    till_date=date.today(),
+                    security_type=security.security_type,
+                )
+                if candles:
+                    print(f"[prices] {ticker}: данные получены по актуальному тикеру {live}")
+            except httpx.HTTPError as exc2:
+                print(f"[prices] {ticker}: ошибка MOEX по {live} ({type(exc2).__name__})")
+                candles = []
 
     inserted = 0
     for candle in candles:
