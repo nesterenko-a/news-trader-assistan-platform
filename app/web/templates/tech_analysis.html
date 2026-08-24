@@ -3,6 +3,7 @@
 {% block title %}{{ analysis.ticker }} — Теханализ в LLM — NewsTrader Assistant{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="/static/katex.min.css">
 <p class="crumb"><a href="/securities/{{ analysis.ticker }}">← {{ analysis.ticker }}</a> · <a href="/">Все бумаги</a></p>
 
 <section class="card">
@@ -66,31 +67,32 @@
 
 <section class="card" style="margin-top:12px">
   <div class="chart-head"><h2>Ответ LLM ({{ llm_name }} · {{ analysis.model or '—' }})</h2></div>
-  <div id="md-output" class="md-body">{{ analysis.response_md or '' }}</div>
+  <div class="md-body">{{ response_html|safe }}</div>
 </section>
 
-<script src="/static/marked.min.js"></script>
-<script src="/static/purify.min.js"></script>
+<script src="/static/mermaid.min.js"></script>
+<script src="/static/katex.min.js"></script>
+<script src="/static/auto-render.min.js"></script>
 <script>
 (function () {
-  var raw = {{ analysis.response_md or '' | tojson }};
-  var out = document.getElementById('md-output');
-  function render() {
-    if (out && window.marked && window.DOMPurify) {
-      marked.setOptions({ breaks: true, gfm: true });
-      var html = marked.parse(raw || '');
-      out.innerHTML = DOMPurify.sanitize(html);
-      return true;
-    }
-    return false;
+  var body = document.querySelector('.md-body');
+  if (!body) return;
+  // KaTeX: формулы $...$ / $$...$$ внутри ответа
+  if (window.renderMathInElement && window.katex) {
+    try {
+      renderMathInElement(body, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false }
+        ],
+        throwOnError: false
+      });
+    } catch (e) { /* не критично */ }
   }
-  if (!render()) {
-    // файлы могли не успеть загрузиться — ждём и пробуем ещё раз
-    var tries = 0;
-    var t = setInterval(function () {
-      tries += 1;
-      if (render() || tries > 10) clearInterval(t);
-    }, 200);
+  // Mermaid: диаграммы ```mermaid
+  if (window.mermaid && body.querySelector('pre.mermaid')) {
+    mermaid.initialize({ startOnLoad: false, theme: 'default' });
+    mermaid.run({ nodes: Array.prototype.slice.call(body.querySelectorAll('pre.mermaid')) });
   }
 })();
 </script>

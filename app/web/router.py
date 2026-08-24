@@ -102,6 +102,7 @@ from app.market.indicators.basis_service import basis_for_ticker
 from app.tech_analysis.service import has_active, list_analyses, retry_analysis, start_analysis
 from app.news.service import load_security_news
 from app.presentation.factories import WebContextFactory
+from app.presentation.markdown_renderer import render_markdown
 from app.presentation.view import build_strategy_view
 from app.macro.service import event_tickers, list_events, list_security_events
 from app.strategy.engine import generate_strategy
@@ -1486,6 +1487,7 @@ async def tech_analysis_page(
             "security_name": security.name if security else row.ticker,
             "scenarios": scenarios,
             "llm_name": llm_name,
+            "response_html": render_markdown(row.response_md),
         }
     )
     return templates.TemplateResponse(request, "tech_analysis.html", context)
