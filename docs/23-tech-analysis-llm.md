@@ -1,6 +1,6 @@
 # 23. Теханализ в LLM — отправка технического анализа бумаги в ChatGPT
 
-**Статус:** реализовано v1.0
+**Статус:** реализовано v1.1 (fallback LLM: если `CHATGPT_API_KEY` пуст — используется DeepSeek `LLM_API_KEY`)
 **Система:** NewsTrader Assistant
 **Приоритет задачи:** P0 (этап 2 дорожной карты, «Углубление аналитики»)
 
@@ -160,7 +160,7 @@ SQLAlchemy-модель `TechAnalysis` в `app/db/models.py` меняется в
 Добавляются поля в `app/config.py` (pydantic-settings) и `.env.example`:
 
 ```
-# ChatGPT (тех. анализ в LLM). Отдельный токен, по аналогии с DeepSeek LLM_*.
+# ChatGPT (тех. анализ в LLM). Если CHATGPT_API_KEY пуст — используется DeepSeek (LLM_*).
 CHATGPT_BASE_URL=https://api.openai.com/v1
 CHATGPT_API_KEY=
 CHATGPT_MODEL=gpt-4o
@@ -169,7 +169,7 @@ CHATGPT_REQUEST_TIMEOUT=120
 TECH_ANALYSIS_PROMPT_FILE=docs/promt_tech_analize.md
 ```
 
-Перед отправкой в LLM приложение проверяет: если `CHATGPT_API_KEY` пуст — анализ не запускается с понятной ошибкой.
+Перед отправкой в LLM приложение проверяет наличие ключа: если `CHATGPT_API_KEY` задан — используется ChatGPT; если пуст — используется `LLM_API_KEY` (DeepSeek). Если не задан ни один ключ — анализ не запускается с понятной ошибкой.
 
 ## 11. Безопасность и правовые аспекты
 

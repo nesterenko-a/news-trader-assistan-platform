@@ -177,7 +177,7 @@ schtasks /Delete /TN "NewsTraderBot\CollectNews" /F # удалить
 | `DATABASE_URL` | Строка подключения к PostgreSQL (asyncpg) |
 | `AUTO_CREATE_SCHEMA` | `true` — приложение создаёт схему само (dev); `false` — только Liquibase (prod) |
 | `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | Провайдер NLP (DeepSeek, OpenAI-совместимый) |
-| `CHATGPT_BASE_URL` / `CHATGPT_API_KEY` / `CHATGPT_MODEL` | ChatGPT для «Теханализ в LLM» (токен из общих настроек, по аналогии с DeepSeek) |
+| `CHATGPT_BASE_URL` / `CHATGPT_API_KEY` / `CHATGPT_MODEL` | ChatGPT для «Теханализ в LLM» (токен из общих настроек, по аналогии с DeepSeek). Если `CHATGPT_API_KEY` пуст — используется DeepSeek (`LLM_*`) |
 | `TECH_ANALYSIS_PROMPT_FILE` | Путь к промту теханализа (Markdown); при отсутствии файла — встроенный fallback |
 | `MOEX_BASE_URL` | Базовый URL MOEX ISS |
 | `TELEGRAM_BOT_TOKEN` | Токен Telegram-бота (канал доступа) |
