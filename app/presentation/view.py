@@ -7,7 +7,13 @@ KIND_LABELS = {
     "vp": "профиль объёма",
     "trend": "MACD (тренд)",
     "sr": "уровни S/R",
+    "bollinger": "полосы Боллинджера",
+    "atr": "ATR (волатильность)",
+    "adx": "ADX (сила тренда)",
 }
+
+# Информационные виды (вес 0) — отображаются как «—» вместо веса
+_INFORMATIONAL_KINDS = ("oi", "vp", "trend", "sr", "bollinger", "atr", "adx")
 
 
 @dataclass
@@ -81,7 +87,7 @@ def build_strategy_view(
                 kind_label=KIND_LABELS.get(kind, kind),
                 sentiment=signal["sentiment"],
                 weight=round(signal["weight"], 3),
-                weight_str="—" if kind in ("oi", "vp", "trend", "sr") else f"{signal['weight']:+.3f}",
+                weight_str="—" if kind in _INFORMATIONAL_KINDS else f"{signal['weight']:+.3f}",
                 path=" → ".join(signal["path"]),
                 source_ref=ref,
             )

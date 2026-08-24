@@ -26,6 +26,9 @@ from app.market.indicators.support_resistance import (
 )
 from app.market.indicators.volume_profile import calculate_volume_profile
 from app.market.indicators.macd import calculate_macd
+from app.market.indicators.bollinger import calculate_bollinger
+from app.market.indicators.atr import calculate_atr
+from app.market.indicators.adx import calculate_adx
 from app.market.oi_data import latest_oi_signal, nearest_future
 
 DECAY_PER_HOUR = 0.0137
@@ -518,6 +521,96 @@ async def generate_strategy(
                     )
                 )
 
+    # Полосы Боллинджера: цена за upper/lower как зоны перекупленности/
+    # перепроданности (сдерживающий фактор, аналогично RSI/VP; ТЗ §8.3).
+    bb_meta = calculate_bollinger(trend_candles, params={"period": 20, "k": 2}).meta
+    bb_close = bb_meta.get("last_close")
+    bb_upper = bb_meta.get("latest_upper")
+    bb_lower = bb_meta.get("latest_lower")
+    bb_zone = bb_meta.get("zone")
+    if bb_close is not None and bb_upper is not None and bb_lower is not None:
+        if bb_zone in ("upper", "lower"):
+            signals.append(
+                {
+                    "entity": "Полосы Боллинджера",
+                    "snippet": "",
+                    "url": "",
+                    "sentiment": "negative" if bb_zone == "upper" else "positive",
+                    "kind": "bollinger",
+                    "path": [
+                        f"цена {bb_close:.2f} за {'верхней' if bb_zone == 'upper' else 'нижней'} "
+                        f"полосой ({bb_upper:.2f}/{bb_lower:.2f})"
+                    ],
+                    "weight": 0.0,
+                }
+            )
+            if bb_zone == "upper" and net_score > 0:
+                net_score *= 0.9
+                indicator_note = (
+                    f"цена {bb_close:.2f} выше верхней полосы Боллинджера — перекупленность"
+                    if not indicator_note
+                    else f"{indicator_note}; цена выше верхней полосы — перекупленность"
+                )
+            elif bb_zone == "lower" and net_score < 0:
+                net_score *= 0.9
+                indicator_note = (
+                    f"цена {bb_close:.2f} ниже нижней полосы Боллинджера — перепроданность"
+                    if not indicator_note
+                    else f"{indicator_note}; цена ниже нижней полосы — перепроданность"
+                )
+
+    # ATR: контекст волатильности как информационный сигнал (ТЗ §8.8).
+    atr_meta = calculate_atr(trend_candles, params={"period": 14}).meta
+    if atr_meta.get("latest_atr") is not None and atr_meta.get("atr_pct") is not None:
+        signals.append(
+            {
+                "entity": "ATR (волатильность)",
+                "snippet": "",
+                "url": "",
+                "sentiment": "neutral",
+                "kind": "atr",
+                "path": [
+                    f"ATR {atr_meta['latest_atr']:.2f} · "
+                    f"{atr_meta['atr_pct']:.2f}% от цены"
+                ],
+                "weight": 0.0,
+            }
+        )
+
+    # ADX/DI: сила тренда как фильтр — при противоречии знаку net_score
+    # ослабляем сигнал (ТЗ §8.10).
+    adx_meta = calculate_adx(trend_candles, params={"period": 14}).meta
+    plus_di = adx_meta.get("latest_plus_di")
+    minus_di = adx_meta.get("latest_minus_di")
+    if (
+        adx_meta.get("state") == "trend"
+        and adx_meta.get("latest_adx") is not None
+        and plus_di is not None
+        and minus_di is not None
+    ):
+        di_up = plus_di > minus_di
+        signals.append(
+            {
+                "entity": "ADX (сила тренда)",
+                "snippet": "",
+                "url": "",
+                "sentiment": "positive" if di_up else "negative",
+                "kind": "adx",
+                "path": [
+                    f"ADX {adx_meta['latest_adx']:.0f} · "
+                    f"{'+DI выше −DI' if di_up else '−DI выше +DI'}"
+                ],
+                "weight": 0.0,
+            }
+        )
+        if (di_up and net_score < 0) or (not di_up and net_score > 0):
+            net_score *= 0.9
+            indicator_note = (
+                "сильный тренд по ADX против сигнала — ослаблен"
+                if not indicator_note
+                else f"{indicator_note}; сильный тренд по ADX против сигнала — ослаблен"
+            )
+
     weighted = [s for s in signals if s["weight"] != 0]
     coverage = min(len(weighted) / 5.0, 1.0)
     confidence = max(0.0, min(0.95, agreement * 0.5 + coverage * 0.3 + 0.2))
@@ -571,9 +664,9 @@ async def generate_strategy(
 
         for s in signals[:10]:
             if not s["weight"]:
-                # Нулевой вес: информационные (oi, vp, trend) и новостные
-                # с нулевым влиянием — в калибровке весов не участвуют,
-                # в evidence не сохраняются (иначе шум в пуле).
+                # Нулевой вес: информационные (oi, vp, trend, sr, bollinger,
+                # atr, adx) и новостные с нулевым влиянием — в калибровке
+                # весов не участвуют, в evidence не сохраняются (иначе шум).
                 continue
             session.add(
                 EvidenceItem(
