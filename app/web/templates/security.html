@@ -375,15 +375,18 @@
   {% if tech_analyses and tech_analyses['items'] %}
   <div class="ta-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:14px">
     {% for a in tech_analyses['items'] %}
-    <div class="card ta-card">
-      <div class="chart-head" style="justify-content:space-between">
+    <div class="card ta-card ta-click" data-href="/tech_analysis/{{ a.id }}" data-id="{{ a.id }}">
+      <div class="chart-head" style="justify-content:space-between;align-items:flex-start">
         <span class="muted small">{{ a.created_at }}</span>
-        {% if a.status == 'success' %}
-          {% if a.verdict == 'BUY' %}<span class="badge badge-BUY">Купить</span>
-          {% elif a.verdict == 'SELL' %}<span class="badge badge-SELL">Продать</span>
-          {% else %}<span class="badge badge-HOLD">Выжидать</span>{% endif %}
-        {% elif a.status == 'failed' %}<span class="run-status run-error">ошибка</span>
-        {% else %}<span class="run-status run-warning">…</span>{% endif %}
+        <div style="display:flex;align-items:center;gap:6px">
+          {% if a.status == 'success' %}
+            {% if a.verdict == 'BUY' %}<span class="badge badge-BUY">Купить</span>
+            {% elif a.verdict == 'SELL' %}<span class="badge badge-SELL">Продать</span>
+            {% else %}<span class="badge badge-HOLD">Выжидать</span>{% endif %}
+          {% elif a.status == 'failed' %}<span class="run-status run-error">ошибка</span>
+          {% else %}<span class="run-status run-warning">…</span>{% endif %}
+          <button type="button" class="feed-remove ta-delete" data-id="{{ a.id }}" title="Удалить карточку" aria-label="Удалить карточку">✕</button>
+        </div>
       </div>
       <div class="ta-fields">
         <div><span class="label">Вход</span><span class="value">{{ a.entry or '—' }}</span></div>
@@ -392,11 +395,8 @@
       </div>
       {% if a.status == 'failed' and a.error %}<p class="muted small">{{ a.error[:80] }}</p>{% endif %}
       <div class="ta-footer" style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-        <a class="btn-link" href="/tech_analysis/{{ a.id }}">Открыть →</a>
+        <span class="muted small">Модель</span>
         <span class="ta-provider" title="Модель анализа">{{ a.model or '—' }}</span>
-        <form method="post" action="/tech_analysis/{{ a.id }}/delete" class="inline" onsubmit="return confirm('Удалить карточку анализа?');">
-          <button type="submit" class="feed-remove" title="Удалить карточку" aria-label="Удалить карточку">✕</button>
-        </form>
       </div>
     </div>
     {% endfor %}
@@ -412,6 +412,37 @@
   {% else %}
   <p class="muted small" style="margin-top:8px">Анализов пока нет — нажмите «Запустить теханализ».</p>
   {% endif %}
+  <script>
+  (function () {
+    var section = document.getElementById('tech-analysis-section');
+    if (!section) return;
+    // Открытие по клику на карточку (кроме кнопки удаления)
+    section.addEventListener('click', function (e) {
+      var card = e.target.closest('.ta-click');
+      if (!card) return;
+      if (e.target.closest('.ta-delete') || e.target.closest('button, a, select, form, input')) return;
+      var href = card.getAttribute('data-href');
+      if (href) window.location.href = href;
+    });
+    // Удаление карточки без перезагрузки страницы
+    section.addEventListener('click', function (e) {
+      var btn = e.target.closest('.ta-delete');
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var id = btn.getAttribute('data-id');
+      if (!id) return;
+      if (!window.confirm('Удалить карточку анализа?')) return;
+      btn.disabled = true;
+      fetch('/tech_analysis/' + id + '/delete', { method: 'POST', credentials: 'same-origin' })
+        .then(function () {
+          var card = btn.closest('.ta-click');
+          if (card) card.remove();
+        })
+        .catch(function () { btn.disabled = false; });
+    });
+  })();
+  </script>
 </section>
 {% endif %}
 

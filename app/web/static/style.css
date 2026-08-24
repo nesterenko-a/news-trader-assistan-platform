@@ -791,3 +791,6 @@ a.ta-card:hover { border-color: var(--accent, #3b82f6); }
 .ta-provider { font-size: 12px; font-weight: 600; color: var(--accent, #4f8cff); max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .ta-provider { font-size: 12px; font-weight: 600; color: var(--accent, #4f8cff); max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ta-click { cursor: pointer; }
+.ta-click:hover { border-color: var(--accent, #3b82f6); }
