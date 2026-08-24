@@ -49,6 +49,22 @@ async def sync_security_prices(
                 )
                 if candles:
                     print(f"[prices] {ticker}: данные получены по актуальному тикеру {live}")
+                    # Обновляем тикер бумаги в БД на актуальный биржевой код
+                    # (например FIVE → X5), если он ещё не занят другой бумагой.
+                    clash = await session.scalar(
+                        select(Security).where(
+                            Security.ticker == live, Security.id != security.id
+                        )
+                    )
+                    if clash is None:
+                        security.ticker = live
+                        await session.commit()
+                        print(f"[prices] {ticker}: тикер в БД обновлён на {live}")
+                    else:
+                        print(
+                            f"[prices] {ticker}: тикер {live} занят другой бумагой "
+                            f"(id={clash.id}) — тикер в БД не меняем"
+                        )
             except httpx.HTTPError as exc2:
                 print(f"[prices] {ticker}: ошибка MOEX по {live} ({type(exc2).__name__})")
                 candles = []
