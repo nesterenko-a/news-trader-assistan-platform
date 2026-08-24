@@ -18,7 +18,7 @@ from app.db.models import Security, TechAnalysis
 from app.market.oi_data import sync_security_oi
 from app.market.prices import sync_security_prices
 from app.notices.service import add_notice
-from app.tech_analysis.llm import ChatGPTClient
+from app.tech_analysis.llm import ChatGPTClient, resolve_llm
 from app.tech_analysis.parser import parse_response
 from app.tech_analysis.request_builder import build_analysis_request
 
@@ -67,10 +67,11 @@ async def start_analysis(session, ticker: str, user_id: int | None = None) -> Te
     if ticker in _active:
         raise RuntimeError("Анализ по этому тикеру уже выполняется")
 
-    settings = get_settings()
-    if not settings.chatgpt_api_key:
+    resolved = resolve_llm()
+    if not resolved.api_key:
         raise RuntimeError(
-            "Не задан CHATGPT_API_KEY в настройках (.env) — тех. анализ в LLM недоступен"
+            "Не задан ключ LLM (CHATGPT_API_KEY или LLM_API_KEY) в настройках "
+            "(.env) — тех. анализ в LLM недоступен"
         )
 
     analysis = TechAnalysis(
@@ -79,7 +80,7 @@ async def start_analysis(session, ticker: str, user_id: int | None = None) -> Te
         is_future=(security.security_type == "futures"),
         status="running",
         stage="refreshing_data",
-        model=settings.chatgpt_model,
+        model=resolved.model,
     )
     session.add(analysis)
     await session.commit()
