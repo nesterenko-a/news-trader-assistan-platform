@@ -119,6 +119,7 @@ async def _analyze(analysis_id: int, ticker: str) -> None:
             built = await build_analysis_request(session, security)
             row.request_md = built["request_md"]
             row.is_future = built["is_future"]
+            row.price_at_analysis = built.get("price_at_analysis")
             await session.commit()
 
             # Этап 3: отправка в LLM (этот момент — кнопка «Скачать запрос» уже активна)

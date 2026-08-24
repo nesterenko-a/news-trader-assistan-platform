@@ -24,7 +24,7 @@ def test_parse_response_verdict_buy():
         "```json\n"
         '{"verdict":"BUY","entry":"100-105","tp":"110/115","sl":"98",'
         '"scenario_a":{"title":"Сценарий A","entry":"100-105",'
-        '"stop":"98","targets":"110/115","why":"откат"}'
+        '"stop":"98","targets":"110/115","why":"откат","probability":"~65%"}'
         "}\n"
         "```\n"
     )
@@ -34,6 +34,7 @@ def test_parse_response_verdict_buy():
     assert parsed["tp"] == "110/115"
     assert parsed["sl"] == "98"
     assert parsed["scenario_a"]["title"] == "Сценарий A"
+    assert parsed["scenario_a"]["probability"] == "~65%"
     data = json.loads(parsed["scenario_json"])
     assert data["scenario_a"]["stop"] == "98"
 

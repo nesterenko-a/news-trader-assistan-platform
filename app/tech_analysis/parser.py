@@ -39,6 +39,7 @@ def _scenario(data: dict | None, key: str) -> dict:
         "stop": src.get("stop", ""),
         "targets": src.get("targets", ""),
         "why": src.get("why", ""),
+        "probability": src.get("probability", ""),
     }
 
 

@@ -108,8 +108,10 @@ async def build_analysis_request(session, security: Security) -> dict:
 
     # Индикаторы на последнем дне (по данным окна 1Y)
     candles_year = await _candles_window(session, security.id, 365)
+    price_at_analysis = None
     if candles_year:
         close_val = candles_year[-1].close if candles_year else None
+        price_at_analysis = _fmt_price(close_val) if close_val is not None else None
         parts.append("### Индикаторы (последние значения)\n")
         if close_val is not None:
             parts.append(f"- Последняя цена: {_fmt_price(close_val)}\n")
@@ -189,4 +191,5 @@ async def build_analysis_request(session, security: Security) -> dict:
         "request_md": request_md,
         "is_future": is_future,
         "security_name": security.name,
+        "price_at_analysis": price_at_analysis,
     }

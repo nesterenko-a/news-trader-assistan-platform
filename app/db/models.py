@@ -491,6 +491,7 @@ class TechAnalysis(Base):
     scenario_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     provider: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    price_at_analysis: Mapped[str | None] = mapped_column(String(40), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, server_default=func.now()
