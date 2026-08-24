@@ -8,13 +8,13 @@
 """
 
 import asyncio
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import func, select
 
 from app.config import get_settings
 from app.db.connection import SessionLocal
-from app.db.models import Security, TechAnalysis
+from app.db.models import MarketCandle, Security, TechAnalysis
 from app.market.oi_data import sync_security_oi
 from app.market.prices import sync_security_prices
 from app.notices.service import add_notice
@@ -112,6 +112,25 @@ async def _analyze(analysis_id: int, ticker: str) -> None:
             await sync_security_prices(session, ticker, days=7)
             if is_future:
                 await sync_security_oi(session, ticker, days=7)
+
+            # Проверка актуальности котировок: для анализа нужна свежая цена
+            last_candle = await session.scalar(
+                select(func.max(MarketCandle.trading_date)).where(
+                    MarketCandle.security_id == security.id
+                )
+            )
+            stale_days = 45
+            if last_candle is None:
+                raise RuntimeError(
+                    f"Недостаточно данных по бумаге {ticker}: в базе нет котировок. "
+                    "Обновите цены (scripts.update_prices) или уточните тикер."
+                )
+            if last_candle < date.today() - timedelta(days=stale_days):
+                raise RuntimeError(
+                    f"Недостаточно данных по бумаге {ticker}: последняя котировка "
+                    f"от {last_candle.isoformat()} (старше {stale_days} дней). "
+                    "Обновите тикер или ценовой источник."
+                )
 
             # Этап 2: формирование запроса
             row.stage = "forming_request"
