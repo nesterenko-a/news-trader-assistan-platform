@@ -133,6 +133,9 @@ test.describe("Публичные страницы", () => {
     ["oi", "Открытый интерес (OI)", ""],
     ["volume_profile", "Профиль объёма (Volume Profile)", ""],
     ["support_resistance", "Поддержка/сопротивление", ""],
+    ["bollinger", "Полосы Боллинджера", "SBER"],
+    ["atr", "ATR (средний истинный диапазон)", "SBER"],
+    ["adx", "ADX / DI", "SBER"],
   ];
   for (const [name, label, ticker] of TABS) {
     test(`индикаторы: вкладка ${name}`, async ({ page }) => {
@@ -140,12 +143,12 @@ test.describe("Публичные страницы", () => {
       await page.goto(url);
       await expect(page.locator(".seg-item.seg-active")).toContainText(label);
       await expect(page.locator('button[type="submit"]')).toHaveCount(1);
-      if (name === "ema" || name === "macd") {
+      if (["ema", "macd", "bollinger", "atr", "adx"].includes(name)) {
         await expect(page.locator("h2").first()).toContainText("Сбербанк (SBER)");
         await expect(page.locator("svg.chart").first()).toBeVisible();
       }
-      if (name === "macd") {
-        // на сидовых свечах MACD даёт сигналы
+      if (["macd", "adx"].includes(name)) {
+        // на сидовых свечах MACD/ADX дают сигналы (трендовые сценарии)
         const rows = page.locator("table.table tbody tr");
         expect(await rows.count()).toBeGreaterThan(0);
       }
@@ -155,6 +158,9 @@ test.describe("Публичные страницы", () => {
   const DATA_TABS: Array<[string, string | null]> = [
     ["volume_profile", "Профиль объёма — Сбербанк (SBER)"],
     ["support_resistance", null],
+    ["bollinger", "Полосы Боллинджера — Сбербанк (SBER)"],
+    ["atr", "ATR — Сбербанк (SBER)"],
+    ["adx", "ADX/DI — Сбербанк (SBER)"],
   ];
   for (const [name, heading] of DATA_TABS) {
     test(`индикаторы: ${name} с тикером SBER`, async ({ page }) => {

@@ -514,6 +514,100 @@
 <p class="muted">Введите тикер (например AFLT) и нажмите «Показать».</p>
 {% endif %}
 
+{% elif indicator_name in ('bollinger', 'atr', 'adx') %}
+{% if indicator_name == 'bollinger' %}
+<p class="muted">Полосы Боллинджера: SMA(period) ± k·σ, %B и bandwidth. Сигналы: касание полос, возврат внутрь, сжатие (squeeze).</p>
+{% elif indicator_name == 'atr' %}
+<p class="muted">ATR (средний истинный диапазон) — мера волатильности со сглаживанием Уайлдера; atr_pct — ATR в % от цены для сравнения бумаг.</p>
+{% else %}
+<p class="muted">ADX/DI — сила и направление тренда: +DI/−DI, ADX; сигналы trend (ADX≥25), range (ADX&lt;20), bullish/bearish.</p>
+{% endif %}
+<form method="get" action="/indicators" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">
+  <input type="hidden" name="name" value="{{ indicator_name }}">
+  <div>
+    <label class="muted small" style="display:block">Тикер</label>
+    <input type="text" name="ticker" value="{{ ticker }}" list="tickers-datalist" autocomplete="off">
+  </div>
+  {% if indicator_name == 'bollinger' %}
+  <div>
+    <label class="muted small" style="display:block">period</label>
+    <input type="number" name="bb_period" min="2" max="500" value="{{ bb_period }}">
+  </div>
+  <div>
+    <label class="muted small" style="display:block">k</label>
+    <input type="number" name="bb_k" min="0.1" max="5" step="0.1" value="{{ bb_k }}">
+  </div>
+  {% elif indicator_name == 'atr' %}
+  <div>
+    <label class="muted small" style="display:block">period</label>
+    <input type="number" name="atr_period" min="2" max="500" value="{{ atr_period }}">
+  </div>
+  {% else %}
+  <div>
+    <label class="muted small" style="display:block">period</label>
+    <input type="number" name="adx_period" min="2" max="100" value="{{ adx_period }}">
+  </div>
+  {% endif %}
+  <button class="btn" type="submit">Показать</button>
+</form>
+
+{% if tech_error %}<section class="card"><p class="error">{{ tech_error }}</p></section>{% endif %}
+
+{% if tech_charts %}
+<section class="card chart-card" style="margin-top:12px">
+  <div class="chart-head">
+    <h2>{{ {'bollinger': 'Полосы Боллинджера', 'atr': 'ATR', 'adx': 'ADX/DI'}[indicator_name] }} — {{ tech_security_name }} ({{ ticker }})</h2>
+    {% if indicator_name == 'bollinger' and tech_meta.zone == 'upper' %}<span class="muted">выше верхней полосы — перекупленность</span>
+    {% elif indicator_name == 'bollinger' and tech_meta.zone == 'lower' %}<span class="muted">ниже нижней полосы — перепроданность</span>
+    {% elif indicator_name == 'adx' and tech_meta.state == 'trend' %}<span class="muted">тренд: ADX ≥ 25 ({{ tech_meta.trend }})</span>
+    {% elif indicator_name == 'adx' and tech_meta.state == 'range' %}<span class="muted">флэт: ADX &lt; 20</span>{% endif %}
+  </div>
+  {% for chart in tech_charts %}
+  <svg class="chart" viewBox="0 0 {{ chart.width }} {{ chart.height }}" preserveAspectRatio="none">
+    <polyline points="{{ chart.points }}"/>
+  </svg>
+  <div class="chart-labels">
+    <span>{{ chart.kind }}: {{ chart.min }} – {{ chart.max }}</span>
+    <span>{{ chart.first_date }} → {{ chart.last_date }} ({{ chart.count }} точек)</span>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if tech_meta %}
+<section class="card">
+  <h2>Сводка</h2>
+  {% if indicator_name == 'bollinger' %}
+  <p class="muted small">middle={{ tech_meta.latest_middle }} · upper={{ tech_meta.latest_upper }} · lower={{ tech_meta.latest_lower }} · %B={{ tech_meta.percent_b }} · last close={{ tech_meta.last_close }}</p>
+  {% elif indicator_name == 'atr' %}
+  <p class="muted small">ATR={{ tech_meta.latest_atr }} · ATR % от цены={{ tech_meta.atr_pct }} · last close={{ tech_meta.last_close }}</p>
+  {% else %}
+  <p class="muted small">ADX={{ tech_meta.latest_adx }} · +DI={{ tech_meta.latest_plus_di }} · −DI={{ tech_meta.latest_minus_di }} · trend={{ tech_meta.trend }}</p>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Сигналы</h2>
+  {% if tech_signals %}
+  <table class="table">
+    <thead><tr><th>Дата</th><th>Сигнал</th><th>Важность</th><th>Трактовка</th></tr></thead>
+    <tbody>
+      {% for s in tech_signals %}
+      <tr>
+        <td>{{ s.date }}</td>
+        <td><b>{{ s.label }}</b></td>
+        <td><span class="run-status {{ 'run-error' if s.severity == 'strong' else 'run-warning' }}">{{ s.severity }}</span></td>
+        <td>{{ s.note }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">{% if tech_error %}Нет данных для расчёта.{% else %}Сигналов не найдено — введите тикер и нажмите «Показать».{% endif %}</p>
+  {% endif %}
+</section>
+
 {% elif indicator_name == 'support_resistance' %}
 <p class="muted">Уровни поддержки и сопротивления: pivot points + локальные экстремумы (фракталы) + кластеризация по ATR; сила уровня — по числу касаний. Сигналы: пробой (breakout) и отскок (bounce).</p>
 <form method="get" action="/indicators" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">

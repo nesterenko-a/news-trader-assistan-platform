@@ -91,6 +91,9 @@ from app.market.indicators.volume_profile import calculate_volume_profile
 from app.market.indicators.support_resistance import calculate_support_resistance
 from app.market.indicators.ema import calculate_ema
 from app.market.indicators.macd import calculate_macd
+from app.market.indicators.bollinger import calculate_bollinger
+from app.market.indicators.atr import calculate_atr
+from app.market.indicators.adx import calculate_adx
 from app.news.service import load_security_news
 from app.presentation.factories import WebContextFactory
 from app.presentation.view import build_strategy_view
@@ -121,6 +124,14 @@ SIGNAL_LABELS = {
     "cross_down": "Death Cross",
     "hist_positive": "Гистограмма положительная",
     "hist_negative": "Гистограмма отрицательная",
+    "touch_upper": "Касание верхней полосы",
+    "touch_lower": "Касание нижней полосы",
+    "revert_in": "Возврат внутрь полос",
+    "squeeze": "Сжатие полос (squeeze)",
+    "bullish": "Бычий настрой",
+    "bearish": "Медвежий настрой",
+    "trend": "Тренд",
+    "range": "Флэт (диапазон)",
 }
 
 _web_context_factory = WebContextFactory()
@@ -763,6 +774,10 @@ async def indicators_page(
     slow: int | None = Query(None, ge=3, le=500),
     signal: int | None = Query(None, ge=2, le=100),
     sr_window: int | None = Query(None, ge=10, le=500),
+    bb_period: int | None = Query(None, ge=2, le=500),
+    bb_k: float | None = Query(None, gt=0, le=5),
+    atr_period: int | None = Query(None, ge=2, le=500),
+    adx_period: int | None = Query(None, ge=2, le=100),
     session: AsyncSession = Depends(get_session),
 ):
     """Страница индикаторов: вкладки из реестра (OI, Volume Profile, ...)."""
@@ -948,6 +963,84 @@ async def indicators_page(
                 "sr_error": sr_error,
                 "sr_security_name": sr_security_name,
                 "from": "", "to": "", "oi_threshold": 1.0, "error": "",
+                "chart_oi": None, "chart_change": None, "chart_volume": None,
+                "signals": [], "params_used": None, "security_name": "",
+            }
+        )
+        return templates.TemplateResponse(request, "indicators.html", context)
+
+    if indicator_name in ("bollinger", "atr", "adx"):
+        bb_period_used = bb_period if bb_period is not None else 20
+        bb_k_used = bb_k if bb_k is not None else 2.0
+        atr_period_used = atr_period if atr_period is not None else 14
+        adx_period_used = adx_period if adx_period is not None else 14
+        tech_error = ""
+        tech_security_name = ""
+        tech_charts: list[dict] = []
+        tech_signals: list[dict] = []
+        tech_meta: dict = {}
+        if ticker:
+            security = await session.scalar(
+                select(Security).where(Security.ticker == ticker.upper())
+            )
+            if security is None:
+                tech_error = "Бумага не найдена."
+            else:
+                tech_security_name = security.name
+                candle_q = (
+                    select(MarketCandle)
+                    .where(
+                        MarketCandle.security_id == security.id,
+                        MarketCandle.close.is_not(None),
+                    )
+                    .order_by(MarketCandle.trading_date)
+                )
+                if from_ is not None:
+                    candle_q = candle_q.where(MarketCandle.trading_date >= from_)
+                if to is not None:
+                    candle_q = candle_q.where(MarketCandle.trading_date <= to)
+                candles = (await session.scalars(candle_q)).all()[-300:]
+                if indicator_name == "bollinger":
+                    result = calculate_bollinger(
+                        candles,
+                        params={"period": bb_period_used, "k": bb_k_used},
+                    )
+                elif indicator_name == "atr":
+                    result = calculate_atr(candles, params={"period": atr_period_used})
+                else:
+                    result = calculate_adx(candles, params={"period": adx_period_used})
+                tech_meta = result.meta
+                series: dict[str, list[tuple]] = {}
+                for value in result.values:
+                    series.setdefault(value.kind, []).append((value.date, value.value))
+                tech_charts = _build_indicator_charts(series)
+                tech_signals = [
+                    {
+                        "date": s.date.strftime("%d.%m.%Y"),
+                        "kind": s.kind,
+                        "label": SIGNAL_LABELS.get(s.kind, s.kind),
+                        "severity": s.severity,
+                        "note": s.note,
+                    }
+                    for s in sorted(result.signals, key=lambda s: s.date, reverse=True)
+                ]
+        context.update(
+            {
+                "indicator_name": indicator_name,
+                "indicators_list": indicators_list,
+                "ticker": ticker,
+                "tech_error": tech_error,
+                "tech_security_name": tech_security_name,
+                "tech_charts": tech_charts,
+                "tech_signals": tech_signals,
+                "tech_meta": tech_meta,
+                "bb_period": bb_period_used,
+                "bb_k": bb_k_used,
+                "atr_period": atr_period_used,
+                "adx_period": adx_period_used,
+                "from": from_.isoformat() if from_ else "",
+                "to": to.isoformat() if to else "",
+                "oi_threshold": 1.0, "error": "",
                 "chart_oi": None, "chart_change": None, "chart_volume": None,
                 "signals": [], "params_used": None, "security_name": "",
             }
