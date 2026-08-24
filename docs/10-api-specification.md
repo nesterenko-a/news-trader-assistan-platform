@@ -253,6 +253,21 @@ GET /v1/indicators/oi?ticker=W4V6&from=2026-07-20&to=2026-08-05
 - `POST /v1/sources/search` — LLM-поиск новых лент **только для `kind: "rss"`** (`{query, kind: "rss"}`; `kind: "website"` → `400`): DeepSeek генерирует до 8 кандидатов (название, URL, категория), каждый проверяется HTTP-запросом; возвращает `[{name, url, category, ok, error}]` (не добавляет в список).
 - `POST /v1/sources/restore-defaults` — вернуть стандартные **ленты** (`DEFAULT_FEEDS`) в список пользователя; ответ `{added: N}`. Стандартные сайты (`DEFAULT_SITES`, пока пусто) восстанавливаются отдельно — веб-роут `POST /news/site/restore`.
 
+### 3.10. Теханализ в LLM (ChatGPT)
+
+Все эндпоинты требуют аутентификации (Bearer-токен или cookie `nt_token`).
+
+- `POST /v1/tech-analysis/start?ticker=...` — запуск теханализа: актуализация данных → формирование запроса → отправка в ChatGPT. Создаёт запись `running`; `409` если активный анализ по тикеру уже идёт; `400/404` при недоступности (нет `CHATGPT_API_KEY`, бумага не найдена).
+- `GET /v1/tech-analysis?ticker=...&page=1` — список анализов по тикеру (карточки, ≤4 на страницу): `{items, total, page, per_page, pages}`.
+- `GET /v1/tech-analysis/{id}/status` — статус/этап: `{id, ticker, status, stage, request_ready, response, error}`.
+- `POST /v1/tech-analysis/{id}/retry` — повтор отправки с тем же `request_md` (для `failed`-записи).
+- `GET /v1/tech-analysis/{id}/request.md` — скачать сформированный запрос в Markdown (`text/markdown`, `Content-Disposition: attachment`).
+- `GET /v1/tech-analysis/{id}/response.md` — скачать ответ LLM в Markdown.
+
+Веб-страницы:
+- `GET /securities/{ticker}` — на карточке акций/фьючерсов кнопка «Теханализ в LLM» + панель этапов + блок карточек результатов (≤4/стр. + пагинация `?ta_page=N`).
+- `GET /tech_analysis/{id}` — полный ответ (карточки сценариев A/B/C в шапке из раздела «Моя стратегия», рендер Markdown, кнопки «Скачать запрос/ответ (MD)», «Повторить»).
+
 ## 4. Webhook для алертов (исходящие)
 
 Администратор/пользователь может настроить URL, на который система отправляет уведомления:
