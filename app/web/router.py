@@ -774,7 +774,7 @@ async def indicators_page(
     slow: int | None = Query(None, ge=3, le=500),
     signal: int | None = Query(None, ge=2, le=100),
     sr_window: int | None = Query(None, ge=10, le=500),
-    bb_period: int | None = Query(None, ge=2, le=500),
+    bb_period: int | None = Query(None, ge=5, le=500),
     bb_k: float | None = Query(None, gt=0, le=5),
     atr_period: int | None = Query(None, ge=2, le=500),
     adx_period: int | None = Query(None, ge=2, le=100),

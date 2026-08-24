@@ -113,38 +113,21 @@ def calculate_adx(
 
     adx_list = _smoothed(dx_list, period)
 
-    # Выравнивание по датам: первые DI/DX доступны со свечи под номером period
-    # (сглаживание Уайлдера seed покрывает TR/DM свечей 1..period)
-    start = period
+    # Выравнивание по датам:
+    #  - DI: первые +DI/−DI доступны со свечи под номером period (seed
+    #    сглаживания Уайлдера покрывает TR/DM свечей 1..period);
+    #  - ADX: вторая гладкая DX — ADX валиден только со свечи 2*period-1
+    #    (DX накоплен за period значений).
     values: list[IndicatorValue] = []
     signals: list[IndicatorSignal] = []
+
+    di_start = period
     prev_pdi = prev_mdi = None
-    for j, (d, pdi, mdi) in enumerate(zip(dates[start:], plus_di, minus_di)):
-        idx = start + j
-        adx = adx_list[j] if j < len(adx_list) else None
+    for j, (d, pdi, mdi) in enumerate(
+        zip(dates[di_start:], plus_di, minus_di)
+    ):
         values.append(IndicatorValue(date=d, value=round(pdi, 4), kind="plus_di"))
         values.append(IndicatorValue(date=d, value=round(mdi, 4), kind="minus_di"))
-        if adx is not None:
-            values.append(IndicatorValue(date=d, value=round(adx, 4), kind="adx"))
-        if adx is not None:
-            if adx >= 25:
-                signals.append(
-                    IndicatorSignal(
-                        date=d,
-                        kind="trend",
-                        severity="info",
-                        note=f"ADX={adx:.1f} — выраженный тренд",
-                    )
-                )
-            elif adx < 20:
-                signals.append(
-                    IndicatorSignal(
-                        date=d,
-                        kind="range",
-                        severity="info",
-                        note=f"ADX={adx:.1f} — флэт (диапазон)",
-                    )
-                )
         if prev_pdi is not None and prev_mdi is not None:
             if prev_pdi <= prev_mdi and pdi > mdi:
                 signals.append(
@@ -165,6 +148,29 @@ def calculate_adx(
                     )
                 )
         prev_pdi, prev_mdi = pdi, mdi
+
+    adx_start = 2 * period - 1
+    for j, adx in enumerate(adx_list):
+        d = dates[adx_start + j]
+        values.append(IndicatorValue(date=d, value=round(adx, 4), kind="adx"))
+        if adx >= 25:
+            signals.append(
+                IndicatorSignal(
+                    date=d,
+                    kind="trend",
+                    severity="info",
+                    note=f"ADX={adx:.1f} — выраженный тренд",
+                )
+            )
+        elif adx < 20:
+            signals.append(
+                IndicatorSignal(
+                    date=d,
+                    kind="range",
+                    severity="info",
+                    note=f"ADX={adx:.1f} — флэт (диапазон)",
+                )
+            )
 
     last_pdi = next((v.value for v in reversed(values) if v.kind == "plus_di"), None)
     last_mdi = next((v.value for v in reversed(values) if v.kind == "minus_di"), None)
