@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+
+    <changeSet id="0220-tech-analyses-created-at-default" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="tech_analyses"/>
+        </preConditions>
+        <addDefaultValue
+            columnDataType="timestamp"
+            columnName="created_at"
+            defaultValueComputed="now()"
+            tableName="tech_analyses"/>
+    </changeSet>
+
+</databaseChangeLog>

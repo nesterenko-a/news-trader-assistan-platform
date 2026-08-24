@@ -26,5 +26,6 @@
     <include file="changelogs/019_user_pipeline_prefs.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/020_entity_watch_metrics.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/021_tech_analysis.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/022_tech_analysis_defaults.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>
