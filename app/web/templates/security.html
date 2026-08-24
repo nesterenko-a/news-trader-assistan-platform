@@ -359,10 +359,10 @@
     <div class="progress"><div id="ta-bar" class="progress-bar" style="width:25%"></div></div>
   </div>
   {% else %}
-  <form method="post" action="/securities/{{ view.ticker }}/tech-analysis" style="display:flex;margin:0;flex-wrap:wrap;gap:10px;align-items:flex-end">
+  <form id="ta-run-form" method="post" action="/securities/{{ view.ticker }}/tech-analysis" style="display:flex;margin:0;flex-wrap:wrap;gap:10px;align-items:flex-end">
     <div>
       <label class="muted small" style="display:block">LLM для анализа</label>
-      <select name="provider">
+      <select name="provider" id="ta-provider-select">
         <option value="">Авто (приоритет ChatGPT)</option>
         <option value="chatgpt">ChatGPT: {{ llm_models.chatgpt }}</option>
         <option value="deepseek">DeepSeek: {{ llm_models.deepseek }}</option>
@@ -370,17 +370,20 @@
     </div>
     <button class="btn" type="submit">Запустить теханализ</button>
   </form>
+  <div id="ta-progress-ajax" style="display:none">
+    <p class="muted">Подождите, запрос обрабатывается. Этап: <b id="ta-stage-ajax">актуализация данных</b></p>
+    <div class="progress"><div id="ta-bar-ajax" class="progress-bar" style="width:25%"></div></div>
+  </div>
   {% endif %}
 
   {% if tech_analyses and tech_analyses['items'] %}
   <div class="ta-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:14px">
     {% for a in tech_analyses['items'] %}
-    <div class="card ta-card ta-click" data-href="/tech_analysis/{{ a.id }}" data-id="{{ a.id }}"
-         {% if a.status == 'success' %}
-           {% if a.verdict == 'BUY' %}style="position:relative;border:2px solid var(--green,#16a34a)"
-           {% elif a.verdict == 'SELL' %}style="position:relative;border:2px solid var(--red,#dc2626)"
-           {% else %}style="position:relative;border:2px solid var(--muted,#6b7280)"{% endif %}
-         {% else %}style="position:relative;border:2px solid var(--muted,#6b7280)"{% endif %}>
+    <div class="card ta-card ta-click
+         {%- if a.status == 'success' and a.verdict == 'BUY' %} ta-color-buy
+         {%- elif a.status == 'success' and a.verdict == 'SELL' %} ta-color-sell
+         {%- else %} ta-color-wait{% endif %}"
+         data-href="/tech_analysis/{{ a.id }}" data-id="{{ a.id }}" style="position:relative">
       <button type="button" class="feed-remove ta-delete" data-id="{{ a.id }}" title="Удалить карточку" aria-label="Удалить карточку" style="position:absolute;top:8px;right:8px;z-index:2">✕</button>
       <div class="chart-head" style="justify-content:space-between;align-items:flex-start;padding-right:32px">
         <span class="muted small">{{ a.created_at }}</span>
@@ -444,6 +447,48 @@
         })
         .catch(function () { btn.disabled = false; });
     });
+    // Запуск «Теханализ в LLM» без перезагрузки страницы
+    var runForm = document.getElementById('ta-run-form');
+    var ticker = {{ view.ticker | tojson }};
+    if (runForm) {
+      runForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var provider = document.getElementById('ta-provider-select').value;
+        var bar = document.getElementById('ta-bar-ajax');
+        if (bar) bar.style.width = '25%';
+        var prog = document.getElementById('ta-progress-ajax');
+        if (prog) prog.style.display = 'block';
+        runForm.style.display = 'none';
+        var labels = {
+          refreshing_data: 'актуализация данных',
+          forming_request: 'формирование запроса',
+          awaiting_llm: 'отправка в LLM / ожидание результата',
+          done: 'завершено'
+        };
+        var widths = { refreshing_data: 25, forming_request: 55, awaiting_llm: 80, done: 100 };
+        function poll() {
+          fetch('/v1/tech-analysis?ticker=' + encodeURIComponent(ticker) + '&page=1', { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              var run = (d.items || []).find(function (it) { return it.status === 'running'; });
+              if (!run) { window.location.reload(); return; }
+              var stEl = document.getElementById('ta-stage-ajax');
+              if (stEl) stEl.textContent = labels[run.stage] || run.stage;
+              if (bar) bar.style.width = (widths[run.stage] || 25) + '%';
+              setTimeout(poll, 3000);
+            })
+            .catch(function () { setTimeout(poll, 5000); });
+        }
+        fetch(runForm.getAttribute('action'), {
+          method: 'POST',
+          credentials: 'same-origin',
+          body: new URLSearchParams({ provider: provider })
+        })
+          .then(function (r) { return r.status; })
+          .then(function () { setTimeout(poll, 2000); })
+          .catch(function () { window.location.reload(); });
+      });
+    }
   })();
   </script>
 </section>

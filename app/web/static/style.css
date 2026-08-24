@@ -793,8 +793,12 @@ a.ta-card:hover { border-color: var(--accent, #3b82f6); }
 .ta-provider { font-size: 12px; font-weight: 600; color: var(--accent, #4f8cff); max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .ta-click { cursor: pointer; }
-.ta-click:hover { border-color: var(--accent, #3b82f6); }
 
 .ta-entry { color: var(--accent, #4f8cff); }
 .ta-tp { color: var(--green, #2fbf71); }
 .ta-sl { color: var(--red, #e5484d); }
+
+.ta-click:hover { border-width: 1px; }
+.ta-click.ta-color-buy:hover { border-color: var(--green, #2fbf71); }
+.ta-click.ta-color-sell:hover { border-color: var(--red, #e5484d); }
+.ta-click.ta-color-wait:hover { border-color: var(--muted, #6b7280); }
