@@ -59,6 +59,17 @@ def test_adx_params():
     assert DEFAULT_PARAMS == {"period": 14}
 
 
+def test_adx_date_alignment():
+    """DI валиден со свечи `period`, ADX — со свечи `2*period-1` (без утечки будущего)."""
+    candles = _candles([(100.0 + 0.3 * i, 99.5 + 0.3 * i, 100.0 + 0.3 * i) for i in range(40)])
+    result = calculate_adx(candles, params={"period": 14})
+    first_di = next(v for v in result.values if v.kind == "plus_di")
+    first_adx = next(v for v in result.values if v.kind == "adx")
+    base = date(2026, 1, 1)
+    assert first_di.date == base + timedelta(days=14)          # период
+    assert first_adx.date == base + timedelta(days=2 * 14 - 1)  # 2*period-1
+
+
 def test_adx_registry():
     assert "adx" in REGISTRY
     assert REGISTRY["adx"]["params"] == DEFAULT_PARAMS
