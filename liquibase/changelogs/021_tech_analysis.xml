@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+
+    <changeSet id="0210-tech-analyses" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="tech_analyses"/>
+            </not>
+        </preConditions>
+        <createTable tableName="tech_analyses">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="bigint">
+                <constraints nullable="true"/>
+            </column>
+            <column name="ticker" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="is_future" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="varchar(20)" defaultValue="running">
+                <constraints nullable="false"/>
+            </column>
+            <column name="stage" type="varchar(30)" defaultValue="refreshing_data">
+                <constraints nullable="false"/>
+            </column>
+            <column name="request_md" type="clob" defaultValue="">
+                <constraints nullable="false"/>
+            </column>
+            <column name="response_md" type="clob">
+                <constraints nullable="true"/>
+            </column>
+            <column name="verdict" type="varchar(20)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="entry" type="varchar(50)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="tp" type="varchar(100)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="sl" type="varchar(50)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="scenario_json" type="clob">
+                <constraints nullable="true"/>
+            </column>
+            <column name="model" type="varchar(100)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="error" type="clob">
+                <constraints nullable="true"/>
+            </column>
+            <column name="created_at" type="timestamp">
+                <constraints nullable="false"/>
+            </column>
+            <column name="finished_at" type="timestamp">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="0211-tech-analyses-fk-user" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <foreignKeyConstraintExists foreignKeyName="fk_tech_analyses_user"/>
+            </not>
+        </preConditions>
+        <addForeignKeyConstraint
+            baseColumnNames="user_id"
+            baseTableName="tech_analyses"
+            constraintName="fk_tech_analyses_user"
+            referencedColumnNames="id"
+            referencedTableName="users"/>
+    </changeSet>
+
+    <changeSet id="0212-tech-analyses-idx-ticker" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_tech_analyses_ticker"/>
+            </not>
+        </preConditions>
+        <createIndex
+            indexName="idx_tech_analyses_ticker"
+            tableName="tech_analyses">
+            <column name="ticker"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

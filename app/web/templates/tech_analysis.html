@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}{{ analysis.ticker }} — Теханализ в LLM — NewsTrader Assistant{% endblock %}
+
+{% block content %}
+<p class="crumb"><a href="/securities/{{ analysis.ticker }}">← {{ analysis.ticker }}</a> · <a href="/">Все бумаги</a></p>
+
+<section class="card">
+  <div class="security-head">
+    <div>
+      <h1>Теханализ в LLM — {{ analysis.ticker }}</h1>
+      <p class="muted">{{ security_name }}</p>
+    </div>
+    <div class="head-actions" style="flex-wrap:wrap;gap:8px">
+      {% if analysis.status == 'success' %}
+        {% if analysis.verdict == 'BUY' %}<span class="badge badge-BUY">Купить</span>
+        {% elif analysis.verdict == 'SELL' %}<span class="badge badge-SELL">Продать</span>
+        {% else %}<span class="badge badge-HOLD">Выжидать</span>{% endif %}
+      {% elif analysis.status == 'failed' %}<span class="run-status run-error">ошибка</span>
+      {% else %}<span class="run-status run-warning">обрабатывается…</span>{% endif %}
+      <a class="btn" href="/v1/tech-analysis/{{ analysis.id }}/request.md" download>Скачать запрос (MD)</a>
+      {% if analysis.response_md %}
+      <a class="btn" href="/v1/tech-analysis/{{ analysis.id }}/response.md" download>Скачать ответ (MD)</a>
+      {% endif %}
+      {% if analysis.status == 'failed' %}
+      <form method="post" action="/tech_analysis/{{ analysis.id }}/retry" style="display:inline;margin:0">
+        <button class="btn" type="submit">Повторить</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="grid" style="margin-bottom:14px">
+    <div class="mini"><span class="label">Дата</span><span class="value">{{ analysis.created_at.strftime('%d.%m.%Y %H:%M') }}</span></div>
+    <div class="mini"><span class="label">Модель</span><span class="value">{{ analysis.model or '—' }}</span></div>
+    <div class="mini"><span class="label">Статус</span><span class="value">{{ analysis.status }}</span></div>
+  </div>
+
+  {% if analysis.error %}<p class="error">{{ analysis.error }}</p>{% endif %}
+</section>
+
+{% if analysis.status == 'success' %}
+<section class="card" id="scenarios">
+  <div class="chart-head"><h2>Сценарии «Моя стратегия»</h2></div>
+  <div class="ta-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">
+    {% for key, color, letter in [('a', 'green', 'A'), ('b', 'orange', 'B'), ('c', 'red', 'C')] %}
+    {% set sc = scenarios[key] %}
+    <div class="ta-card" style="border-top:3px solid {{ {'green':'#16a34a','orange':'#f59e0b','red':'#dc2626'}[color] }}">
+      <div class="chart-head"><b>Сценарий {{ letter }}</b></div>
+      {% if sc %}
+      <p class="muted small" style="margin:4px 0"><b>{{ sc.get('title','') }}</b></p>
+      {% if sc.get('entry') %}<div><span class="label">Вход</span><span class="value">{{ sc.entry }}</span></div>{% endif %}
+      {% if sc.get('stop') %}<div><span class="label">Стоп</span><span class="value">{{ sc.stop }}</span></div>{% endif %}
+      {% if sc.get('targets') %}<div><span class="label">Цели</span><span class="value">{{ sc.targets }}</span></div>{% endif %}
+      {% if sc.get('why') %}<p class="muted small">{{ sc.why }}</p>{% endif %}
+      {% else %}<p class="muted small">нет данных</p>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  <p class="muted small" style="margin-top:10px">Данные по сценариям из ответа LLM (раздел «Моя стратегия»). Позже здесь появится возможность выставлять ордера у реального брокера.</p>
+</section>
+{% endif %}
+
+<section class="card" style="margin-top:12px">
+  <div class="chart-head"><h2>Ответ LLM (ChatGPT)</h2></div>
+  <div id="md-output" class="md-body">{{ analysis.response_md or '' }}</div>
+</section>
+
+<script src="/static/marked.min.js"></script>
+<script src="/static/purify.min.js"></script>
+<script>
+(function () {
+  var raw = {{ analysis.response_md or '' | tojson }};
+  var out = document.getElementById('md-output');
+  if (out && window.marked && window.DOMPurify) {
+    marked.setOptions({ breaks: true, gfm: true });
+    var html = marked.parse(raw || '');
+    out.innerHTML = DOMPurify.sanitize(html);
+  }
+})();
+</script>
+{% endblock %}

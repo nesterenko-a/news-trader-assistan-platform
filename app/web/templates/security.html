@@ -14,6 +14,11 @@
     <div class="head-actions">
       <div class="badge badge-{{ view.verdict }}">{{ view.verdict }}</div>
       <button class="btn" onclick="capturePage()">Сделать скриншот</button>
+      {% if is_analyzable %}
+      <form method="post" action="/securities/{{ view.ticker }}/tech-analysis" class="inline-add" style="margin:0">
+        <button class="btn" type="submit">Теханализ в LLM</button>
+      </form>
+      {% endif %}
     </div>
   </div>
 
@@ -344,6 +349,59 @@
 </section>
 {% endif %}
 
+{% if is_analyzable %}
+<section class="card" id="tech-analysis-section">
+  <div class="chart-head" style="align-items:center">
+    <h2>Теханализ в LLM (ChatGPT)</h2>
+    {% if ta_active %}<span class="run-status run-warning">запрос обрабатывается…</span>{% endif %}
+  </div>
+  {% if ta_active %}
+  <div id="ta-progress">
+    <p class="muted">Подождите, запрос обрабатывается. Этап: <b id="ta-stage">актуализация данных</b></p>
+    <div class="progress"><div id="ta-bar" class="progress-bar" style="width:25%"></div></div>
+  </div>
+  {% else %}
+  <form method="post" action="/securities/{{ view.ticker }}/tech-analysis" class="inline-add" style="margin:0">
+    <button class="btn" type="submit">Запустить теханализ</button>
+  </form>
+  {% endif %}
+
+  {% if tech_analyses and tech_analyses['items'] %}
+  <div class="ta-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:14px">
+    {% for a in tech_analyses['items'] %}
+    <a class="card ta-card" style="display:block;text-decoration:none;color:inherit" href="/tech_analysis/{{ a.id }}">
+      <div class="chart-head" style="justify-content:space-between">
+        <span class="muted small">{{ a.created_at }}</span>
+        {% if a.status == 'success' %}
+          {% if a.verdict == 'BUY' %}<span class="badge badge-BUY">Купить</span>
+          {% elif a.verdict == 'SELL' %}<span class="badge badge-SELL">Продать</span>
+          {% else %}<span class="badge badge-HOLD">Выжидать</span>{% endif %}
+        {% elif a.status == 'failed' %}<span class="run-status run-error">ошибка</span>
+        {% else %}<span class="run-status run-warning">…</span>{% endif %}
+      </div>
+      <div class="ta-fields">
+        <div><span class="label">Вход</span><span class="value">{{ a.entry or '—' }}</span></div>
+        <div><span class="label">TP</span><span class="value">{{ a.tp or '—' }}</span></div>
+        <div><span class="label">SL</span><span class="value">{{ a.sl or '—' }}</span></div>
+      </div>
+      {% if a.status == 'failed' and a.error %}<p class="muted small">{{ a.error[:80] }}</p>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+  {% if tech_analyses['pages'] and tech_analyses['pages'] > 1 %}
+  <div class="pagination" style="margin-top:12px">
+    {% for p in range(1, tech_analyses['pages'] + 1) %}
+      {% if p == tech_analyses['page'] %}<b class="muted">{{ p }}</b>
+      {% else %}<a href="/securities/{{ view.ticker }}?ta_page={{ p }}#tech-analysis-section">{{ p }}</a>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% else %}
+  <p class="muted small" style="margin-top:8px">Анализов пока нет — нажмите «Запустить теханализ».</p>
+  {% endif %}
+</section>
+{% endif %}
+
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="/static/cytoscape.min.js"></script>
 <script src="/static/depmap.js"></script>
@@ -359,5 +417,34 @@
   }
 })();
 </script>
+{% if is_analyzable and ta_active %}
+<script>
+(function () {
+  var ticker = {{ view.ticker | tojson }};
+  var stageEl = document.getElementById('ta-stage');
+  var barEl = document.getElementById('ta-bar');
+  var labels = {
+    refreshing_data: 'актуализация данных',
+    forming_request: 'формирование запроса',
+    awaiting_llm: 'отправка в LLM / ожидание результата',
+    done: 'завершено'
+  };
+  var widths = { refreshing_data: 25, forming_request: 55, awaiting_llm: 80, done: 100 };
+  function poll() {
+    fetch('/v1/tech-analysis?ticker=' + encodeURIComponent(ticker) + '&page=1', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var run = (d.items || []).find(function (it) { return it.status === 'running'; });
+        if (!run) { window.location.reload(); return; }
+        if (stageEl) stageEl.textContent = labels[run.stage] || run.stage;
+        if (barEl) barEl.style.width = (widths[run.stage] || 25) + '%';
+        setTimeout(poll, 3000);
+      })
+      .catch(function () { setTimeout(poll, 5000); });
+  }
+  setTimeout(poll, 2000);
+})();
+</script>
+{% endif %}
 <script src="/static/app.js"></script>
 {% endblock %}

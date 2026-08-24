@@ -24,6 +24,8 @@ from app.market.indicators.macd import calculate_macd
 from app.market.indicators.bollinger import calculate_bollinger
 from app.market.indicators.atr import calculate_atr
 from app.market.indicators.adx import calculate_adx
+from app.market.indicators.rsi_indicator import calculate_rsi
+from app.market.indicators.basis_service import basis_for_ticker
 from app.market.moex import MOEXClient
 from app.market.oi_data import client_groups_series
 
@@ -214,7 +216,12 @@ async def calculate_indicator(
             )
         )
 
-    if name in ("bollinger", "atr", "adx"):
+    if name == "basis":
+        return _result_to_dict(
+            await basis_for_ticker(session, ticker, params={"window": window})
+        )
+
+    if name in ("bollinger", "atr", "adx", "rsi"):
         candle_q = (
             select(MarketCandle)
             .where(
@@ -236,6 +243,8 @@ async def calculate_indicator(
             )
         if name == "atr":
             return _result_to_dict(calculate_atr(candles, params={"period": period}))
+        if name == "rsi":
+            return _result_to_dict(calculate_rsi(candles, params={"period": period}))
         return _result_to_dict(calculate_adx(candles, params={"period": period}))
 
     if name in ("ema", "macd"):

@@ -462,3 +462,36 @@ class UserPipelinePref(Base):
     last_futures_template_id: Mapped[int | None] = mapped_column(
         ForeignKey("futures_templates.id"), nullable=True
     )
+
+
+class TechAnalysis(Base):
+    """Запись «Теханализ в LLM»: отправка набора данных по бумаге в ChatGPT.
+
+    Статусы: running / success / failed; этапы: refreshing_data /
+    forming_request / awaiting_llm / done. Карточка-результат формируется
+    из Сценария A ответа LLM (verdict/entry/tp/sl).
+    """
+
+    __tablename__ = "tech_analyses"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True, index=True
+    )
+    ticker: Mapped[str] = mapped_column(String(50), index=True)
+    is_future: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[str] = mapped_column(String(20), default="running")
+    stage: Mapped[str] = mapped_column(String(30), default="refreshing_data")
+    request_md: Mapped[str] = mapped_column(Text, default="")
+    response_md: Mapped[str | None] = mapped_column(Text, nullable=True)
+    verdict: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    entry: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    tp: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    sl: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    scenario_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -769,3 +769,22 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .dep-neg { stroke: var(--red, #e5484d); stroke-width: 1.5; fill: none; }
 .dep-mech-bg { fill: var(--panel, #1a2233); stroke: var(--border, #2b3750); stroke-width: 1; opacity: .92; }
 .dep-mech text { font-weight: 600; }
+
+/* Теханализ в LLM */
+.ta-card { padding: 12px; border-radius: 10px; border: 1px solid var(--border, #2b3750); background: var(--panel-2, #202a40); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+a.ta-card:hover { border-color: var(--accent, #3b82f6); }
+.ta-card .chart-head { }
+.ta-fields { display: grid; gap: 4px; margin-top: 8px; }
+.ta-fields .label, .md-body .label { display: block; font-size: 11px; color: var(--muted, #8b97ad); }
+.ta-fields .value { font-size: 15px; font-weight: 600; }
+.pagination { display: flex; gap: 6px; align-items: center; }
+.pagination a { padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border, #2b3750); text-decoration: none; color: var(--accent, #3b82f6); }
+.pagination b { padding: 4px 10px; }
+.progress { height: 8px; border-radius: 6px; background: var(--panel-2, #202a40); overflow: hidden; margin-top: 8px; }
+.progress-bar { height: 100%; background: var(--accent, #3b82f6); transition: width .5s ease; }
+.md-body { line-height: 1.6; }
+.md-body h1, .md-body h2, .md-body h3 { margin: 16px 0 8px; }
+.md-body table { border-collapse: collapse; margin: 10px 0; width: 100%; }
+.md-body th, .md-body td { border: 1px solid var(--border, #2b3750); padding: 6px 10px; text-align: left; }
+.md-body code { background: var(--panel-2, #202a40); padding: 2px 5px; border-radius: 4px; }
+.md-body pre { background: var(--panel-2, #202a40); padding: 10px; border-radius: 8px; overflow-x: auto; }

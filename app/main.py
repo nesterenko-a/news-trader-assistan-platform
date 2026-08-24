@@ -52,6 +52,11 @@ async def lifespan(_: FastAPI):
         stale = await recover_stale_runs()
         if stale:
             print(f"Marked {stale} interrupted script run(s) as failed")
+        from app.tech_analysis.service import mark_stale_running
+
+        stale_ta = await mark_stale_running()
+        if stale_ta:
+            print(f"Marked {stale_ta} interrupted tech-analysis record(s) as failed")
         if settings.admin_username_list:
             async with SessionLocal() as session:
                 promoted = await promote_admin_users(session, settings.admin_username_list)
@@ -75,7 +80,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title="NewsTrader Assistant",
-    version="0.20.0",
+    version="0.21.0",
     lifespan=lifespan,
 )
 

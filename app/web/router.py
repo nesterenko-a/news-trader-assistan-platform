@@ -58,6 +58,7 @@ from app.db.models import (
     Security,
     Source,
     Strategy,
+    TechAnalysis,
     User,
     UserPipelinePref,
     UserSource,
@@ -94,6 +95,9 @@ from app.market.indicators.macd import calculate_macd
 from app.market.indicators.bollinger import calculate_bollinger
 from app.market.indicators.atr import calculate_atr
 from app.market.indicators.adx import calculate_adx
+from app.market.indicators.rsi_indicator import calculate_rsi
+from app.market.indicators.basis_service import basis_for_ticker
+from app.tech_analysis.service import has_active, list_analyses, retry_analysis, start_analysis
 from app.news.service import load_security_news
 from app.presentation.factories import WebContextFactory
 from app.presentation.view import build_strategy_view
@@ -778,6 +782,7 @@ async def indicators_page(
     bb_k: float | None = Query(None, gt=0, le=5),
     atr_period: int | None = Query(None, ge=2, le=500),
     adx_period: int | None = Query(None, ge=2, le=100),
+    rsi_period: int | None = Query(None, ge=2, le=100),
     session: AsyncSession = Depends(get_session),
 ):
     """Страница индикаторов: вкладки из реестра (OI, Volume Profile, ...)."""
@@ -969,11 +974,66 @@ async def indicators_page(
         )
         return templates.TemplateResponse(request, "indicators.html", context)
 
-    if indicator_name in ("bollinger", "atr", "adx"):
+    if indicator_name == "basis":
+        basis_window = sr_window if sr_window is not None else 5
+        basis_err = ""
+        basis_security_name = ""
+        basis_charts: list[dict] = []
+        basis_signals: list[dict] = []
+        basis_meta: dict = {}
+        if ticker:
+            basis_result = await basis_for_ticker(
+                session, ticker, params={"window": basis_window}
+            )
+            basis_sec = await session.scalar(
+                select(Security).where(Security.ticker == ticker.upper())
+            )
+            basis_security_name = basis_sec.name if basis_sec else ""
+            basis_meta = basis_result.meta
+            series: dict[str, list[tuple]] = {}
+            for value in basis_result.values:
+                series.setdefault(value.kind, []).append((value.date, value.value))
+            basis_charts = _build_indicator_charts(series)
+            basis_signals = [
+                {
+                    "date": s.date.strftime("%d.%m.%Y"),
+                    "kind": s.kind,
+                    "label": SIGNAL_LABELS.get(s.kind, s.kind),
+                    "severity": s.severity,
+                    "note": s.note,
+                }
+                for s in sorted(basis_result.signals, key=lambda s: s.date, reverse=True)
+            ]
+            if basis_meta.get("note"):
+                basis_err = basis_meta["note"]
+            elif not basis_result.values:
+                basis_err = "Нет данных для расчёта базиса (нужны свечи фьючерса и спота)."
+        context.update(
+            {
+                "indicator_name": indicator_name,
+                "indicators_list": indicators_list,
+                "ticker": ticker,
+                "basis_error": basis_err,
+                "basis_security_name": basis_security_name,
+                "basis_charts": basis_charts,
+                "basis_signals": basis_signals,
+                "basis_meta": basis_meta,
+                "basis_window": basis_window,
+                "from": from_.isoformat() if from_ else "",
+                "to": to.isoformat() if to else "",
+                "oi_threshold": 1.0, "error": "",
+                "chart_oi": None, "chart_change": None, "chart_volume": None,
+                "signals": [], "params_used": None, "security_name": "",
+            }
+        )
+        return templates.TemplateResponse(request, "indicators.html", context)
+
+    if indicator_name in ("bollinger", "atr", "adx", "rsi"):
         bb_period_used = bb_period if bb_period is not None else 20
         bb_k_used = bb_k if bb_k is not None else 2.0
         atr_period_used = atr_period if atr_period is not None else 14
         adx_period_used = adx_period if adx_period is not None else 14
+        rsi_period_used = rsi_period if rsi_period is not None else 14
         tech_error = ""
         tech_security_name = ""
         tech_charts: list[dict] = []
@@ -1007,6 +1067,8 @@ async def indicators_page(
                     )
                 elif indicator_name == "atr":
                     result = calculate_atr(candles, params={"period": atr_period_used})
+                elif indicator_name == "rsi":
+                    result = calculate_rsi(candles, params={"period": rsi_period_used})
                 else:
                     result = calculate_adx(candles, params={"period": adx_period_used})
                 tech_meta = result.meta
@@ -1038,6 +1100,7 @@ async def indicators_page(
                 "bb_k": bb_k_used,
                 "atr_period": atr_period_used,
                 "adx_period": adx_period_used,
+                "rsi_period": rsi_period_used,
                 "from": from_.isoformat() if from_ else "",
                 "to": to.isoformat() if to else "",
                 "oi_threshold": 1.0, "error": "",
@@ -1222,6 +1285,7 @@ async def security_page(
     ticker: str,
     range: str = "1y",
     vp_period: int | None = Query(None, ge=5, le=3650),
+    ta_page: int = 1,
     session: AsyncSession = Depends(get_session),
 ):
     user = await _optional_user(request, session)
@@ -1338,7 +1402,94 @@ async def security_page(
             "dep_graph": json.dumps(_map_to_cytoscape(dep_map_data), ensure_ascii=False),
         }
     )
+    # «Теханализ в LLM» доступен только для акций и фьючерсов
+    context["is_analyzable"] = security.security_type in ("stock", "futures")
+    context["ta_active"] = has_active(security.ticker) if context["is_analyzable"] else False
+    if context["is_analyzable"]:
+        try:
+            context["tech_analyses"] = await list_analyses(security.ticker, page=ta_page)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[security_page] list_analyses error: {type(exc).__name__}: {exc}", flush=True)
+            context["tech_analyses"] = {"items": [], "pages": 1, "page": 1}
+    else:
+        context["tech_analyses"] = {"items": [], "pages": 1, "page": 1}
     return templates.TemplateResponse(request, "security.html", context)
+
+
+@router.post("/securities/{ticker}/tech-analysis")
+async def security_tech_analysis_start(
+    ticker: str,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    security = await session.scalar(
+        select(Security).where(Security.ticker == ticker.upper())
+    )
+    if security is None or security.security_type not in ("stock", "futures"):
+        return RedirectResponse(url=f"/securities/{ticker}", status_code=303)
+    try:
+        await start_analysis(session, ticker, user_id=user.id)
+    except (ValueError, RuntimeError):
+        pass
+    return RedirectResponse(url=f"/securities/{ticker}", status_code=303)
+
+
+@router.get("/tech_analysis/{analysis_id}")
+async def tech_analysis_page(
+    analysis_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    context = await _base_context(session, user)
+    row = await session.get(TechAnalysis, analysis_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Анализ не найден")
+    security = await session.scalar(
+        select(Security).where(Security.ticker == row.ticker)
+    )
+    scenarios = {"a": {}, "b": {}, "c": {}}
+    import json as _json
+
+    if row.scenario_json:
+        try:
+            data = _json.loads(row.scenario_json)
+            scenarios = {
+                "a": data.get("scenario_a") or {},
+                "b": data.get("scenario_b") or {},
+                "c": data.get("scenario_c") or {},
+            }
+        except (ValueError, TypeError):
+            scenarios = {"a": {}, "b": {}, "c": {}}
+    context.update(
+        {
+            "analysis": row,
+            "security_name": security.name if security else row.ticker,
+            "scenarios": scenarios,
+        }
+    )
+    return templates.TemplateResponse(request, "tech_analysis.html", context)
+
+
+@router.post("/tech_analysis/{analysis_id}/retry")
+async def tech_analysis_retry_form(
+    analysis_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    try:
+        await retry_analysis(analysis_id)
+    except (KeyError, RuntimeError):
+        pass
+    return RedirectResponse(
+        url=f"/tech_analysis/{analysis_id}", status_code=303
+    )
 
 
 @router.get("/login")

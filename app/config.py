@@ -11,6 +11,11 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_model: str = "deepseek-reasoner"
     llm_request_timeout: float = 120.0
+    chatgpt_base_url: str = "https://api.openai.com/v1"
+    chatgpt_api_key: str = ""
+    chatgpt_model: str = "gpt-4o"
+    chatgpt_request_timeout: float = 120.0
+    tech_analysis_prompt_file: str = "docs/promt_tech_analize.md"
     moex_base_url: str = "https://iss.moex.com/iss"
     telegram_bot_token: str = ""
     telegram_api_id: str = ""

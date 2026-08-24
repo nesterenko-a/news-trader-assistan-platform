@@ -514,11 +514,13 @@
 <p class="muted">Введите тикер (например AFLT) и нажмите «Показать».</p>
 {% endif %}
 
-{% elif indicator_name in ('bollinger', 'atr', 'adx') %}
+{% elif indicator_name in ('bollinger', 'atr', 'adx', 'rsi') %}
 {% if indicator_name == 'bollinger' %}
 <p class="muted">Полосы Боллинджера: SMA(period) ± k·σ, %B и bandwidth. Сигналы: касание полос, возврат внутрь, сжатие (squeeze).</p>
 {% elif indicator_name == 'atr' %}
 <p class="muted">ATR (средний истинный диапазон) — мера волатильности со сглаживанием Уайлдера; atr_pct — ATR в % от цены для сравнения бумаг.</p>
+{% elif indicator_name == 'rsi' %}
+<p class="muted">RSI (индекс относительной силы) — значения 0–100; сигналы overbought (≥70), oversold (≤30), пересечение 50, возврат из зоны.</p>
 {% else %}
 <p class="muted">ADX/DI — сила и направление тренда: +DI/−DI, ADX; сигналы trend (ADX≥25), range (ADX&lt;20), bullish/bearish.</p>
 {% endif %}
@@ -542,6 +544,11 @@
     <label class="muted small" style="display:block">period</label>
     <input type="number" name="atr_period" min="2" max="500" value="{{ atr_period }}">
   </div>
+  {% elif indicator_name == 'rsi' %}
+  <div>
+    <label class="muted small" style="display:block">period</label>
+    <input type="number" name="rsi_period" min="2" max="100" value="{{ rsi_period }}">
+  </div>
   {% else %}
   <div>
     <label class="muted small" style="display:block">period</label>
@@ -556,11 +563,13 @@
 {% if tech_charts %}
 <section class="card chart-card" style="margin-top:12px">
   <div class="chart-head">
-    <h2>{{ {'bollinger': 'Полосы Боллинджера', 'atr': 'ATR', 'adx': 'ADX/DI'}[indicator_name] }} — {{ tech_security_name }} ({{ ticker }})</h2>
+    <h2>{{ {'bollinger': 'Полосы Боллинджера', 'atr': 'ATR', 'adx': 'ADX/DI', 'rsi': 'RSI'}[indicator_name] }} — {{ tech_security_name }} ({{ ticker }})</h2>
     {% if indicator_name == 'bollinger' and tech_meta.zone == 'upper' %}<span class="muted">выше верхней полосы — перекупленность</span>
     {% elif indicator_name == 'bollinger' and tech_meta.zone == 'lower' %}<span class="muted">ниже нижней полосы — перепроданность</span>
     {% elif indicator_name == 'adx' and tech_meta.state == 'trend' %}<span class="muted">тренд: ADX ≥ 25 ({{ tech_meta.trend }})</span>
-    {% elif indicator_name == 'adx' and tech_meta.state == 'range' %}<span class="muted">флэт: ADX &lt; 20</span>{% endif %}
+    {% elif indicator_name == 'adx' and tech_meta.state == 'range' %}<span class="muted">флэт: ADX &lt; 20</span>
+    {% elif indicator_name == 'rsi' and tech_meta.state == 'overbought' %}<span class="muted">перекупленность: RSI ≥ 70</span>
+    {% elif indicator_name == 'rsi' and tech_meta.state == 'oversold' %}<span class="muted">перепроданность: RSI ≤ 30</span>{% endif %}
   </div>
   {% for chart in tech_charts %}
   <svg class="chart" viewBox="0 0 {{ chart.width }} {{ chart.height }}" preserveAspectRatio="none">
@@ -581,6 +590,8 @@
   <p class="muted small">middle={{ tech_meta.latest_middle }} · upper={{ tech_meta.latest_upper }} · lower={{ tech_meta.latest_lower }} · %B={{ tech_meta.percent_b }} · last close={{ tech_meta.last_close }}</p>
   {% elif indicator_name == 'atr' %}
   <p class="muted small">ATR={{ tech_meta.latest_atr }} · ATR % от цены={{ tech_meta.atr_pct }} · last close={{ tech_meta.last_close }}</p>
+  {% elif indicator_name == 'rsi' %}
+  <p class="muted small">RSI={{ tech_meta.latest_rsi }} · состояние={{ tech_meta.state }} · период={{ rsi_period }} (сигналы: ≥70 перекупленность, ≤30 перепроданность)</p>
   {% else %}
   <p class="muted small">ADX={{ tech_meta.latest_adx }} · +DI={{ tech_meta.latest_plus_di }} · −DI={{ tech_meta.latest_minus_di }} · trend={{ tech_meta.trend }}</p>
   {% endif %}
@@ -673,6 +684,70 @@
 {% else %}
 <p class="muted">Введите тикер (например AFLT) и нажмите «Показать».</p>
 {% endif %}
+
+{% elif indicator_name == 'basis' %}
+<p class="muted">Базис «фьючерс против спота»: разница цены ближайшего фьючерса и базового актива; контанго (фьючерс выше) / бэквордация (ниже спота). Для расчёта нужны свечи фьючерса и спота.</p>
+<form method="get" action="/indicators" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">
+  <input type="hidden" name="name" value="basis">
+  <div>
+    <label class="muted small" style="display:block">Тикер (акция или фьючерс)</label>
+    <input type="text" name="ticker" value="{{ ticker }}" list="tickers-datalist" autocomplete="off">
+  </div>
+  <div>
+    <label class="muted small" style="display:block">Окно</label>
+    <input type="number" name="sr_window" min="1" max="100" value="{{ basis_window }}">
+  </div>
+  <button class="btn" type="submit">Показать</button>
+</form>
+
+{% if basis_error %}<section class="card"><p class="error">{{ basis_error }}</p></section>{% endif %}
+
+{% if basis_charts %}
+<section class="card chart-card" style="margin-top:12px">
+  <div class="chart-head">
+    <h2>Базис — {{ basis_security_name }} ({{ ticker }})</h2>
+    {% if basis_meta.state == 'contango' %}<span class="muted">контанго</span>
+    {% elif basis_meta.state == 'backwardation' %}<span class="muted">бэквордация</span>{% endif %}
+  </div>
+  {% for chart in basis_charts %}
+  <svg class="chart" viewBox="0 0 {{ chart.width }} {{ chart.height }}" preserveAspectRatio="none">
+    <polyline points="{{ chart.points }}"/>
+  </svg>
+  <div class="chart-labels">
+    <span>{{ chart.kind }}: {{ chart.min }} – {{ chart.max }}</span>
+    <span>{{ chart.first_date }} → {{ chart.last_date }} ({{ chart.count }} точек)</span>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if basis_meta %}
+<section class="card">
+  <h2>Сводка</h2>
+  <p class="muted small">Базис = {{ basis_meta.latest_basis }} · в % от спота = {{ basis_meta.latest_basis_pct if basis_meta.latest_basis_pct is not None else '—' }} · состояние = {{ basis_meta.state }}</p>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Сигналы</h2>
+  {% if basis_signals %}
+  <table class="table">
+    <thead><tr><th>Дата</th><th>Сигнал</th><th>Важность</th><th>Трактовка</th></tr></thead>
+    <tbody>
+      {% for s in basis_signals %}
+      <tr>
+        <td>{{ s.date }}</td>
+        <td><b>{{ s.label }}</b></td>
+        <td><span class="run-status {{ 'run-error' if s.severity == 'warning' else 'run-warning' }}">{{ s.severity }}</span></td>
+        <td>{{ s.note }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">{% if basis_error %}Нет данных для расчёта.{% else %}Сигналов не найдено — введите тикер и нажмите «Показать».{% endif %}</p>
+  {% endif %}
+</section>
 {% endif %}
 
 <script>

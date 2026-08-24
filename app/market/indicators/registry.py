@@ -12,6 +12,8 @@ from app.market.indicators.bollinger import (
 )
 from app.market.indicators.atr import DEFAULT_PARAMS as ATR_DEFAULT_PARAMS
 from app.market.indicators.adx import DEFAULT_PARAMS as ADX_DEFAULT_PARAMS
+from app.market.indicators.rsi_indicator import DEFAULT_PARAMS as RSI_DEFAULT_PARAMS
+from app.market.indicators.basis import DEFAULT_PARAMS as BASIS_DEFAULT_PARAMS
 
 REGISTRY: dict[str, dict] = {
     "bollinger": {
@@ -42,6 +44,17 @@ REGISTRY: dict[str, dict] = {
         ),
         "params": ADX_DEFAULT_PARAMS,
         "complexity": "medium",
+        "markets": ["stocks", "futures"],
+    },
+    "rsi": {
+        "title": "RSI (индекс относительной силы)",
+        "description": (
+            "Индекс относительной силы (сглаживание Уайлдера); значения 0–100; "
+            "сигналы overbought (≥70), oversold (≤30), cross_up/cross_down "
+            "(пересечение 50), revert (возврат из зоны)"
+        ),
+        "params": RSI_DEFAULT_PARAMS,
+        "complexity": "easy",
         "markets": ["stocks", "futures"],
     },
     "ema": {
@@ -94,5 +107,15 @@ REGISTRY: dict[str, dict] = {
         "params": SUPPORT_RESISTANCE_DEFAULT_PARAMS,
         "complexity": "hard",
         "markets": ["stocks", "futures"],
+    },
+    "basis": {
+        "title": "Базис (фьючерс против спота)",
+        "description": (
+            "Разница цены фьючерса и спота (базового актива): контанго/бэквордация; "
+            "сигналы widening/narrowing |базиса| за окно"
+        ),
+        "params": BASIS_DEFAULT_PARAMS,
+        "complexity": "medium",
+        "markets": ["futures"],
     },
 }
