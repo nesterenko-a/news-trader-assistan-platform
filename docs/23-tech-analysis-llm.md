@@ -1,6 +1,6 @@
 # 23. Теханализ в LLM — отправка технического анализа бумаги в ChatGPT
 
-**Статус:** реализовано v1.5 (серверный рендер Markdown: markdown-it-py + Pygments + nh3; KaTeX; Mermaid)
+**Статус:** реализовано v1.6 (фьючерсы — обновление цены спота, устойчивость к сбою OI, on-demand создание фьючерсной бумаги)
 **Система:** NewsTrader Assistant
 **Приоритет задачи:** P0 (этап 2 дорожной карты, «Углубление аналитики»)
 
@@ -145,7 +145,7 @@ SQLAlchemy-модель `TechAnalysis` в `app/db/models.py` меняется в
 
 Фоновый asyncio-таск (по образцу запуска скриптов в `app/admin/runner.py`, поллинг страницы как `/admin/runs/{id}?partial=1`):
 
-1. **`refreshing_data`** — актуализация данных: для акции — `sync_security_prices`; для фьючерса — `sync_security_prices` + `sync_security_oi` (и клиентских групп, если необходимо).
+1. **`refreshing_data`** — актуализация данных: для акции — `sync_security_prices`; для фьючерса — `sync_security_prices` (цена фьючерса) + **`sync_security_prices` по базовому активу** (`assetcode` → спот, для корректного базиса «фьючерс vs спот») + `sync_security_oi` (и клиентских групп). Сбои вспомогательных обновлений (спот/OI) логируются и **не прерывают анализ**. Если фьючерсной бумаги нет в справочнике — она создаётся on-demand из списка фьючерсов MOEX (`fetch_futures_list` + `ensure_futures_security`), без предварительного `update_oi`.
 2. **`forming_request`** — сборка Markdown-запроса (`request_builder`); запись `request_md` в БД. **С этого момента кнопка «Скачать запрос (MD)» активна** (FR-23-06) — даже если отправка в LLM ещё не выполнена.
 3. **`awaiting_llm`** — отправка запроса в ChatGPT (`app/tech_analysis/llm.py`), ожидание ответа.
 4. **`done`** — парсинг ответа (JSON-блок → verdict/entry/tp/sl/scenario_json), сохранение `response_md`, статус `success`.
