@@ -14,7 +14,7 @@
     <div class="head-actions">
       <div class="badge badge-{{ view.verdict }}">{{ view.verdict }}</div>
       <button class="btn" onclick="capturePage()">Сделать скриншот</button>
-      {% if is_analyzable %}
+      {% if is_analyzable and user %}
       <a class="btn" href="#tech-analysis-section">Теханализ в LLM</a>
       {% endif %}
     </div>
@@ -358,7 +358,7 @@
     <p class="muted">Подождите, запрос обрабатывается. Этап: <b id="ta-stage">актуализация данных</b></p>
     <div class="progress"><div id="ta-bar" class="progress-bar" style="width:25%"></div></div>
   </div>
-  {% else %}
+  {% elif user %}
   <form id="ta-run-form" method="post" action="/securities/{{ view.ticker }}/tech-analysis" style="display:flex;margin:0;flex-wrap:wrap;gap:10px;align-items:flex-end">
     <div>
       <label class="muted small" style="display:block">LLM для анализа</label>
@@ -374,6 +374,8 @@
     <p class="muted">Подождите, запрос обрабатывается. Этап: <b id="ta-stage-ajax">актуализация данных</b></p>
     <div class="progress"><div id="ta-bar-ajax" class="progress-bar" style="width:25%"></div></div>
   </div>
+  {% else %}
+  <p class="muted" style="margin:4px 0 8px">Чтобы запустить «Теханализ в LLM», <a href="/login">войдите</a>.</p>
   {% endif %}
 
   {% if tech_analyses and tech_analyses['items'] %}
@@ -484,8 +486,18 @@
           credentials: 'same-origin',
           body: new URLSearchParams({ provider: provider })
         })
-          .then(function (r) { return r.status; })
-          .then(function () { setTimeout(poll, 2000); })
+          .then(function (r) {
+            // Редирект на /login (неавторизован) или 401 — уводим пользователя на вход
+            if (r.status === 401 || r.status === 403 || r.redirected || /\/login/.test(r.url || '')) {
+              window.location.href = '/login';
+              return null;
+            }
+            return r.status;
+          })
+          .then(function (st) {
+            if (st === null) return;
+            setTimeout(poll, 2000);
+          })
           .catch(function () { window.location.reload(); });
       });
     }
