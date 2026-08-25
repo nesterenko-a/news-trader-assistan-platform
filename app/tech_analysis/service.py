@@ -15,7 +15,8 @@ from sqlalchemy import func, select
 from app.config import get_settings
 from app.db.connection import SessionLocal
 from app.db.models import MarketCandle, Security, TechAnalysis
-from app.market.oi_data import sync_security_oi
+from app.market.moex import MOEXClient
+from app.market.oi_data import ensure_futures_security, sync_security_oi
 from app.market.prices import sync_security_prices
 from app.notices.service import add_notice
 from app.tech_analysis.llm import ChatGPTClient, resolve_llm
@@ -29,7 +30,27 @@ _active: dict[str, int] = {}
 
 
 async def _load_security(session, ticker: str) -> Security | None:
-    return await session.scalar(select(Security).where(Security.ticker == ticker.upper()))
+    """Находит бумагу по тикеру; если это фьючерс и его нет в справочнике —
+    создаёт на лету из списка фьючерсов MOEX (on-demand, без предварительного update_oi)."""
+    ticker = ticker.upper()
+    security = await session.scalar(select(Security).where(Security.ticker == ticker))
+    if security is not None:
+        return security
+    # Пробуем создать фьючерс на лету по данным MOEX (engines/futures/markets/forts)
+    try:
+        futures = await MOEXClient().fetch_futures_list()
+    except Exception:  # noqa: BLE001
+        return None
+    for f in futures:
+        if (f.get("secid") or "").upper() == ticker:
+            return await ensure_futures_security(
+                session,
+                ticker,
+                shortname=f.get("shortname") or ticker,
+                assetcode=f.get("assetcode"),
+                lastdeldate=f.get("lastdeldate"),
+            )
+    return None
 
 
 async def _mark_stale_and_fail(session, analysis_id: int) -> None:
@@ -111,7 +132,23 @@ async def _analyze(analysis_id: int, ticker: str) -> None:
             is_future = security.security_type == "futures"
             await sync_security_prices(session, ticker, days=7)
             if is_future:
-                await sync_security_oi(session, ticker, days=7)
+                # Цена базового актива (спота) — для корректного базиса «фьючерс vs спот»
+                spot_ticker = (security.assetcode or "").strip().upper()
+                try:
+                    if spot_ticker:
+                        await sync_security_prices(session, spot_ticker, days=7)
+                except Exception as exc:  # noqa: BLE001
+                    print(
+                        f"[tech_analysis] {ticker}: спот {spot_ticker} не обновлён "
+                        f"({type(exc).__name__}: {exc})"
+                    )
+                # OI — устойчиво: сбой OI не валит весь анализ
+                try:
+                    await sync_security_oi(session, ticker, days=7)
+                except Exception as exc:  # noqa: BLE001
+                    print(
+                        f"[tech_analysis] {ticker}: OI не обновлён ({type(exc).__name__}: {exc})"
+                    )
 
             # Проверка актуальности котировок: для анализа нужна свежая цена
             last_candle = await session.scalar(
