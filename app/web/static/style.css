@@ -941,3 +941,21 @@ td.short { color: var(--red, #ff4d5a); font-weight: 700; }
 .rule .ok { color: var(--green, #18c964); font-weight: 700; }
 .rule .warn { color: var(--amber, #ffb31a); font-weight: 700; }
 @media(max-width:1000px){ #top5-table ~ section div[style*="grid-template-columns:1.7fr"]{grid-template-columns:1fr;} }
+
+/* Top-5: сортировка колонок и всплывающая подсказка «Как считать Score» */
+.sort-sym { font-size: 11px; margin-left: 2px; color: var(--accent, #4f8cff); }
+.sort-sym.active { font-weight: 800; }
+.sort-hint {
+  display: inline-block; margin-left: 4px; color: var(--accent, #4f8cff);
+  font-weight: 800; cursor: help; border: 1px solid currentColor;
+  border-radius: 50%; width: 15px; height: 15px; line-height: 13px; text-align: center; font-size: 11px;
+}
+.isort-tip {
+  display: none; position: absolute; z-index: 20; max-width: 300px;
+  background: var(--panel-2, #202a40); border: 1px solid var(--border, #2c3750);
+  padding: 10px 12px; border-radius: 8px; font-size: 12px; line-height: 1.5;
+  color: var(--text); box-shadow: 0 6px 16px rgba(0,0,0,.35);
+}
+th[data-col="score"] { position: relative; }
+th[data-col="score"] .sort-hint:hover + .isort-tip,
+th[data-col="score"] .isort-tip:hover { display: block; }
