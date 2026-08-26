@@ -264,10 +264,104 @@ async def _latest_analysis(session, ticker: str) -> TechAnalysis | None:
     )
 
 
-def _scenario_metrics(sc: dict) -> dict:
-    """Expected R + вторичные метрики сценария (R/R, вероятность, риск)."""
-    prob = sc.get("probability")
+def _first_num(text: str) -> float | None:
+    """Первое число из строки (для диапazonов/списков)."""
+    if not text:
+        return None
+    clean = str(text).replace(",", ".").replace(" ", "")
+    import re as _re
+
+    m = _re.search(r"-?\d+(?:\.\d+)?", clean)
+    if not m:
+        return None
+    return float(m.group())
+
+
+def _entry_mid(text: str) -> float | None:
+    """Средняя точка диапазона входа: '100-105' → 102.5, '31.0–31.3' → 31.15."""
+    if not text:
+        return None
+    import re as _re
+
+    nums = [float(x) for x in _re.findall(r"\d+\.?\d*", str(text))]
+    if not nums:
+        return None
+    return sum(nums) / len(nums)
+
+
+def _first_target(text: str) -> float | None:
+    """Первая цель из списка '110/115' → 110."""
+    return _first_num(text)
+
+
+def compute_rr(sc: dict, fallback: bool = True) -> float | None:
+    """R/R сценария: из явного rr LLM или fallback из уровней entry/stop/targets."""
     rr = sc.get("rr")
+    if rr is not None:
+        return float(rr)
+    if not fallback:
+        return None
+    stop = _first_num(sc.get("stop"))
+    entry = _entry_mid(sc.get("entry"))
+    target = _first_num(sc.get("targets"))
+    risk = None
+    reward = None
+    if stop is not None and entry is not None:
+        risk = abs(entry - stop)
+    if target is not None and entry is not None:
+        reward = abs(target - entry)
+    if reward is not None and risk and risk > 0:
+        return round(reward / risk, 3)
+    return None
+
+
+def compute_risk_pct(sc: dict) -> float | None:
+    """Риск до стопа (%). None, если нет входа/стопа."""
+    stop = _first_num(sc.get("stop"))
+    entry = _entry_mid(sc.get("entry"))
+    if stop is None or entry is None or entry == 0:
+        return None
+    return round(abs(entry - stop) * 100.0 / abs(entry), 3)
+
+
+def _quality_score(sc: dict) -> float:
+    """Качество подтверждения/структуры (0..1) — наличие уровней и обоснования."""
+    parts = 0
+    if sc.get("entry"):
+        parts += 1
+    if sc.get("stop"):
+        parts += 1
+    if sc.get("targets"):
+        parts += 1
+    if sc.get("why"):
+        parts += 1
+    if sc.get("probability") is not None or sc.get("rr") is not None:
+        parts += 1
+    return parts / 5.0
+
+
+def compute_score(sc: dict) -> float | None:
+    """Композитный Score (как в макете): 35% уверенность · 30% R/R · 20% риск · 15% качество."""
+    prob = sc.get("probability")
+    rr = compute_rr(sc)
+    risk = compute_risk_pct(sc)
+    if rr is None or risk is None:
+        return None
+    # Уверенность сценария (0..100)
+    conf = 0.0 if prob is None else min(prob * 100.0, 100.0)
+    # R/R: за верх 3.0 → 100, ниже → пропорционально
+    rr_score = min(rr / 3.0, 1.0) * 100.0
+    # Риск: ≤4% → 100, выше → падает до 0 на ~20%
+    risk_score = max(0.0, 1.0 - max(0.0, risk - 4.0) / 16.0) * 100.0
+    qual = _quality_score(sc) * 100.0
+    score = 0.35 * conf + 0.30 * rr_score + 0.20 * risk_score + 0.15 * qual
+    return round(score, 1)
+
+
+def _scenario_metrics(sc: dict) -> dict:
+    """Expected R + вторичные метрики сценария (R/R, вероятность, риск, Score)."""
+    prob = sc.get("probability")
+    rr = compute_rr(sc)
     er = expected_r(prob, rr)
     return {
         "title": sc.get("title") or "",
@@ -277,6 +371,8 @@ def _scenario_metrics(sc: dict) -> dict:
         "why": sc.get("why") or "",
         "probability": prob,
         "rr": rr,
+        "risk": compute_risk_pct(sc),
+        "score": compute_score(sc),
         "expected_r": round(er, 3) if er is not None else None,
     }
 
@@ -304,7 +400,7 @@ def best_strategy(tickers_analyses: list[dict]) -> dict | None:
             continue
         for key in ("scenario_a", "scenario_b", "scenario_c"):
             sc = data.get(key) or {}
-            er = expected_r(sc.get("probability"), sc.get("rr"))
+            er = expected_r(sc.get("probability"), compute_rr(sc))
             if er is None:
                 continue
             dir_label = {"BUY": "LONG", "SELL": "SHORT", "WAIT": "WAIT"}.get(cur_verdict, "WAIT")
@@ -317,8 +413,10 @@ def best_strategy(tickers_analyses: list[dict]) -> dict | None:
                 "entry": sc.get("entry") or "",
                 "stop": sc.get("stop") or "",
                 "targets": sc.get("targets") or "",
-                "rr": sc.get("rr"),
+                "rr": compute_rr(sc),
                 "probability": sc.get("probability"),
+                "risk": compute_risk_pct(sc),
+                "score": compute_score(sc),
                 "expected_r": round(er, 3),
                 "analysis_id": ana.get("id"),
                 "scenario": _scenario_metrics(sc),
@@ -375,9 +473,32 @@ async def top5(session, template_id: int, limit: int = 5) -> dict:
             }
         )
     results = _rank_best_rows(rows)
+    # Агрегаты для панели метрик (как в макете)
+    qualified = [r for r in results if _deal_qualified(r)]
+    best_score_row = max(results, key=lambda r: r.get("score") or 0) if results and any(
+        r.get("score") is not None for r in results
+    ) else None
     return {
         "template_id": template_id,
         "template": {"id": template.id, "name": template.name, "kind": template.kind},
         "total": len(results),
+        "qualified": len(qualified),
+        "best_score": best_score_row["score"] if best_score_row else None,
         "items": results[:limit],
     }
+
+
+def _deal_qualified(r: dict) -> bool:
+    """Фильтр качества сделки (как в макете): R/R ≥ 1.5, риск ≤ 4%, уверенность ≥ 40%."""
+    rr = r.get("rr")
+    risk = r.get("risk")
+    prob = r.get("probability")
+    if rr is None or risk is None:
+        return False
+    if rr < 1.5:
+        return False
+    if risk > 4.0:
+        return False
+    if prob is not None and prob < 0.40:
+        return False
+    return True

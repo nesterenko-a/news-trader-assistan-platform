@@ -921,3 +921,23 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 .top5-detail td { background: var(--panel-2, #202a40); }
 td.long { color: var(--green, #18c964); font-weight: 700; }
 td.short { color: var(--red, #ff4d5a); font-weight: 700; }
+
+/* Top-5 (docs/25): макет template_top5_stock.html */
+.long { color: var(--green, #18c964); font-weight: 700; }
+.short { color: var(--red, #ff4d5a); font-weight: 700; }
+.metric { background: var(--panel-2, #202a40); border: 1px solid var(--border, #2c3750); border-radius: 12px; padding: 12px 14px; }
+.metric .label { color: var(--muted, #8fa0bd); font-size: 12px; }
+.metric .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+.score { font-size: 17px; font-weight: 800; }
+.score.high { color: var(--green, #18c964); }
+.score.mid { color: var(--amber, #ffb31a); }
+.bar { height: 6px; background: #263651; border-radius: 8px; overflow: hidden; margin-top: 4px; width: 72px; }
+.bar > span { display: block; height: 100%; background: var(--green, #18c964); }
+.t5-rank { font-weight: 700; }
+.header-line { align-items: center; }
+.top5-row .ok { color: var(--green, #18c964); font-weight: 700; }
+.top5-row .warn { color: var(--amber, #ffb31a); font-weight: 700; }
+.rule .k { color: var(--muted, #8fa0bd); }
+.rule .ok { color: var(--green, #18c964); font-weight: 700; }
+.rule .warn { color: var(--amber, #ffb31a); font-weight: 700; }
+@media(max-width:1000px){ #top5-table ~ section div[style*="grid-template-columns:1.7fr"]{grid-template-columns:1fr;} }

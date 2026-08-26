@@ -49,52 +49,90 @@
 
 {% if result and result['items'] %}
 <section class="card" style="margin-top:12px">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-    <h2 style="margin:0">Лучшие возможности</h2>
-    <span class="muted small">Кандидатов: {{ result['total'] }} · Лучший Expected R: {{ '%.2f' | format(result['items'][0]['expected_r']) if result['items'] else '—' }}</span>
+  <div class="header-line" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+    <div>
+      <h2 style="margin:0">Лучшие возможности</h2>
+      <div class="muted small">Все стратегии по бумагам шаблона → фильтрация → скоринг → 5 лучших входов</div>
+    </div>
+    <div class="controls" style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn top5-filter active" data-filter="all">Все</button>
+      <button class="btn top5-filter" data-filter="LONG">LONG</button>
+      <button class="btn top5-filter" data-filter="SHORT">SHORT</button>
+      <button class="btn top5-sort" data-sort="score">По Score</button>
+      <button class="btn top5-sort" data-sort="rr">По R/R</button>
+      <button class="btn top5-sort" data-sort="risk">По риску</button>
+    </div>
   </div>
-  <table class="table" style="margin-top:10px">
-    <thead><tr>
-      <th>#</th><th>Бумага / стратегия</th><th>Направление</th><th>Вход</th><th>Стоп</th>
-      <th>Цель</th><th>R/R</th><th>Вероятн.</th><th>Expected R</th>
-    </tr></thead>
-    <tbody>
-      {% for r in result['items'] %}
-      <tr class="top5-row" data-idx="{{ loop.index0 }}" style="cursor:pointer">
-        <td>{{ loop.index }}</td>
-        <td><div class="ticker-label"><b>{{ r.ticker }}</b> <span class="badge">S{{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }}</span></div>
-            <div class="muted small">{{ r.name }}</div></td>
-        <td>{% if r.dir == 'LONG' %}<span class="long">LONG</span>{% elif r.dir == 'SHORT' %}<span class="short">SHORT</span>{% else %}<span>Выжидать</span>{% endif %}</td>
-        <td>{{ r.entry or '—' }}</td>
-        <td>{{ r.stop or '—' }}</td>
-        <td>{{ r.targets or '—' }}</td>
-        <td>{{ '%.2f' | format(r.rr) if r.rr is not none else '—' }}</td>
-        <td>{{ (r.probability * 100) | round | int }}%{% if r.probability is not none %} {% endif %}</td>
-        <td><b>{{ '%.2f' | format(r.expected_r) }}</b></td>
-      </tr>
-      <tr class="top5-detail" id="detail-{{ loop.index0 }}" style="display:none">
-        <td colspan="9">
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">
-            {% for key, letter, color in [('scenario_a','A','#16a34a'),('scenario_b','B','#f59e0b'),('scenario_c','C','#dc2626')] %}
-            {% set sc = r.scenario %}
-            <div style="border:1px solid var(--border);border-top:3px solid {{ color }};border-radius:10px;padding:12px;background:var(--panel-2)">
-              <div class="chart-head"><b>Сценарий {{ letter }}</b></div>
-              {% if sc and sc.get('title') %}<p class="muted small" style="margin:6px 0"><b>{{ sc.title }}</b></p>{% endif %}
-              {% if sc and sc.get('entry') %}<div><span class="label">Вход</span><span class="value">{{ sc.entry }}</span></div>{% endif %}
-              {% if sc and sc.get('stop') %}<div><span class="label">Стоп</span><span class="value">{{ sc.stop }}</span></div>{% endif %}
-              {% if sc and sc.get('targets') %}<div><span class="label">Цели</span><span class="value">{{ sc.targets }}</span></div>{% endif %}
-              {% if sc and sc.get('why') %}<p class="muted small">{{ sc.why }}</p>{% endif %}
-            </div>
-            {% endfor %}
-          </div>
-          <p class="muted small" style="margin-top:8px"><a href="/tech_analysis/{{ r.analysis_id }}">Полный разбор «{{ r.ticker }}» →</a></p>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <p class="muted small" style="margin-top:10px">Показана одна лучшая стратегия каждой бумаги (по Expected R). Раскройте строку, чтобы увидеть все 3 сценария «Моя стратегия».</p>
-  <p class="muted small">Дисклеймер: материал носит информационный характер и не является инвестиционной рекомендацией. Занятое «Вероятн.» — оценка модели/аналитика, а не статистически подтверждённая вероятность.</p>
+
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0">
+    <div class="metric"><div class="label">Кандидатов</div><div class="value" id="m-count">{{ result['total'] }}</div></div>
+    <div class="metric"><div class="label">Прошли фильтры</div><div class="value" id="m-qualified">{{ result['qualified'] or 0 }}</div></div>
+    <div class="metric"><div class="label">Лучший Score</div><div class="value" id="m-best">{{ '%.1f' | format(result['best_score']) if result['best_score'] is not none else '—' }}</div></div>
+    <div class="metric"><div class="label">Минимальный R/R</div><div class="value">1.5+</div></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.7fr 1fr;gap:16px">
+    <div>
+      <table class="table" id="top5-table">
+        <thead><tr>
+          <th>#</th><th>Бумага / стратегия</th><th>Направление</th><th>Вход</th><th>Стоп</th>
+          <th>Цель</th><th>R/R</th><th>Риск</th><th>Score</th>
+        </tr></thead>
+        <tbody>
+          {% for r in result['items'] %}
+          <tr class="top5-row" data-idx="{{ loop.index0 }}" data-dir="{{ r.dir }}" data-score="{{ r.score or 0 }}" data-rr="{{ r.rr or 0 }}" data-risk="{{ r.risk or 999 }}" style="cursor:pointer">
+            <td class="t5-rank">{{ loop.index }}</td>
+            <td><div class="ticker-label"><b>{{ r.ticker }}</b> <span class="badge">S{{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }}</span></div>
+                <div class="muted small">{{ r.name }}</div></td>
+            <td>{% if r.dir == 'LONG' %}<span class="long">LONG</span>{% elif r.dir == 'SHORT' %}<span class="short">SHORT</span>{% else %}<span class="muted">Выжидать</span>{% endif %}</td>
+            <td>{{ r.entry or '—' }}</td>
+            <td>{{ r.stop or '—' }}</td>
+            <td>{{ r.targets or '—' }}</td>
+            <td><b>{{ '%.2f' | format(r.rr) if r.rr is not none else '—' }}</b></td>
+            <td>{{ '%.2f' | format(r.risk) }}%{% if r.risk is not none %} {% endif %}</td>
+            <td><span class="score {{ 'high' if (r.score or 0) >= 75 else 'mid' }}">{{ '%.1f' | format(r.score) if r.score is not none else '—' }}</span>
+                {% if r.score is not none %}<div class="bar"><span style="width:{{ r.score }}%"></span></div>{% endif %}</td>
+          </tr>
+          <tr class="top5-detail" id="detail-{{ loop.index0 }}" style="display:none">
+            <td colspan="9">
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">
+                {% for key, letter, color in [('scenario_a','A','#16a34a'),('scenario_b','B','#f59e0b'),('scenario_c','C','#dc2626')] %}
+                {% set sc = r.scenario %}
+                <div style="border:1px solid var(--border);border-top:3px solid {{ color }};border-radius:10px;padding:12px;background:var(--panel-2)">
+                  <div class="chart-head"><b>Сценарий {{ letter }}</b></div>
+                  {% if sc and sc.get('title') %}<p class="muted small" style="margin:6px 0"><b>{{ sc.title }}</b></p>{% endif %}
+                  {% if sc and sc.get('entry') %}<div><span class="label">Вход</span><span class="value">{{ sc.entry }}</span></div>{% endif %}
+                  {% if sc and sc.get('stop') %}<div><span class="label">Стоп</span><span class="value">{{ sc.stop }}</span></div>{% endif %}
+                  {% if sc and sc.get('targets') %}<div><span class="label">Цели</span><span class="value">{{ sc.targets }}</span></div>{% endif %}
+                  {% if sc and sc.get('why') %}<p class="muted small">{{ sc.why }}</p>{% endif %}
+                </div>
+                {% endfor %}
+              </div>
+              <p class="muted small" style="margin-top:8px"><a href="/tech_analysis/{{ r.analysis_id }}">Полный разбор «{{ r.ticker }}» →</a></p>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="muted small" style="margin-top:10px">Показана одна лучшая стратегия каждой бумаги (по Score). Раскройте строку, чтобы увидеть все 3 сценария «Моя стратегия».</p>
+      <p class="muted small">Дисклеймер: материал носит информационный характер и не является инвестиционной рекомендацией. Значение «Score»/«conf» — оценка модели/аналитика, а не статистически подтверждённая вероятность.</p>
+    </div>
+
+    <aside>
+      <div style="padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--panel-2)">
+        <h3 style="margin:0 0 10px;font-size:15px">Фильтр качества сделки</h3>
+        <div style="display:grid;gap:8px">
+          <div class="rule" style="display:flex;justify-content:space-between"><span class="k muted small">R/R до основной цели</span><span class="ok">≥ 1.5</span></div>
+          <div class="rule" style="display:flex;justify-content:space-between"><span class="k muted small">Риск до стопа</span><span class="ok">≤ 4%</span></div>
+          <div class="rule" style="display:flex;justify-content:space-between"><span class="k muted small">Уверенность сценария</span><span class="warn">≥ 40%</span></div>
+          <div class="rule" style="display:flex;justify-content:space-between"><span class="k muted small">Ликвидность</span><span class="ok">достаточная</span></div>
+          <div class="rule" style="display:flex;justify-content:space-between"><span class="k muted small">Вход</span><span class="ok">после подтверждения</span></div>
+        </div>
+        <h3 style="margin:18px 0 8px;font-size:15px">Как считать Score</h3>
+        <div class="muted small"><b>35%</b> — уверенность сценария · <b>30%</b> — R/R · <b>20%</b> — риск до стопа · <b>15%</b> — качество подтверждения/структуры.</div>
+      </div>
+    </aside>
+  </div>
 </section>
 {% elif selected_template %}
 <section class="card" style="margin-top:12px"><p class="muted small">Запустите Теханализ, чтобы увидеть подборку лучших сделок по шаблону.</p></section>
@@ -209,6 +247,56 @@
       if (detail) detail.style.display = detail.style.display === 'none' ? '' : 'none';
     });
   });
+
+  // Фильтры и сортировки таблицы Top-5 (как в макете)
+  var currentFilter = 'all';
+  var currentSort = 'score';
+  function applyFilterSort() {
+    var body = document.querySelector('#top5-table tbody');
+    var trs = Array.prototype.slice.call(body.querySelectorAll('tr.top5-row'));
+    var filtered = trs.filter(function (tr) {
+      if (currentFilter === 'all') return true;
+      return tr.getAttribute('data-dir') === currentFilter;
+    });
+    filtered.sort(function (a, b) {
+      var av, bv;
+      if (currentSort === 'rr') { av = parseFloat(a.getAttribute('data-rr')); bv = parseFloat(b.getAttribute('data-rr')); return bv - av; }
+      if (currentSort === 'risk') { av = parseFloat(a.getAttribute('data-risk')); bv = parseFloat(b.getAttribute('data-risk')); return av - bv; }
+      av = parseFloat(a.getAttribute('data-score')); bv = parseFloat(b.getAttribute('data-score')); return bv - av;
+    });
+    var rank = 1;
+    filtered.forEach(function (tr) {
+      var rcell = tr.querySelector('.t5-rank');
+      var detail = document.getElementById('detail-' + tr.getAttribute('data-idx'));
+      tr.style.display = '';
+      if (rcell) rcell.textContent = rank++;
+      if (detail) detail.style.display = 'none';
+    });
+    trs.forEach(function (tr) {
+      if (filtered.indexOf(tr) === -1) {
+        tr.style.display = 'none';
+        var detail = document.getElementById('detail-' + tr.getAttribute('data-idx'));
+        if (detail) detail.style.display = 'none';
+      }
+    });
+  }
+  document.querySelectorAll('.top5-filter').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.top5-filter').forEach(function (x) { x.classList.remove('active'); });
+      btn.classList.add('active');
+      currentFilter = btn.getAttribute('data-filter');
+      applyFilterSort();
+    });
+  });
+  document.querySelectorAll('.top5-sort').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.top5-sort').forEach(function (x) { x.classList.remove('active'); });
+      btn.classList.add('active');
+      currentSort = btn.getAttribute('data-sort');
+      applyFilterSort();
+    });
+  });
+  applyFilterSort();
 
   // История батчей: раскрытие деталей по клику на строку или кнопку ▾
   function toggleBatch(id) {

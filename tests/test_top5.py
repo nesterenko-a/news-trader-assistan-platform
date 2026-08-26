@@ -63,6 +63,42 @@ def test_ticker_list():
     assert set(_ticker_list(tpl)) == {"AFLT", "SBER", "GAZP"}
 
 
+def test_compute_rr_fallback_from_levels():
+    from app.tech_analysis.batch import compute_rr
+
+    # без явного rr: entry 100-105 (средняя 102.5), stop 98 (риск 4.5), target 110 (цель 7.5) → rr ~1.667
+    sc = {"entry": "100-105", "stop": "98", "targets": "110"}
+    assert compute_rr(sc) is not None
+    assert compute_rr(sc) == pytest.approx(7.5 / 4.5, abs=0.01)
+    # явный rr имеет приоритет
+    sc2 = {"entry": "100-105", "stop": "98", "targets": "110", "rr": 2.5}
+    assert compute_rr(sc2) == 2.5
+    # нет уровней → None
+    assert compute_rr({"entry": "", "stop": "", "targets": ""}) is None
+
+
+def test_compute_risk_pct():
+    from app.tech_analysis.batch import compute_risk_pct
+
+    sc = {"entry": "100-105", "stop": "98"}
+    assert compute_risk_pct(sc) == pytest.approx(4.5 * 100.0 / 102.5, abs=0.01)
+    assert compute_risk_pct({"entry": "", "stop": ""}) is None
+
+
+def test_compute_score_and_qualified():
+    from app.tech_analysis.batch import _deal_qualified, compute_score
+
+    sc = {"entry": "100", "stop": "98", "targets": "110/120", "why": "поддержка+отскок",
+          "probability": 0.65, "rr": 2.5}
+    s = compute_score(sc)
+    assert s is not None and 0 <= s <= 100
+    # сильная сделка проходит фильтр качества
+    row = {"rr": 2.5, "risk": 2.0, "probability": 0.65}
+    assert _deal_qualified(row) is True
+    row_bad = {"rr": 1.2, "risk": 2.0, "probability": 0.65}
+    assert _deal_qualified(row_bad) is False
+
+
 async def test_get_stock_template_kind(session):
     t_fut = FuturesTemplate(name="f", tickers="W4V6", kind="futures")
     t_stock = FuturesTemplate(name="s", tickers="AFLT", kind="stock")
@@ -214,12 +250,16 @@ async def test_top5_page_renders(session):
     html = resp.body.decode()
     assert "Отбор сделок — Top 5" in html
     assert "AAA" in html
-    # селектор выбора LLM (Авто/ChatGPT/DeepSeek) по аналогии с одиночным анализом
+    # селектор выбора LLM (Авто/ChatGPT/DeepSeek)
     assert "LLM для анализа" in html
     assert "btn-provider" in html
+    # макет: фильтры, метрики, панель «Как считать Score»
+    assert "По Score" in html
+    assert "По R/R" in html
+    assert "По риску" in html
+    assert "Как считать Score" in html
+    assert "Показана одна лучшая стратегия" in html
     # история запусков батчей
     assert "История запусков Top-5" in html
     assert "batch-detail-" in html
-    # Expected R = 0.6×2.5 − 0.4×1 = 1.1 (не 1.275): якорь — отрендеренное значение колонки
-    assert "1.10" in html
 
