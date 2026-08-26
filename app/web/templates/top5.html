@@ -40,6 +40,9 @@
           <option value="deepseek">DeepSeek: {{ llm_models.deepseek }}</option>
         </select>
       </div>
+      <label class="muted small" title="Игнорирует время свежести анализа (TOP5_FRESH_HOURS) и перезапускает Теханализ по всем акциям шаблона">
+        <input type="checkbox" id="btn-force"> Принудительно обновить
+      </label>
       <button class="btn active" id="btn-run" type="button" {% if result and result.get('running') %}disabled{% endif %}>Отправить на Теханализ в LLM</button>
     </div>
   </div>
@@ -215,8 +218,11 @@
     progress.textContent = 'Запускаем Теханализ по шаблону…';
     var providerSel = document.getElementById('btn-provider');
     var provider = providerSel ? providerSel.value : '';
+    var forceEl = document.getElementById('btn-force');
+    var force = forceEl ? forceEl.checked : false;
     var url = '/v1/top5/run?template_id=' + templateId;
     if (provider) url += '&provider=' + encodeURIComponent(provider);
+    if (force) url += '&force=true';
     fetch(url, { method: 'POST' })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {

@@ -67,8 +67,13 @@ async def start_batch(
     template_id: int,
     user_id: int | None = None,
     provider: str | None = None,
+    force: bool = False,
 ) -> TechAnalysisBatch:
-    """Запускает батч Теханализа по всем акциям шаблона kind=stock (async, фоном)."""
+    """Запускает батч Теханализа по всем акциям шаблона kind=stock (async, фоном).
+
+    force=True — игнорировать свежесть (TOP5_FRESH_HOURS) и перезапускать
+    Теханализ по всем акциям шаблона (без переиспользования актуальных анализов).
+    """
     template = await get_stock_template(session, template_id)
     if template is None:
         raise ValueError("Шаблон не найден или не является шаблоном акций (kind != stock)")
@@ -88,14 +93,15 @@ async def start_batch(
         raise RuntimeError("По этому шаблону уже выполняется батч Теханализа")
 
     batch = await create_batch(session, template_id, user_id)
-    asyncio.create_task(_run_batch(batch.id, tickers, user_id, provider))
+    asyncio.create_task(_run_batch(batch.id, tickers, user_id, provider, force))
     return batch
 
 
 async def _run_batch(
-    batch_id: int, tickers: list[str], user_id: int | None, provider: str | None
+    batch_id: int, tickers: list[str], user_id: int | None, provider: str | None,
+    force: bool = False,
 ) -> None:
-    """Фоновое выполнение батча: для каждой акции запускаем/переиспользуем анализ."""
+    """Фоновое выполнение батча: запускаем/переиспользуем анализ по каждой акции."""
     from app.db.connection import SessionLocal
 
     total = len(tickers)
@@ -104,13 +110,14 @@ async def _run_batch(
     try:
         async with SessionLocal() as session:
             for ticker in tickers:
-                existing = await fresh_analysis(session, ticker)
-                if existing is not None:
-                    # Переиспользуем актуальный успешный анализ (не гоняем LLM).
-                    existing.batch_id = batch_id
-                    done += 1
-                    await session.commit()
-                    continue
+                if not force:
+                    existing = await fresh_analysis(session, ticker)
+                    if existing is not None:
+                        # Переиспользуем актуальный успешный анализ (не гоняем LLM).
+                        existing.batch_id = batch_id
+                        done += 1
+                        await session.commit()
+                        continue
                 try:
                     await start_analysis(
                         session, ticker, user_id=user_id, provider=provider, batch_id=batch_id

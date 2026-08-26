@@ -287,3 +287,49 @@ async def test_top5_page_renders(session):
     assert "История запусков Top-5" in html
     assert "batch-detail-" in html
 
+
+
+async def test_run_batch_force_skips_fresh_reuse(session, monkeypatch):
+    """force=True игнорирует свежесть: не переиспользует актуальный анализ."""
+    from datetime import datetime, timedelta
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlalchemy import select
+
+    import app.db.connection as dbconn
+    import app.tech_analysis.batch as batch_mod
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    from app.db.connection import Base
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with factory() as s:
+        s.add(TechAnalysis(ticker="AAA", status="success", stage="done", verdict="BUY",
+                           scenario_json=_scenario_json(0.6, 2.5),
+                           finished_at=datetime.utcnow()))
+        await s.commit()
+
+    monkeypatch.setattr(dbconn, "SessionLocal", factory)
+
+    started = []
+    async def fake_start_analysis(session, ticker, user_id=None, provider=None, batch_id=None):
+        started.append(ticker)
+        # создаём успешную запись, чтобы батч-статус не падал
+        session.add(TechAnalysis(ticker=ticker, status="success", stage="done", verdict="BUY",
+                                 scenario_json=_scenario_json(0.6, 2.5),
+                                 finished_at=datetime.utcnow(), batch_id=batch_id))
+        await session.commit()
+        return None
+    monkeypatch.setattr(batch_mod, "start_analysis", fake_start_analysis)
+
+    # force=False — переиспользуем свежий анализ, start_analysis не вызывается
+    await batch_mod._run_batch(batch_id=1, tickers=["AAA"], user_id=None, provider=None, force=False)
+    assert started == []
+
+    # force=True — анализ запускается заново
+    await batch_mod._run_batch(batch_id=2, tickers=["AAA"], user_id=None, provider=None, force=True)
+    assert started == ["AAA"]
+
+    await engine.dispose()
