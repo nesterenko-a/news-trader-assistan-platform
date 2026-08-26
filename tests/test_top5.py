@@ -253,11 +253,12 @@ async def test_top5_page_renders(session):
     # селектор выбора LLM (Авто/ChatGPT/DeepSeek)
     assert "LLM для анализа" in html
     assert "btn-provider" in html
-    # макет: фильтры, метрики, панель «Как считать Score»
-    assert "По Score" in html
-    assert "По R/R" in html
-    assert "По риску" in html
+    # макет: кликабельные заголовки-сортировки и всплывающие подсказки
+    assert 'data-col="rr"' in html
+    assert 'data-col="risk"' in html
+    assert 'data-col="score"' in html
     assert "Как считать Score" in html
+    assert "R/R" in html and "Риск" in html and "риск до стопа" in html
     assert "Показана одна лучшая стратегия" in html
     # история запусков батчей
     assert "История запусков Top-5" in html

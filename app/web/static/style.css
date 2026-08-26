@@ -951,11 +951,12 @@ td.short { color: var(--red, #ff4d5a); font-weight: 700; }
   border-radius: 50%; width: 15px; height: 15px; line-height: 13px; text-align: center; font-size: 11px;
 }
 .isort-tip {
-  display: none; position: absolute; z-index: 20; max-width: 300px;
+  display: none; position: absolute; z-index: 20; max-width: 320px;
   background: var(--panel-2, #202a40); border: 1px solid var(--border, #2c3750);
   padding: 10px 12px; border-radius: 8px; font-size: 12px; line-height: 1.5;
   color: var(--text); box-shadow: 0 6px 16px rgba(0,0,0,.35);
 }
-th[data-col="score"] { position: relative; }
-th[data-col="score"] .sort-hint:hover + .isort-tip,
-th[data-col="score"] .isort-tip:hover { display: block; }
+th.sortable { position: relative; }
+th.sortable .sort-hint:hover + .isort-tip,
+th.sortable .isort-tip:hover { display: block; }
+

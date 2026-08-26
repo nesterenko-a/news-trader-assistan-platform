@@ -52,23 +52,8 @@
   <div class="header-line" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
     <div>
       <h2 style="margin:0">Лучшие возможности</h2>
-      <div class="muted small">Все стратегии по бумагам шаблона → фильтрация → скоринг → 5 лучших входов</div>
+      <div class="muted small">Все стратегии по бумагам шаблона → скоринг → лучшие входы. Клик по заголовку R/R · Риск · Score — сортировка.</div>
     </div>
-    <div class="controls" style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn top5-filter active" data-filter="all">Все</button>
-      <button class="btn top5-filter" data-filter="LONG">LONG</button>
-      <button class="btn top5-filter" data-filter="SHORT">SHORT</button>
-      <button class="btn top5-sort" data-sort="score">По Score</button>
-      <button class="btn top5-sort" data-sort="rr">По R/R</button>
-      <button class="btn top5-sort" data-sort="risk">По риску</button>
-    </div>
-  </div>
-
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0">
-    <div class="metric"><div class="label">Кандидатов</div><div class="value" id="m-count">{{ result['total'] }}</div></div>
-    <div class="metric"><div class="label">Прошли фильтры</div><div class="value" id="m-qualified">{{ result['qualified'] or 0 }}</div></div>
-    <div class="metric"><div class="label">Лучший Score</div><div class="value" id="m-best">{{ '%.1f' | format(result['best_score']) if result['best_score'] is not none else '—' }}</div></div>
-    <div class="metric"><div class="label">Минимальный R/R</div><div class="value">1.5+</div></div>
   </div>
 
   <div>
@@ -76,9 +61,26 @@
       <thead><tr>
         <th>#</th><th style="text-align:left">Бумага / стратегия</th><th style="text-align:left">Направление</th><th style="text-align:left">Вход</th><th style="text-align:left">Стоп</th>
         <th style="text-align:left">Цель</th>
-        <th style="cursor:pointer" data-col="rr">R/R <span class="sort-sym" data-col="rr"></span></th>
-        <th style="cursor:pointer" data-col="risk">Риск <span class="sort-sym" data-col="risk"></span></th>
-        <th style="cursor:pointer" data-col="score">Score
+        <th style="cursor:pointer" data-col="rr" class="sortable">
+          R/R
+          <span class="sort-hint" data-hint="rr">?</span>
+          <span class="isort-tip" data-tip="rr">
+            <b>R/R</b> (Risk/Reward) — отношение потенциальной прибыли к риску.<br>
+            Берётся из ответа LLM; если отсутствует — рассчитывается как <b>(цель − вход) / (вход − стоп)</b>.
+          </span>
+          <span class="sort-sym" data-col="rr"></span>
+        </th>
+        <th style="cursor:pointer" data-col="risk" class="sortable">
+          Риск
+          <span class="sort-hint" data-hint="risk">?</span>
+          <span class="isort-tip" data-tip="risk">
+            <b>Риск</b> — риск до стопа в <b>%</b> от цены входа: <b>(вход − стоп) / вход × 100</b>.<br>
+            Чем меньше, тем лучше (ориентир ≤ 4%).
+          </span>
+          <span class="sort-sym" data-col="risk"></span>
+        </th>
+        <th style="cursor:pointer" data-col="score" class="sortable">
+          Score
           <span class="sort-hint" data-hint="score">?</span>
           <span class="isort-tip" data-tip="score">
             <b>Как считать Score</b><br>
@@ -241,25 +243,36 @@
     });
   });
 
-  // Фильтры и сортировки таблицы Top-5
-  var currentFilter = 'all';
+  // Сортировка таблицы Top-5 по столбцам (клик по заголовку R/R · Риск · Score)
   var currentSort = 'score';
-  var sortDir = 'desc'; // desc для score/rr, asc для risk
-  function setSort(col, viaClick) {
-    if (viaClick) {
-      // повторный клик по тому же столбцу — инверсия направления
-      if (col === currentSort) {
-        sortDir = sortDir === 'desc' ? 'asc' : 'desc';
-      } else {
-        currentSort = col;
-        sortDir = (col === 'risk') ? 'asc' : 'desc';
-      }
-    } else {
-      currentSort = col;
-      sortDir = (col === 'risk') ? 'asc' : 'desc';
-    }
-    renderSortSymbols();
-    applyFilterSort();
+  var sortDir = 'desc'; // score/rr — по убыванию, risk — по возрастанию
+  function applySort() {
+    var table = document.getElementById('top5-table');
+    if (!table) return;
+    var body = table.querySelector('tbody');
+    // Пары «строка + её детали» в DOM — переупорядочиваем реально (физически)
+    var rows = [];
+    Array.prototype.slice.call(body.querySelectorAll('tr.top5-row')).forEach(function (tr) {
+      var detail = tr.nextElementSibling && tr.nextElementSibling.classList.contains('top5-detail')
+        ? tr.nextElementSibling : null;
+      rows.push({ main: tr, detail: detail });
+    });
+    rows.sort(function (a, b) {
+      var av = parseFloat(a.main.getAttribute('data-' + currentSort));
+      var bv = parseFloat(b.main.getAttribute('data-' + currentSort));
+      if (isNaN(av)) av = currentSort === 'risk' ? 999 : -999;
+      if (isNaN(bv)) bv = currentSort === 'risk' ? 999 : -999;
+      var cmp = av - bv;
+      return sortDir === 'desc' ? -cmp : cmp;
+    });
+    // Пересобираем tbody в отсортированном порядке и обновляем номера «#»
+    rows.forEach(function (row, i) {
+      var rcell = row.main.querySelector('.t5-rank');
+      if (rcell) rcell.textContent = i + 1;
+      if (row.detail) row.detail.style.display = 'none';
+      body.appendChild(row.main);
+      if (row.detail) body.appendChild(row.detail);
+    });
   }
   function renderSortSymbols() {
     document.querySelectorAll('.sort-sym').forEach(function (s) {
@@ -273,64 +286,24 @@
       }
     });
   }
-  function applyFilterSort() {
-    var table = document.getElementById('top5-table');
-    if (!table) return;
-    var body = table.querySelector('tbody');
-    var trs = Array.prototype.slice.call(body.querySelectorAll('tr.top5-row'));
-    var filtered = trs.filter(function (tr) {
-      if (currentFilter === 'all') return true;
-      return tr.getAttribute('data-dir') === currentFilter;
-    });
-    filtered.sort(function (a, b) {
-      var av = parseFloat(a.getAttribute('data-' + currentSort));
-      var bv = parseFloat(b.getAttribute('data-' + currentSort));
-      if (isNaN(av)) av = currentSort === 'risk' ? 999 : -999;
-      if (isNaN(bv)) bv = currentSort === 'risk' ? 999 : -999;
-      var cmp = av - bv;
-      return sortDir === 'desc' ? -cmp : cmp;
-    });
-    var rank = 1;
-    filtered.forEach(function (tr) {
-      var rcell = tr.querySelector('.t5-rank');
-      var detail = document.getElementById('detail-' + tr.getAttribute('data-idx'));
-      tr.style.display = '';
-      if (rcell) rcell.textContent = rank++;
-      if (detail) detail.style.display = 'none';
-    });
-    trs.forEach(function (tr) {
-      if (filtered.indexOf(tr) === -1) {
-        tr.style.display = 'none';
-        var detail = document.getElementById('detail-' + tr.getAttribute('data-idx'));
-        if (detail) detail.style.display = 'none';
-      }
-    });
+  function setSort(col) {
+    if (col === currentSort) {
+      sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+    } else {
+      currentSort = col;
+      sortDir = (col === 'risk') ? 'asc' : 'desc';
+    }
+    renderSortSymbols();
+    applySort();
   }
-  // Кнопки-фильтры (Все/LONG/SHORT)
-  document.querySelectorAll('.top5-filter').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      document.querySelectorAll('.top5-filter').forEach(function (x) { x.classList.remove('active'); });
-      btn.classList.add('active');
-      currentFilter = btn.getAttribute('data-filter');
-      applyFilterSort();
-    });
-  });
-  // Кнопки-сортировки (По Score / По R/R / По риску)
-  document.querySelectorAll('.top5-sort').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      document.querySelectorAll('.top5-sort').forEach(function (x) { x.classList.remove('active'); });
-      btn.classList.add('active');
-      setSort(btn.getAttribute('data-sort'), true);
-    });
-  });
-  // Сортировка кликом по заголовку столбца (R/R, Риск, Score)
+  // Клик по заголовку столбца (R/R, Риск, Score)
   document.querySelectorAll('#top5-table th[data-col]').forEach(function (th) {
     th.addEventListener('click', function () {
-      setSort(th.getAttribute('data-col'), true);
+      setSort(th.getAttribute('data-col'));
     });
   });
   renderSortSymbols();
-  applyFilterSort();
+  applySort();
 
   // История батчей: раскрытие деталей по клику на строку или кнопку ▾
   function toggleBatch(id) {
