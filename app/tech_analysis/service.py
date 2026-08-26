@@ -25,6 +25,32 @@ from app.tech_analysis.request_builder import build_analysis_request
 
 SOURCE_NOTICE = "tech_analysis_llm"
 
+
+def friendly_llm_error(exc: Exception) -> str:
+    """Человеко-понятное описание ошибки LLM для карточки/нотиса.
+
+    429 (RateLimitError) — превышен лимит запросов/квоты OpenAI: объясняем и
+    предлагаем повторить позже. 401 (AuthenticationError) — неверный ключ.
+    """
+    try:
+        import openai
+
+        if isinstance(exc, openai.RateLimitError):
+            return (
+                "Превышен лимит запросов к LLM (HTTP 429) — временное ограничение. "
+                "Повторите попытку позже."
+            )
+        if isinstance(exc, openai.AuthenticationError):
+            return "Неверный API-ключ LLM (HTTP 401). Проверьте CHATGPT_API_KEY / LLM_API_KEY."
+    except ImportError:
+        pass
+    text = str(exc)
+    if "429" in text or "Too Many Requests" in text or "RateLimit" in text:
+        return "Превышен лимит запросов к LLM (HTTP 429) — временное ограничение. Повторите позже."
+    if "401" in text or "AuthenticationError" in text or "Incorrect API key" in text:
+        return "Неверный API-ключ LLM (HTTP 401). Проверьте ключ в настройках."
+    return text[:1000]
+
 # Единовременно активная запись на тикер: {ticker: analysis_id}
 _active: dict[str, int] = {}
 
@@ -214,13 +240,13 @@ async def _analyze(analysis_id: int, ticker: str) -> None:
                 if row is not None:
                     row.status = "failed"
                     row.stage = "done"
-                    row.error = str(exc)[:1000]
+                    row.error = friendly_llm_error(exc)
                     row.finished_at = datetime.utcnow()
                     await session.commit()
                     await add_notice(
                         session,
                         "critical",
-                        f"Теханализ «{ticker}» завершился с ошибкой: {str(exc)[:200]}",
+                        f"Теханализ «{ticker}» завершился с ошибкой: {friendly_llm_error(exc)[:200]}",
                         source=SOURCE_NOTICE,
                     )
         finally:
@@ -285,13 +311,13 @@ async def _analyze_retry(analysis_id: int, ticker: str) -> None:
                 if row is not None:
                     row.status = "failed"
                     row.stage = "done"
-                    row.error = str(exc)[:1000]
+                    row.error = friendly_llm_error(exc)
                     row.finished_at = datetime.utcnow()
                     await session.commit()
                     await add_notice(
                         session,
                         "critical",
-                        f"Теханализ «{ticker}» завершился с ошибкой: {str(exc)[:200]}",
+                        f"Теханализ «{ticker}» завершился с ошибкой: {friendly_llm_error(exc)[:200]}",
                         source=SOURCE_NOTICE,
                     )
         finally:

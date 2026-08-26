@@ -12,11 +12,17 @@ from openai import AsyncOpenAI
 
 class ChatGPTClient:
     def __init__(
-        self, base_url: str, api_key: str, model: str, timeout: float = 120.0
+        self, base_url: str, api_key: str, model: str, timeout: float = 120.0,
+        max_retries: int = 5,
     ):
-        self._client = AsyncOpenAI(base_url=base_url, api_key=api_key, timeout=timeout)
+        # max_retries > 2: устойчивость к временному 429 (rate limit) и 5xx —
+        # OpenAI SDK выполняет экспоненциальный backoff с jitter между попытками.
+        self._client = AsyncOpenAI(
+            base_url=base_url, api_key=api_key, timeout=timeout, max_retries=max_retries
+        )
         self.model = model
         self.provider = "deepseek" if "deepseek" in (base_url or "") else "chatgpt"
+        self.max_retries = max_retries
 
     async def chat(self, system_prompt: str, user_prompt: str) -> str:
         response = await self._client.chat.completions.create(
