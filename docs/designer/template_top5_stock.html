@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strategy Selector — Top 5</title>
+<style>
+:root{
+  --bg:#0f1728; --panel:#172238; --panel2:#1d2a43; --line:#2b3a58;
+  --text:#f3f6fb; --muted:#8fa0bd; --blue:#5d9cff; --green:#18c964;
+  --yellow:#ffb31a; --red:#ff4d5a; --cyan:#55d7e8;
+}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}
+.container{max-width:1440px;margin:0 auto;padding:28px}
+.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px}
+h1{font-size:28px;margin:0 0 7px} .sub{color:var(--muted);font-size:14px}
+.controls{display:flex;gap:10px;flex-wrap:wrap}
+button,.select{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:10px 13px;border-radius:9px;cursor:pointer}
+button.active{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue) inset}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.metric{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+.metric .label{color:var(--muted);font-size:12px} .metric .value{font-size:25px;font-weight:700;margin-top:5px}
+.grid{display:grid;grid-template-columns:1.7fr 1fr;gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+.panel h2{font-size:17px;margin:0 0 14px}
+.table{width:100%;border-collapse:collapse} th{text-align:left;color:var(--muted);font-size:11px;font-weight:600;padding:10px 8px;border-bottom:1px solid var(--line);text-transform:uppercase}
+td{padding:13px 8px;border-bottom:1px solid #25334e;font-size:13px} tr{cursor:pointer} tr:hover{background:#1b2942}
+.ticker{font-weight:750;font-size:15px} .name{color:var(--muted);font-size:11px;margin-top:3px}
+.badge{display:inline-block;padding:4px 7px;border-radius:999px;background:#243655;color:#b9d2ff;font-size:11px;font-weight:700}
+.long{color:var(--green);font-weight:700} .short{color:var(--red);font-weight:700}
+.score{font-size:18px;font-weight:800} .score.high{color:var(--green)} .score.mid{color:var(--yellow)}
+.bar{height:7px;background:#263651;border-radius:10px;overflow:hidden;margin-top:7px} .bar>span{display:block;height:100%;background:var(--green)}
+.rules{display:grid;gap:10px} .rule{display:flex;justify-content:space-between;gap:12px;padding:11px 12px;background:var(--panel2);border-radius:9px}
+.rule .k{color:var(--muted)} .ok{color:var(--green);font-weight:700} .warn{color:var(--yellow);font-weight:700}
+.detail{margin-top:16px;display:none} .detail.show{display:block}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.card{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:13px}
+.card .title{font-weight:750;margin-bottom:6px} .card .meta{color:var(--muted);font-size:11px;line-height:1.5}
+.footer{margin-top:14px;color:var(--muted);font-size:11px;line-height:1.5}
+@media(max-width:1000px){.grid{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>Отбор сделок — Top 5</h1>
+      <div class="sub">Все стратегии по всем бумагам > фильтрация > скоринг > 5 лучших входов</div>
+    </div>
+    <div class="controls">
+      <button class="active" data-filter="all">Все</button>
+      <button data-filter="LONG">LONG</button>
+      <button data-filter="SHORT">SHORT</button>
+      <button data-sort="score">По Score</button>
+      <button data-sort="rr">По R/R</button>
+      <button data-sort="risk">По риску</button>
+    </div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric"><div class="label">Кандидатов</div><div class="value" id="count">0</div></div>
+    <div class="metric"><div class="label">Прошли фильтры</div><div class="value" id="qualified">0</div></div>
+    <div class="metric"><div class="label">Лучший Score</div><div class="value" id="best">—</div></div>
+    <div class="metric"><div class="label">Минимальный R/R</div><div class="value">1.5+</div></div>
+  </div>
+
+  <div class="grid">
+    <section class="panel">
+      <h2>Лучшие возможности</h2>
+      <table class="table">
+        <thead><tr>
+          <th>#</th><th>Бумага / стратегия</th><th>Направление</th><th>Вход</th><th>Стоп</th>
+          <th>Цель</th><th>R/R</th><th>Риск</th><th>Score</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="detail" id="detail">
+        <h2 id="detailTitle"></h2>
+        <div class="cards" id="detailCards"></div>
+      </div>
+      <div class="footer">
+        Демо-строки DEMO1–3 предназначены только для демонстрации интерфейса. Значение «conf» — уверенность модели/аналитика, а не статистически подтверждённая вероятность.
+      </div>
+    </section>
+
+    <aside class="panel">
+      <h2>Фильтр качества сделки</h2>
+      <div class="rules">
+        <div class="rule"><span class="k">R/R до основной цели</span><span class="ok">? 1.5</span></div>
+        <div class="rule"><span class="k">Риск до стопа</span><span class="ok">? 4%</span></div>
+        <div class="rule"><span class="k">Уверенность сценария</span><span class="warn">? 40%</span></div>
+        <div class="rule"><span class="k">Ликвидность</span><span class="ok">достаточная</span></div>
+        <div class="rule"><span class="k">Вход</span><span class="ok">после подтверждения</span></div>
+      </div>
+      <h2 style="margin-top:20px">Как считать Score</h2>
+      <div class="sub">
+        <b>35%</b> — уверенность сценария ·
+        <b>30%</b> — R/R ·
+        <b>20%</b> — риск до стопа ·
+        <b>15%</b> — качество подтверждения/структуры.
+      </div>
+    </aside>
+  </div>
+</div>
+<script>
+const rows = [{"ticker": "MGNT", "name": "Магнит", "strategy": "B", "dir": "LONG", "entry": "1500–1530", "stop": "1470", "target": "1622 / 1637 / 1719", "conf": 25, "risk": 2.97, "rr": 2.71, "score": 72, "tag": "Лучший R/R", "reason": "Поддержка 1500 + разворот; потенциал до 1719."}, {"ticker": "AFLT", "name": "Аэрофлот", "strategy": "A", "dir": "LONG", "entry": "31.0–31.3", "stop": "29.9", "target": "32.67 / 34.0 / 34.5", "conf": 45, "risk": 4.02, "rr": 2.68, "score": 69, "tag": "Лучший баланс", "reason": "Отскок от VAL; техническая перепроданность."}, {"ticker": "DEMO1", "name": "Демо-бумага 1", "strategy": "A", "dir": "LONG", "entry": "100–102", "stop": "97", "target": "108 / 112", "conf": 62, "risk": 3.0, "rr": 3.33, "score": 78, "tag": "ДЕМО", "reason": "Пример строки для шаблона — заменить реальными данными."}, {"ticker": "DEMO2", "name": "Демо-бумага 2", "strategy": "C", "dir": "SHORT", "entry": "250–252", "stop": "258", "target": "238 / 230", "conf": 58, "risk": 3.17, "rr": 2.75, "score": 74, "tag": "ДЕМО", "reason": "Пример строки для шаблона — заменить реальными данными."}, {"ticker": "DEMO3", "name": "Демо-бумага 3", "strategy": "B", "dir": "LONG", "entry": "780–790", "stop": "765", "target": "820 / 845", "conf": 55, "risk": 2.53, "rr": 2.33, "score": 70, "tag": "ДЕМО", "reason": "Пример строки для шаблона — заменить реальными данными."}];
+let currentFilter='all', currentSort='score';
+const tbody=document.getElementById('tbody');
+const count=document.getElementById('count'), qualified=document.getElementById('qualified'), best=document.getElementById('best');
+
+function qualifiedRow(r){ return r.rr>=1.5 && r.risk<=4 && r.conf>=40; }
+function render(){
+  let a=rows.filter(r=>currentFilter==='all'||r.dir===currentFilter);
+  a.sort((x,y)=>currentSort==='rr'?y.rr-x.rr:currentSort==='risk'?x.risk-y.risk:y.score-x.score);
+  a=a.slice(0,5);
+  count.textContent=rows.length; qualified.textContent=rows.filter(qualifiedRow).length;
+  best.textContent=a.length ? a[0].ticker+' · '+a[0].strategy : '—';
+  tbody.innerHTML=a.map((r,i)=>`
+    <tr onclick="showDetail('${r.ticker}','${r.strategy}')">
+      <td>${i+1}</td>
+      <td><div class="ticker">${r.ticker} <span class="badge">S${r.strategy}</span></div><div class="name">${r.name}</div></td>
+      <td class="${r.dir==='LONG'?'long':'short'}">${r.dir}</td>
+      <td>${r.entry}</td><td>${r.stop}</td><td>${r.target}</td>
+      <td><b>${r.rr.toFixed(2)}?</b></td><td>${r.risk.toFixed(2)}%</td>
+      <td><div class="score ${r.score>=75?'high':'mid'}">${r.score}</div><div class="bar"><span style="width:${r.score}%"></span></div></td>
+    </tr>`).join('');
+}
+function showDetail(ticker,strategy){
+  const r=rows.find(x=>x.ticker===ticker&&x.strategy===strategy); if(!r)return;
+  document.getElementById('detail').classList.add('show');
+  document.getElementById('detailTitle').textContent=`${r.ticker} · Сценарий ${r.strategy}`;
+  document.getElementById('detailCards').innerHTML=`
+    <div class="card"><div class="title">Почему в Top 5</div><div class="meta">${r.reason}</div></div>
+    <div class="card"><div class="title">Параметры</div><div class="meta">Confidence: ${r.conf}%<br>Риск: ${r.risk.toFixed(2)}%<br>R/R: ${r.rr.toFixed(2)}?</div></div>
+    <div class="card"><div class="title">Решение</div><div class="meta">${r.dir==='LONG'?'Покупка':'Продажа'} после выполнения условий входа. Стоп обязателен.</div></div>`;
+}
+document.querySelectorAll('button[data-filter]').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('button[data-filter]').forEach(x=>x.classList.remove('active')); b.classList.add('active');
+  currentFilter=b.dataset.filter; render();
+});
+document.querySelectorAll('button[data-sort]').forEach(b=>b.onclick=()=>{currentSort=b.dataset.sort;render();});
+render();
+</script>
+</body></html>
