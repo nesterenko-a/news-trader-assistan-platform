@@ -18,9 +18,11 @@ test.describe("Top-5: лучшая сделка из шаблона акций",
     // история запусков батчей по шаблону (из сидинга)
     await expect(page.locator("h2", { hasText: "История запусков Top-5" })).toBeVisible();
     await expect(page.locator("[data-batch-toggle]").first()).toBeVisible();
-    // раскрытие деталей батча
+    // раскрытие деталей батча: собственный Top-5 батча + состав по акциям
     await page.locator("[data-batch-toggle]").first().click();
     await expect(page.locator(".batch-detail").first()).toBeVisible();
+    await expect(page.locator(".batch-detail").first()).toContainText("Top-5 батча");
+    await expect(page.locator(".batch-detail").first()).toContainText("Состав батча");
     // в подборке должны быть SBER и отрендеренный Expected R сценария (0.65×2.5−0.35×1=1.275→"1.27")
     await expect(page.locator("td", { hasText: "SBER" }).first()).toBeVisible();
     await expect(page.locator("body")).toContainText("1.27");

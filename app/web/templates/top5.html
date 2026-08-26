@@ -64,7 +64,7 @@
         <td>{{ loop.index }}</td>
         <td><div class="ticker-label"><b>{{ r.ticker }}</b> <span class="badge">S{{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }}</span></div>
             <div class="muted small">{{ r.name }}</div></td>
-        <td class="{{ 'long' if r.dir == 'LONG' else 'short' }}" style="font-weight:700">{{ r.dir }}</td>
+        <td>{% if r.dir == 'LONG' %}<span class="long">LONG</span>{% elif r.dir == 'SHORT' %}<span class="short">SHORT</span>{% else %}<span>Выжидать</span>{% endif %}</td>
         <td>{{ r.entry or '—' }}</td>
         <td>{{ r.stop or '—' }}</td>
         <td>{{ r.targets or '—' }}</td>
@@ -110,7 +110,7 @@
     <thead><tr><th>Батч</th><th>Дата</th><th>Статус</th><th>Акций</th><th>Готово</th><th></th></tr></thead>
     <tbody id="batches-tbody">
       {% for b in batches %}
-      <tr>
+      <tr class="batch-row-toggle" data-batch-toggle="{{ b['id'] }}" style="cursor:pointer">
         <td>#{{ b['id'] }}</td>
         <td class="muted small">{{ b['created_at'] }}</td>
         <td>{% if b['status'] == 'running' %}<span class="run-status run-running">выполняется…</span>
@@ -119,10 +119,34 @@
             {% else %}<span class="run-status run-error">ошибка</span>{% endif %}</td>
         <td>{{ b['total'] }}</td>
         <td class="muted small">{{ b['success'] }} ок · {{ b['running'] }} в работе · {{ b['failed'] }} сбоев</td>
-        <td style="text-align:right"><button type="button" class="icon-btn" data-batch-toggle="{{ b['id'] }}">▾</button></td>
+        <td style="text-align:right"><span class="icon-btn" aria-hidden="true">▾</span></td>
       </tr>
       <tr class="batch-detail" id="batch-detail-{{ b['id'] }}" style="display:none">
         <td colspan="6">
+          {% if b['top5'] %}
+          <h3 style="margin:4px 0 8px">Top-5 батча #{{ b['id'] }}</h3>
+          <table class="table">
+            <thead><tr><th>#</th><th>Бумага</th><th>Направление</th><th>Вход</th><th>Стоп</th><th>Цель</th><th>R/R</th><th>Expected R</th><th></th></tr></thead>
+            <tbody>
+              {% for rb in b['top5'] %}
+              <tr>
+                <td>{{ loop.index }}</td>
+                <td><b>{{ rb['ticker'] }}</b></td>
+                <td>{% if rb['dir'] == 'LONG' %}<span class="long">LONG</span>{% elif rb['dir'] == 'SHORT' %}<span class="short">SHORT</span>{% else %}Выжидать{% endif %}</td>
+                <td>{{ rb['entry'] or '—' }}</td>
+                <td>{{ rb['stop'] or '—' }}</td>
+                <td>{{ rb['targets'] or '—' }}</td>
+                <td>{{ '%.2f' | format(rb['rr']) if rb['rr'] is not none else '—' }}</td>
+                <td><b>{{ '%.2f' | format(rb['expected_r']) }}</b></td>
+                <td><a href="/tech_analysis/{{ rb['analysis_id'] }}">разбор →</a></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p class="muted small">Готовых сценариев по этому батчу нет (анализы ещё выполняются или завершились без валидных prob/rr).</p>
+          {% endif %}
+          <h3 style="margin:12px 0 8px">Состав батча (статусы по акциям)</h3>
           <table class="table">
             <thead><tr><th>Тикер</th><th>Статус</th><th>Вердикт</th><th></th></tr></thead>
             <tbody>
@@ -186,13 +210,14 @@
     });
   });
 
-  // История батчей: раскрытие деталей по кнопке ▾
-  var batchToggles = document.querySelectorAll('[data-batch-toggle]');
-  batchToggles.forEach(function (btn2) {
-    btn2.addEventListener('click', function () {
-      var id = btn2.getAttribute('data-batch-toggle');
-      var detail = document.getElementById('batch-detail-' + id);
-      if (detail) detail.style.display = detail.style.display === 'none' ? '' : 'none';
+  // История батчей: раскрытие деталей по клику на строку или кнопку ▾
+  function toggleBatch(id) {
+    var detail = document.getElementById('batch-detail-' + id);
+    if (detail) detail.style.display = detail.style.display === 'none' ? '' : 'none';
+  }
+  document.querySelectorAll('[data-batch-toggle]').forEach(function (el) {
+    el.addEventListener('click', function () {
+      toggleBatch(el.getAttribute('data-batch-toggle'));
     });
   });
 

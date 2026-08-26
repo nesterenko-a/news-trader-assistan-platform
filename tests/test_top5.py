@@ -86,10 +86,14 @@ def test_best_strategy_picks_max_expected_r():
 
 
 def test_best_strategy_none_when_no_valid():
+    # пустой JSON (нет prob/rr) → None
     items = [{"ticker": "X", "id": 1, "verdict": "BUY", "scenario_json": "{}"}]
     assert best_strategy(items) is None
+    # WAIT теперь учитывается (выжидать), чтобы список не был пуст
     items = [{"ticker": "X", "id": 1, "verdict": "WAIT", "scenario_json": _scenario_json(0.6, 2.5)}]
-    assert best_strategy(items) is None
+    best = best_strategy(items)
+    assert best is not None
+    assert best["dir"] == "WAIT"
 
 
 async def test_top5_ranks_by_expected_r(session):
@@ -135,6 +139,36 @@ async def test_fresh_analysis_reuse(session):
     await session.flush()
     fresh = await fresh_analysis(session, "SBER")
     assert fresh is not None and fresh.status == "success"
+
+
+async def test_list_batches_includes_top5(session):
+    """list_batches возвращает историю с собственным Top-5 батча (включая WAIT)."""
+    from datetime import datetime
+
+    from app.db.models import TechAnalysisBatch
+    from app.tech_analysis.batch import list_batches
+
+    tpl = FuturesTemplate(name="lt", tickers="SBER", kind="stock")
+    session.add(tpl)
+    await session.flush()
+    batch = TechAnalysisBatch(user_id=None, template_id=tpl.id, status="success")
+    session.add(batch)
+    await session.flush()
+    session.add(
+        TechAnalysis(
+            ticker="SBER", status="success", stage="done", verdict="WAIT",
+            scenario_json=_scenario_json(0.5, 2.0), finished_at=datetime.utcnow(),
+            batch_id=batch.id,
+        )
+    )
+    await session.flush()
+
+    rows = await list_batches(session, tpl.id)
+    assert len(rows) == 1
+    assert rows[0]["status"] == "success"
+    assert len(rows[0]["top5"]) == 1
+    assert rows[0]["top5"][0]["ticker"] == "SBER"
+    assert rows[0]["top5"][0]["dir"] == "WAIT"
 
 
 async def test_top5_page_renders(session):

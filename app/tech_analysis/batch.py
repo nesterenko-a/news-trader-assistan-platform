@@ -204,9 +204,24 @@ async def list_batches(session, template_id: int, limit: int = 10) -> list[dict]
                 "verdict": a.verdict,
                 "error": a.error,
                 "analysis_id": a.id,
+                "scenario_json": a.scenario_json,
             }
             for a in analyses
         ]
+        # Собственный Top-5 батча: по его успешным анализам (сценарии + вердикт)
+        top_rows = _rank_best_rows(
+            [
+                {
+                    "ticker": a["ticker"],
+                    "name": a["ticker"],
+                    "id": a["analysis_id"],
+                    "verdict": a["verdict"],
+                    "scenario_json": a["scenario_json"],
+                }
+                for a in items
+                if a["status"] == "success" and a.get("scenario_json")
+            ]
+        )
         success = sum(1 for a in analyses if a.status == "success")
         running = sum(1 for a in analyses if a.status == "running")
         failed_n = sum(1 for a in analyses if a.status == "failed")
@@ -229,6 +244,7 @@ async def list_batches(session, template_id: int, limit: int = 10) -> list[dict]
                 "running": running,
                 "failed": failed_n,
                 "items": items,
+                "top5": top_rows,
             }
         )
     return result
@@ -266,10 +282,12 @@ def _scenario_metrics(sc: dict) -> dict:
 
 
 def best_strategy(tickers_analyses: list[dict]) -> dict | None:
-    """Для одной акции выбирает сценарий с наибольшим Expected R (verdict BUY/SELL).
+    """Для одной акции выбирает сценарий с наибольшим Expected R.
 
-    Возвращает запись Top-5 вида {ticker, name, ...}, либо None, если нет
-    валидного сценария.
+    Учитываются вердикты BUY/SELL/WAIT (чтобы результат был виден, даже если
+    система по всем акциям сказала «выжидать» или сделки «неинтересны»).
+    Возвращает запись Top-5 вида {ticker, name, dir, ...}, либо None, если
+    нет валидного сценария (не парсится JSON или нет prob/rr).
     """
     best = None
     for ana in tickers_analyses:
@@ -282,18 +300,20 @@ def best_strategy(tickers_analyses: list[dict]) -> dict | None:
         except (ValueError, TypeError):
             continue
         cur_verdict = (ana.get("verdict") or "").upper()
-        if cur_verdict not in ("BUY", "SELL"):
+        if cur_verdict not in ("BUY", "SELL", "WAIT"):
             continue
         for key in ("scenario_a", "scenario_b", "scenario_c"):
             sc = data.get(key) or {}
             er = expected_r(sc.get("probability"), sc.get("rr"))
             if er is None:
                 continue
+            dir_label = {"BUY": "LONG", "SELL": "SHORT", "WAIT": "WAIT"}.get(cur_verdict, "WAIT")
             candidate = {
                 "ticker": ana.get("ticker"),
                 "name": ana.get("name") or ana.get("ticker"),
                 "strategy": key,
-                "dir": "LONG" if cur_verdict == "BUY" else "SHORT",
+                "dir": dir_label,
+                "verdict": cur_verdict,
                 "entry": sc.get("entry") or "",
                 "stop": sc.get("stop") or "",
                 "targets": sc.get("targets") or "",
@@ -308,8 +328,26 @@ def best_strategy(tickers_analyses: list[dict]) -> dict | None:
     return best
 
 
+def _rank_best_rows(rows: list[dict]) -> list[dict]:
+    """Сворачивает список анализов (группируя по тикеру) в ранжированный Top-N.
+
+    rows — список словарей {ticker, name, id, verdict, scenario_json}.
+    Возвращает список «лучших стратегий» по акциям, отсортированный по Expected R.
+    """
+    by_ticker: dict[str, list[dict]] = {}
+    for r in rows:
+        by_ticker.setdefault(r["ticker"], []).append(r)
+    results = []
+    for ticker, anas in by_ticker.items():
+        item = best_strategy(anas)
+        if item is not None:
+            results.append(item)
+    results.sort(key=lambda r: (r["expected_r"] is None, r["expected_r"] or 0), reverse=True)
+    return results
+
+
 async def top5(session, template_id: int, limit: int = 5) -> dict:
-    """Рейтинг Top-5 лучших сделок по акциям шаблона (по Expected R)."""
+    """Рейтинг Top-5 лучших сделок по акциям шаблона (по Expected R; включает WAIT)."""
     template = await get_stock_template(session, template_id)
     if template is None:
         raise ValueError("Шаблон не найден или не является шаблоном акций")
@@ -322,25 +360,21 @@ async def top5(session, template_id: int, limit: int = 5) -> dict:
             select(Security).where(Security.ticker.in_(tickers))
         )
         names = {s.ticker: s.name for s in secs.all()}
-    results = []
+    rows = []
     for ticker in tickers:
         ana = await _latest_analysis(session, ticker)
         if ana is None:
             continue
-        item = best_strategy(
-            [
-                {
-                    "ticker": ana.ticker,
-                    "name": names.get(ana.ticker) or ana.ticker,
-                    "id": ana.id,
-                    "verdict": ana.verdict,
-                    "scenario_json": ana.scenario_json,
-                }
-            ]
+        rows.append(
+            {
+                "ticker": ana.ticker,
+                "name": names.get(ana.ticker) or ana.ticker,
+                "id": ana.id,
+                "verdict": ana.verdict,
+                "scenario_json": ana.scenario_json,
+            }
         )
-        if item is not None:
-            results.append(item)
-    results.sort(key=lambda r: (r["expected_r"] is None, r["expected_r"] or 0), reverse=True)
+    results = _rank_best_rows(rows)
     return {
         "template_id": template_id,
         "template": {"id": template.id, "name": template.name, "kind": template.kind},
