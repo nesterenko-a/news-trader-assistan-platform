@@ -95,7 +95,7 @@
           <td class="t5-rank">{{ loop.index }}</td>
           <td><div class="ticker-label"><b>{{ r.ticker }}</b> <span class="badge">S{{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }}</span></div>
               <div class="muted small">{{ r.name }}</div></td>
-          <td>{% if r.dir == 'LONG' %}<span class="long">LONG</span>{% elif r.dir == 'SHORT' %}<span class="short">SHORT</span>{% else %}<span class="muted">Выжидать</span>{% endif %}</td>
+          <td>{% if r.dir == 'LONG' %}<span class="long">LONG</span>{% elif r.dir == 'SHORT' %}<span class="short">SHORT</span>{% else %}<span class="muted">Выжидать</span>{% endif %}{% if r.dir in ('LONG','SHORT') and r.await_confirmation %} <span class="await-conf" title="Стратегия определена, ждём подхода цены к точке входа и подтверждающих сигналов">⏳</span>{% endif %}</td>
           <td>{{ r.entry or '—' }}</td>
           <td>{{ r.stop or '—' }}</td>
           <td>{{ r.targets or '—' }}</td>
@@ -127,6 +127,7 @@
     </table>
     <p class="muted small" style="margin-top:10px">Показана одна лучшая стратегия каждой бумаги (по Score). Раскройте строку, чтобы увидеть все 3 сценария «Моя стратегия».</p>
     <p class="muted small">Дисклеймер: материал носит информационный характер и не является инвестиционной рекомендацией. Значение «Score»/«conf» — оценка модели/аналитика, а не статистически подтверждённая вероятность.</p>
+    <p class="muted small" style="margin-top:6px"><span class="await-conf">⏳</span> — стратегия определена (BUY/SELL), но ждём подхода цены к точке входа и подтверждающего сигнала.</p>
   </div>
 </section>
 {% elif selected_template %}
@@ -165,7 +166,7 @@
               <tr>
                 <td>{{ loop.index }}</td>
                 <td><b>{{ rb['ticker'] }}</b></td>
-                <td>{% if rb['dir'] == 'LONG' %}<span class="long">LONG</span>{% elif rb['dir'] == 'SHORT' %}<span class="short">SHORT</span>{% else %}Выжидать{% endif %}</td>
+                <td>{% if rb['dir'] == 'LONG' %}<span class="long">LONG</span>{% elif rb['dir'] == 'SHORT' %}<span class="short">SHORT</span>{% else %}Выжидать{% endif %}{% if rb['dir'] in ('LONG','SHORT') and rb.get('await_confirmation') %} <span class="await-conf" title="Ждём подхода цены к точке входа и подтверждающих сигналов">⏳</span>{% endif %}</td>
                 <td>{{ rb['entry'] or '—' }}</td>
                 <td>{{ rb['stop'] or '—' }}</td>
                 <td>{{ rb['targets'] or '—' }}</td>

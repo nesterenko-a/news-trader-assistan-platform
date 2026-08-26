@@ -87,6 +87,7 @@ def parse_response(response_md: str) -> dict:
         verdict = ""
     parsed = {
         "verdict": verdict,
+        "await_confirmation": bool(data.get("await_confirmation")),
         "entry": (data.get("entry") or "").strip(),
         "tp": (data.get("tp") or "").strip(),
         "sl": (data.get("sl") or "").strip(),

@@ -205,6 +205,7 @@ async def list_batches(session, template_id: int, limit: int = 10) -> list[dict]
                 "error": a.error,
                 "analysis_id": a.id,
                 "scenario_json": a.scenario_json,
+                "await_confirmation": a.await_confirmation,
             }
             for a in analyses
         ]
@@ -217,6 +218,7 @@ async def list_batches(session, template_id: int, limit: int = 10) -> list[dict]
                     "id": a["analysis_id"],
                     "verdict": a["verdict"],
                     "scenario_json": a["scenario_json"],
+                    "await_confirmation": a.get("await_confirmation"),
                 }
                 for a in items
                 if a["status"] == "success" and a.get("scenario_json")
@@ -410,6 +412,7 @@ def best_strategy(tickers_analyses: list[dict]) -> dict | None:
                 "strategy": key,
                 "dir": dir_label,
                 "verdict": cur_verdict,
+                "await_confirmation": bool(ana.get("await_confirmation")),
                 "entry": sc.get("entry") or "",
                 "stop": sc.get("stop") or "",
                 "targets": sc.get("targets") or "",
@@ -470,6 +473,7 @@ async def top5(session, template_id: int, limit: int = 5) -> dict:
                 "id": ana.id,
                 "verdict": ana.verdict,
                 "scenario_json": ana.scenario_json,
+                "await_confirmation": ana.await_confirmation,
             }
         )
     results = _rank_best_rows(rows)

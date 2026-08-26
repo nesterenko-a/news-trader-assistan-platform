@@ -519,6 +519,7 @@ class TechAnalysis(Base):
     tp: Mapped[str | None] = mapped_column(Text, nullable=True)
     sl: Mapped[str | None] = mapped_column(Text, nullable=True)
     scenario_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    await_confirmation: Mapped[bool] = mapped_column(Boolean, default=False)
     batch_id: Mapped[int | None] = mapped_column(
         ForeignKey("tech_analysis_batches.id"), nullable=True, index=True
     )

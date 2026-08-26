@@ -58,6 +58,27 @@ def test_parse_response_includes_rr_and_expected_r():
     assert parsed["scenario_a"]["expected_r"] == pytest.approx(1.275)
 
 
+def test_parse_response_await_confirmation():
+    md = '```json\n{"verdict":"BUY","await_confirmation":true,"scenario_a":{"probability":0.65,"rr":2.5}}\n```\n'
+    parsed = parse_response(md)
+    assert parsed["await_confirmation"] is True
+    md2 = '```json\n{"verdict":"BUY","scenario_a":{"probability":0.65,"rr":2.5}}\n```\n'
+    assert parse_response(md2)["await_confirmation"] is False
+
+
+def test_best_strategy_carries_await_confirmation():
+    from app.tech_analysis.batch import best_strategy
+
+    items = [{"ticker": "X", "id": 1, "verdict": "BUY", "await_confirmation": True,
+              "scenario_json": _scenario_json(0.6, 2.5)}]
+    best = best_strategy(items)
+    assert best is not None
+    assert best["await_confirmation"] is True
+    items2 = [{"ticker": "X", "id": 1, "verdict": "BUY", "await_confirmation": False,
+               "scenario_json": _scenario_json(0.6, 2.5)}]
+    assert best_strategy(items2)["await_confirmation"] is False
+
+
 def test_ticker_list():
     tpl = FuturesTemplate(name="t", tickers="AFLT; SBER, Gazp", kind="stock")
     assert set(_ticker_list(tpl)) == {"AFLT", "SBER", "GAZP"}
@@ -260,6 +281,8 @@ async def test_top5_page_renders(session):
     assert "Как считать Score" in html
     assert "R/R" in html and "Риск" in html and "риск до стопа" in html
     assert "Показана одна лучшая стратегия" in html
+    # легенда значка «ожидание подтверждения»
+    assert "ждём подхода цены к точке входа" in html
     # история запусков батчей
     assert "История запусков Top-5" in html
     assert "batch-detail-" in html

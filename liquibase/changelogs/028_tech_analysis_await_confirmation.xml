@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+
+    <!-- Признак «сигнал ждёт подтверждения точки входа» для Теханализа в LLM
+         (verdict BUY/SELL, но цена ещё не у точки входа). -->
+    <changeSet id="0280-tech-analyses-await-confirmation" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="tech_analyses" columnName="await_confirmation"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="tech_analyses">
+            <column name="await_confirmation" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

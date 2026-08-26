@@ -229,6 +229,7 @@ async def _analyze(analysis_id: int, ticker: str) -> None:
             row.tp = parsed["tp"] or None
             row.sl = parsed["sl"] or None
             row.scenario_json = parsed["scenario_json"]
+            row.await_confirmation = parsed["await_confirmation"]
             row.status = "success"
             row.stage = "done"
             row.finished_at = datetime.utcnow()
@@ -300,6 +301,7 @@ async def _analyze_retry(analysis_id: int, ticker: str) -> None:
             row.tp = parsed["tp"] or None
             row.sl = parsed["sl"] or None
             row.scenario_json = parsed["scenario_json"]
+            row.await_confirmation = parsed["await_confirmation"]
             row.status = "success"
             row.stage = "done"
             row.finished_at = datetime.utcnow()
