@@ -28,6 +28,7 @@ from app.db.models import (
     Source,
     Strategy,
     TechAnalysis,
+    TechAnalysisBatch,
     User,
     UserSource,
 )
@@ -85,14 +86,23 @@ async def seed(db_url: str) -> None:
                         rationale_summary="e2e seed",
                     )
                 )
-        # Top-5: шаблон акций (kind=stock) + успешный Теханализ по SBER
+        # Top-5: шаблон акций (kind=stock) + успешный Теханализ по SBER + батч
         tpl = await session.scalar(select(FuturesTemplate).where(FuturesTemplate.name == "e2e_top5"))
         if tpl is None:
             session.add(FuturesTemplate(name="e2e_top5", tickers="SBER", kind="stock"))
+            await session.flush()
+            tpl = await session.scalar(select(FuturesTemplate).where(FuturesTemplate.name == "e2e_top5"))
         ta = await session.scalar(
             select(TechAnalysis).where(TechAnalysis.ticker == "SBER", TechAnalysis.batch_id.isnot(None))
         )
         if ta is None:
+            batch = await session.scalar(
+                select(TechAnalysisBatch).where(TechAnalysisBatch.template_id == tpl.id)
+            )
+            if batch is None:
+                batch = TechAnalysisBatch(user_id=None, template_id=tpl.id, status="success")
+                session.add(batch)
+                await session.flush()
             session.add(
                 TechAnalysis(
                     ticker="SBER",
@@ -109,6 +119,7 @@ async def seed(db_url: str) -> None:
                     ),
                     model="e2e",
                     finished_at=datetime.now(timezone.utc),
+                    batch_id=batch.id,
                 )
             )
         macro_seed = [

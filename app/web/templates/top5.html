@@ -100,6 +100,50 @@
 <section class="card" style="margin-top:12px"><p class="muted small">Запустите Теханализ, чтобы увидеть подборку лучших сделок по шаблону.</p></section>
 {% endif %}
 
+{% if selected_template and batches %}
+<section class="card" style="margin-top:12px">
+  <div class="chart-head">
+    <h2>История запусков Top-5</h2>
+    <span class="muted small" id="batches-hint"></span>
+  </div>
+  <table class="table" style="margin-top:8px">
+    <thead><tr><th>Батч</th><th>Дата</th><th>Статус</th><th>Акций</th><th>Готово</th><th></th></tr></thead>
+    <tbody id="batches-tbody">
+      {% for b in batches %}
+      <tr>
+        <td>#{{ b['id'] }}</td>
+        <td class="muted small">{{ b['created_at'] }}</td>
+        <td>{% if b['status'] == 'running' %}<span class="run-status run-running">выполняется…</span>
+            {% elif b['status'] == 'success' %}<span class="run-status run-success">успех</span>
+            {% elif b['status'] == 'partial' %}<span class="run-status run-warning">частично</span>
+            {% else %}<span class="run-status run-error">ошибка</span>{% endif %}</td>
+        <td>{{ b['total'] }}</td>
+        <td class="muted small">{{ b['success'] }} ок · {{ b['running'] }} в работе · {{ b['failed'] }} сбоев</td>
+        <td style="text-align:right"><button type="button" class="icon-btn" data-batch-toggle="{{ b['id'] }}">▾</button></td>
+      </tr>
+      <tr class="batch-detail" id="batch-detail-{{ b['id'] }}" style="display:none">
+        <td colspan="6">
+          <table class="table">
+            <thead><tr><th>Тикер</th><th>Статус</th><th>Вердикт</th><th></th></tr></thead>
+            <tbody>
+              {% for a in b['items'] %}
+              <tr>
+                <td>{{ a['ticker'] }}</td>
+                <td>{{ a['status'] }}{% if a['status'] == 'running' %} · {{ a['stage'] }}{% endif %}</td>
+                <td>{{ a['verdict'] or '—' }}</td>
+                <td>{% if a['status'] == 'success' %}<a href="/tech_analysis/{{ a['analysis_id'] }}">разбор →</a>{% elif a['error'] %}<span class="muted small" title="{{ a['error'] }}">⚠</span>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
 <script>
 (function () {
   'use strict';
@@ -141,6 +185,34 @@
       if (detail) detail.style.display = detail.style.display === 'none' ? '' : 'none';
     });
   });
+
+  // История батчей: раскрытие деталей по кнопке ▾
+  var batchToggles = document.querySelectorAll('[data-batch-toggle]');
+  batchToggles.forEach(function (btn2) {
+    btn2.addEventListener('click', function () {
+      var id = btn2.getAttribute('data-batch-toggle');
+      var detail = document.getElementById('batch-detail-' + id);
+      if (detail) detail.style.display = detail.style.display === 'none' ? '' : 'none';
+    });
+  });
+
+  // Авто-поллинг активного (running) батча: обновляем прогресс, при завершении — перезагружаем
+  {% if selected_template_id %}
+  var runningBatches = {{ (batches | selectattr('status', 'eq', 'running') | list | map(attribute='id') | list) | tojson | safe if batches else '[]' }};
+  if (runningBatches.length) {
+    var batchId = runningBatches[0];
+    var hint = document.getElementById('batches-hint');
+    var timer = setInterval(function () {
+      fetch('/v1/top5/' + batchId + '/status').then(function (r) { return r.json(); }).then(function (d) {
+        if (hint) hint.textContent = 'Выполняется #' + batchId + ' — успешно ' + d.success + ' из ' + d.total;
+        if (d.status === 'success' || d.status === 'failed' || d.status === 'partial') {
+          clearInterval(timer);
+          window.location.reload();
+        }
+      }).catch(function () {});
+    }, 4000);
+  }
+  {% endif %}
 })();
 </script>
 {% endblock %}

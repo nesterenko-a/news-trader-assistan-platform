@@ -150,19 +150,21 @@ async def _finalize_batch(session, batch_id: int, total: int, done: int, failed:
 
 async def batch_progress(session, batch_id: int) -> dict:
     """Текущий прогресс батча по анализам (для поллинга /top5)."""
-    from sqlalchemy import func
-
     rows = await session.scalars(select(TechAnalysis).where(TechAnalysis.batch_id == batch_id))
     items = [r for r in rows.all()]
     total = len(items)
     success = sum(1 for r in items if r.status == "success")
     running = sum(1 for r in items if r.status == "running")
     failed = sum(1 for r in items if r.status == "failed")
-    batch = await session.get(TechAnalysisBatch, batch_id)
-    status = batch.status if batch else "unknown"
-    # Светим реальный статус: если есть running — running/failed-неоконченные
-    if running > 0 and status == "running":
-        pass
+    # Живой статус по анализам: пока есть running — идёт выполнение; иначе успех/частичный/сбой.
+    if running > 0:
+        status = "running"
+    elif success == total and total > 0:
+        status = "success"
+    elif failed > 0:
+        status = "failed" if success == 0 else "partial"
+    else:
+        status = "running"
     return {
         "batch_id": batch_id,
         "status": status,
@@ -173,6 +175,63 @@ async def batch_progress(session, batch_id: int) -> dict:
         "failed": failed,
         "stage": "running" if running else ("success" if status == "success" else "has-failed"),
     }
+
+
+async def list_batches(session, template_id: int, limit: int = 10) -> list[dict]:
+    """История батчей Top-5 по шаблону (последние N) с анализами и статусами."""
+    batches = (
+        await session.scalars(
+            select(TechAnalysisBatch)
+            .where(TechAnalysisBatch.template_id == template_id)
+            .order_by(TechAnalysisBatch.id.desc())
+            .limit(limit)
+        )
+    ).all()
+    result = []
+    for b in batches:
+        analyses = (
+            await session.scalars(
+                select(TechAnalysis)
+                .where(TechAnalysis.batch_id == b.id)
+                .order_by(TechAnalysis.ticker)
+            )
+        ).all()
+        items = [
+            {
+                "ticker": a.ticker,
+                "status": a.status,
+                "stage": a.stage,
+                "verdict": a.verdict,
+                "error": a.error,
+                "analysis_id": a.id,
+            }
+            for a in analyses
+        ]
+        success = sum(1 for a in analyses if a.status == "success")
+        running = sum(1 for a in analyses if a.status == "running")
+        failed_n = sum(1 for a in analyses if a.status == "failed")
+        if running > 0:
+            live_status = "running"
+        elif success == len(items) and items:
+            live_status = "success"
+        elif failed_n > 0:
+            live_status = "failed" if success == 0 else "partial"
+        else:
+            live_status = b.status
+        result.append(
+            {
+                "id": b.id,
+                "status": live_status,
+                "created_at": b.created_at.strftime("%d.%m.%Y %H:%M") if b.created_at else "",
+                "finished_at": b.finished_at.strftime("%d.%m.%Y %H:%M") if b.finished_at else "",
+                "total": len(items),
+                "success": success,
+                "running": running,
+                "failed": failed_n,
+                "items": items,
+            }
+        )
+    return result
 
 
 async def _latest_analysis(session, ticker: str) -> TechAnalysis | None:

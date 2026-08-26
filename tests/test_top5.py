@@ -154,10 +154,16 @@ async def test_top5_page_renders(session):
     await session.flush()
     from datetime import datetime
 
+    from app.db.models import TechAnalysisBatch
+
+    batch = TechAnalysisBatch(user_id=user.id, template_id=tpl.id, status="success")
+    session.add(batch)
+    await session.flush()
     session.add(
         TechAnalysis(
             ticker="AAA", status="success", stage="done", verdict="BUY",
             scenario_json=_scenario_json(0.6, 2.5), finished_at=datetime.utcnow(),
+            batch_id=batch.id,
         )
     )
     await session.flush()
@@ -177,6 +183,9 @@ async def test_top5_page_renders(session):
     # селектор выбора LLM (Авто/ChatGPT/DeepSeek) по аналогии с одиночным анализом
     assert "LLM для анализа" in html
     assert "btn-provider" in html
+    # история запусков батчей
+    assert "История запусков Top-5" in html
+    assert "batch-detail-" in html
     # Expected R = 0.6×2.5 − 0.4×1 = 1.1 (не 1.275): якорь — отрендеренное значение колонки
     assert "1.10" in html
 

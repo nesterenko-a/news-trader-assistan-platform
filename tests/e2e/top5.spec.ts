@@ -15,6 +15,12 @@ test.describe("Top-5: лучшая сделка из шаблона акций",
     // селектор выбора LLM (Авто/ChatGPT/DeepSeek) по аналогии с одиночным анализом
     await expect(page.locator("label", { hasText: "LLM для анализа" })).toBeVisible();
     await expect(page.locator("#btn-provider")).toBeVisible();
+    // история запусков батчей по шаблону (из сидинга)
+    await expect(page.locator("h2", { hasText: "История запусков Top-5" })).toBeVisible();
+    await expect(page.locator("[data-batch-toggle]").first()).toBeVisible();
+    // раскрытие деталей батча
+    await page.locator("[data-batch-toggle]").first().click();
+    await expect(page.locator(".batch-detail").first()).toBeVisible();
     // в подборке должны быть SBER и отрендеренный Expected R сценария (0.65×2.5−0.35×1=1.275→"1.27")
     await expect(page.locator("td", { hasText: "SBER" }).first()).toBeVisible();
     await expect(page.locator("body")).toContainText("1.27");

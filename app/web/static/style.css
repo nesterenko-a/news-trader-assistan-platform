@@ -504,6 +504,8 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .run-success { background: rgba(47, 191, 113, 0.15); color: var(--green); }
 .run-bear { background: rgba(229, 72, 77, 0.15); color: var(--red); }
 .run-failed { background: rgba(229, 72, 77, 0.15); color: var(--red); }
+.run-warning { background: rgba(245, 166, 35, 0.15); color: var(--amber); }
+.run-error { background: rgba(229, 72, 77, 0.15); color: var(--red); }
 .run-output {
   background: var(--panel-2);
   border: 1px solid var(--border);
