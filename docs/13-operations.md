@@ -1,6 +1,6 @@
 # 13. Инфраструктура и эксплуатация
 
-**Статус:** утверждено v1.54  
+**Статус:** утверждено v1.55 (добавлен раздел «Top-5: лучшая сделка из шаблона акций», конфиг `TOP5_*`; см. [25-top5-trades.md](./25-top5-trades.md))
 **Система:** NewsTrader Assistant
 
 Практическое руководство: как запускается система, как управлять схемой БД, как работает планировщик сбора новостей и какие утилиты доступны.
@@ -105,6 +105,13 @@ schtasks /Delete /TN "NewsTraderBot\CollectNews" /F # удалить
 0 9 * * * cd /path/to/NewsTraderBot && .venv/bin/python -m scripts.daily_pipeline >> logs/daily_pipeline.log 2>&1
 ```
 
+### 3.2. Top-5: лучшая сделка из шаблона акций (Теханализ в LLM)
+
+- **Что это:** пользователь выбирает «Шаблон инструментов» типа **Акции** (`kind=stock`), нажимает **«Отправить на Теханализ в LLM»** на странице `/top5` — система запускает одиночный Теханализ (docs/23) по каждой акции шаблона и выводит **рейтинг до 5 лучших сделок по Expected R** (`prob×rr − (1−prob)×1`). Результаты переиспользуются (не гоняют LLM повторно), каждая акция — обычный анализ `tech_analyses`, доступный на её карточке.
+- **Где запускать:** не запускается скриптом — запускается из веб-интерфейса на странице `/top5` (нужен вход). Управление шаблонами акций — в админ-панели «Шаблоны инструментов» (`/admin/futures-templates`, поле-тип «Акции»).
+- **Конфиг:** `TOP5_FRESH_HOURS` (актуальность анализа для переиспользования), `TOP5_MAX_INSTRUMENTS` (лимит акций в батче).
+- **Миграция:** БД получает новые колонки/таблицы миграцией `liquibase/changelogs/027_top5_trades.xml` (поле `kind` в `futures_templates`, таблица `tech_analysis_batches`, колонка `batch_id` в `tech_analyses`).
+
 ## 4. Единый запуск приложения и Telegram-бот
 
 **Единый лаунчер `scripts/run_app.py`** поднимает в одном процессе и веб-интерфейс (uvicorn), и Telegram-бота. Запуск: `python -m scripts.run_app` (или `scripts/run_app.bat` — через `pythonw`, без окна консоли).
@@ -179,6 +186,8 @@ schtasks /Delete /TN "NewsTraderBot\CollectNews" /F # удалить
 | `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | Провайдер NLP (DeepSeek, OpenAI-совместимый) |
 | `CHATGPT_BASE_URL` / `CHATGPT_API_KEY` / `CHATGPT_MODEL` | ChatGPT для «Теханализ в LLM» (токен из общих настроек, по аналогии с DeepSeek). Если `CHATGPT_API_KEY` пуст — используется DeepSeek (`LLM_*`) |
 | `TECH_ANALYSIS_PROMPT_FILE` | Путь к промту теханализа (Markdown); при отсутствии файла — встроенный fallback |
+| `TOP5_FRESH_HOURS` | Актуальность успешного анализа на акцию для переиспользования в батче Top-5 (часы, по умолчанию 6) |
+| `TOP5_MAX_INSTRUMENTS` | Максимум акций в одном батче Top-5 (по умолчанию 20) |
 | `MOEX_BASE_URL` | Базовый URL MOEX ISS |
 | `TELEGRAM_BOT_TOKEN` | Токен Telegram-бота (канал доступа) |
 | `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` | Данные Telegram API для чтения каналов как источника новостей (Telethon) |

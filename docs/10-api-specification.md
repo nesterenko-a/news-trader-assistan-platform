@@ -1,6 +1,6 @@
 # 10. Спецификация API
 
-**Статус:** утверждено v1.23  
+**Статус:** утверждено v1.24 (добавлены эндпоинты Top-5 `/v1/top5/*` и «Шаблоны инструментов»; см. [25-top5-trades.md](./25-top5-trades.md))
 **Система:** NewsTrader Assistant
 
 Программный интерфейс системы. Спецификация концептуальная; точные схемы запросов/ответов фиксируются на этапе разработки (например, в формате OpenAPI) и должны соответствовать этому документу.
@@ -267,6 +267,21 @@ GET /v1/indicators/oi?ticker=W4V6&from=2026-07-20&to=2026-08-05
 Веб-страницы:
 - `GET /securities/{ticker}` — на карточке акций/фьючерсов кнопка «Теханализ в LLM» + панель этапов + блок карточек результатов (≤4/стр. + пагинация `?ta_page=N`).
 - `GET /tech_analysis/{id}` — полный ответ (карточки сценариев A/B/C в шапке из раздела «Моя стратегия», рендер Markdown, кнопки «Скачать запрос/ответ (MD)», «Повторить»).
+
+### 3.11. Top-5: лучшая сделка из шаблона акций (Теханализ группы)
+
+Все эндпоинты требуют аутентификации (Bearer-токен или cookie `nt_token`). Работают с «Шаблонами инструментов» `kind=stock` (см. [25-top5-trades.md](./25-top5-trades.md)).
+
+- `GET /v1/top5?template_id=&limit=` — рейтинг Top-5 лучших сделок по акциям шаблона (по **Expected R** = `prob × rr − (1−prob) × 1`): `{template, total, items:[{ticker, name, strategy, dir, entry, stop, targets, rr, probability, expected_r, scenario:{...}, analysis_id}]}`.
+- `POST /v1/top5/run?template_id=&provider=` — запуск батча Теханализа по акциям шаблона (создаёт `tech_analysis_batches` + по анализу на акцию, переиспользуя актуальные успешные); `409` при активном батче, `404` при неверном шаблоне/отсутствии ключа LLM.
+- `GET /v1/top5/{batch_id}/status` — прогресс батча: `{batch_id, status, total, done, success, running, failed, stage}`.
+- `GET /v1/top5/{batch_id}` — детали: анализы по акциям шаблона (ticker, status, analysis_id, verdict).
+
+Конфигурация `.env`: `TOP5_FRESH_HOURS` (актуальность анализ для переиспользования, по умолчанию 6), `TOP5_MAX_INSTRUMENTS` (лимит акций в батче, 20).
+
+Веб-страницы:
+- `GET /top5` — выбор шаблона (kind=stock), кнопка «Отправить на Теханализ в LLM», таблица Top-5 с раскрытием сценариев A/B/C.
+- `GET /admin/futures-templates` — «Шаблоны инструментов» (kind stock/futures; для акций — список из `/v1/indicators/stocks`).
 
 ## 4. Webhook для алертов (исходящие)
 

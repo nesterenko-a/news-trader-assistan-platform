@@ -100,6 +100,40 @@ async def list_futures(
     return {"count": len(enriched), "futures": enriched}
 
 
+@router.get("/stocks")
+async def list_stocks(
+    q: str | None = None,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Акции из справочника БД (для редактора «Шаблоны инструментов» kind=stock).
+
+    Детерминированно из securities.security_type='stock' (без обращения к MOEX).
+    """
+    query = select(Security).where(Security.security_type == "stock").order_by(Security.ticker)
+    rows = (await session.scalars(query)).all()
+    stocks = [
+        {
+            "secid": s.ticker,
+            "shortname": s.name,
+            "name": s.name,
+            "sector": s.sector or "",
+            "currency": s.currency or "RUB",
+            "market": s.market or "MOEX",
+        }
+        for s in rows
+    ]
+    if q:
+        needle = q.strip().lower()
+        stocks = [
+            s
+            for s in stocks
+            if needle in s["secid"].lower()
+            or needle in (s["name"] or "").lower()
+            or needle in (s["shortname"] or "").lower()
+        ]
+    return {"count": len(stocks), "stocks": stocks}
+
+
 @router.get("")
 async def list_indicators() -> dict:
     return {

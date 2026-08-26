@@ -49,7 +49,7 @@
     {% set sc = scenarios[key] %}
     <div class="ta-card" style="border-top:3px solid {{ {'green':'#16a34a','orange':'#f59e0b','red':'#dc2626'}[color] }}">
       <div class="chart-head"><b>Сценарий {{ letter }}</b>
-        {% if sc.get('probability') %}<span class="sc-prob" title="Вероятность сценария">{{ sc.probability }}</span>{% endif %}
+        {% if sc.get('probability') is not none and sc.get('probability') != '' %}<span class="sc-prob" title="Вероятность сценария">{% if sc.probability is number %}{{ (sc.probability * 100) | round | int }}%{% else %}{{ sc.probability }}{% endif %}</span>{% endif %}
       </div>
       {% if sc %}
       <p class="muted small" style="margin:4px 0"><b>{{ sc.get('title','') }}</b></p>

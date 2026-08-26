@@ -1529,6 +1529,47 @@ async def tech_analysis_delete_form(
     return RedirectResponse(url=redirect, status_code=303)
 
 
+@router.get("/top5")
+async def top5_page(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    template_id: int | None = None,
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    from app.tech_analysis.batch import top5 as top5_service
+
+    stock_templates = (
+        await session.scalars(
+            select(FuturesTemplate)
+            .where(FuturesTemplate.kind == "stock")
+            .order_by(FuturesTemplate.name)
+        )
+    ).all()
+    context = await _base_context(session, user)
+    result = None
+    selected = None
+    if template_id is not None:
+        try:
+            selected = await session.get(FuturesTemplate, template_id)
+            result = await top5_service(session, template_id)
+        except ValueError:
+            result = None
+    context.update(
+        {
+            "templates": [
+                {"id": t.id, "name": t.name, "tickers": t.tickers, "kind": t.kind}
+                for t in stock_templates
+            ],
+            "selected_template_id": template_id,
+            "selected_template": selected,
+            "result": result,
+        }
+    )
+    return templates.TemplateResponse(request, "top5.html", context)
+
+
 @router.get("/login")
 async def login_page(request: Request):
     return templates.TemplateResponse(request, "login.html", {"error": ""})
@@ -2141,7 +2182,7 @@ async def admin_futures_templates_page(
     context.update(
         {
             "templates": [
-                {"id": t.id, "name": t.name, "tickers": t.tickers}
+                {"id": t.id, "name": t.name, "tickers": t.tickers, "kind": t.kind}
                 for t in futures_tpls
             ],
             "error": request.query_params.get("error") == "1",
@@ -2165,6 +2206,9 @@ async def admin_futures_templates_save(
     raw_id = str(form.get("id") or "").strip()
     name = str(form.get("name") or "").strip()
     tickers_raw = str(form.get("tickers") or "").strip()
+    kind = str(form.get("kind") or "").strip().lower()
+    if kind not in ("stock", "futures"):
+        kind = "futures"
     if not name or not tickers_raw:
         return RedirectResponse(url="/admin/futures-templates?error=1", status_code=303)
     tickers_csv = ",".join(
@@ -2180,11 +2224,12 @@ async def admin_futures_templates_save(
             select(FuturesTemplate).where(FuturesTemplate.name == name)
         )
     if template is None:
-        template = FuturesTemplate(name=name, tickers=tickers_csv)
+        template = FuturesTemplate(name=name, tickers=tickers_csv, kind=kind)
         session.add(template)
     else:
         template.name = name
         template.tickers = tickers_csv
+        template.kind = kind
     await session.commit()
     return RedirectResponse(url="/admin/futures-templates?saved=1", status_code=303)
 

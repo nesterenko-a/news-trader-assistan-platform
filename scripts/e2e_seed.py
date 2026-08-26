@@ -21,11 +21,13 @@ from app.db.models import (
     Article,
     ArticleEntity,
     Entity,
+    FuturesTemplate,
     MacroEvent,
     MarketCandle,
     Security,
     Source,
     Strategy,
+    TechAnalysis,
     User,
     UserSource,
 )
@@ -83,6 +85,32 @@ async def seed(db_url: str) -> None:
                         rationale_summary="e2e seed",
                     )
                 )
+        # Top-5: шаблон акций (kind=stock) + успешный Теханализ по SBER
+        tpl = await session.scalar(select(FuturesTemplate).where(FuturesTemplate.name == "e2e_top5"))
+        if tpl is None:
+            session.add(FuturesTemplate(name="e2e_top5", tickers="SBER", kind="stock"))
+        ta = await session.scalar(
+            select(TechAnalysis).where(TechAnalysis.ticker == "SBER", TechAnalysis.batch_id.isnot(None))
+        )
+        if ta is None:
+            session.add(
+                TechAnalysis(
+                    ticker="SBER",
+                    status="success",
+                    stage="done",
+                    verdict="BUY",
+                    entry="100-105",
+                    tp="115",
+                    sl="98",
+                    scenario_json=(
+                        '{"scenario_a":{"title":"A","entry":"100-105","stop":"98",'
+                        '"targets":"115","why":"ok","probability":0.65,"rr":2.5},'
+                        '"scenario_b":{},"scenario_c":{}}'
+                    ),
+                    model="e2e",
+                    finished_at=datetime.now(timezone.utc),
+                )
+            )
         macro_seed = [
             {
                 "event_type": "central_bank_meeting",

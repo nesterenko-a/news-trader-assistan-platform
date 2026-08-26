@@ -910,3 +910,12 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 /* Mermaid и KaTeX контейнеры */
 .md-body pre.mermaid { text-align: center; background: var(--panel, #1a2233); }
 .md-body .katex-display { margin: 12px 0; overflow-x: auto; overflow-y: hidden; }
+
+/* Top-5 (docs/25): строки сделок и раскрытие сценариев */
+.top5-row { cursor: pointer; }
+.top5-row td { padding: 12px 8px; }
+.ticker-label { font-weight: 700; font-size: 15px; }
+.ticker-label .badge { margin-left: 4px; vertical-align: middle; }
+.top5-detail td { background: var(--panel-2, #202a40); }
+td.long { color: var(--green, #18c964); font-weight: 700; }
+td.short { color: var(--red, #ff4d5a); font-weight: 700; }

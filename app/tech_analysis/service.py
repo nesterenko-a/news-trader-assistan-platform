@@ -80,7 +80,11 @@ def has_active(ticker: str) -> bool:
 
 
 async def start_analysis(
-    session, ticker: str, user_id: int | None = None, provider: str | None = None
+    session,
+    ticker: str,
+    user_id: int | None = None,
+    provider: str | None = None,
+    batch_id: int | None = None,
 ) -> TechAnalysis:
     """Создаёт запись и запускает фоновый анализ. Возвращает запись."""
     ticker = ticker.upper()
@@ -106,6 +110,7 @@ async def start_analysis(
         stage="refreshing_data",
         model=resolved.model,
         provider=provider or ("chatgpt" if "openai.com" in resolved.base_url else "deepseek"),
+        batch_id=batch_id,
     )
     session.add(analysis)
     await session.commit()

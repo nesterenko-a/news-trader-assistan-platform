@@ -24,7 +24,7 @@ def test_parse_response_verdict_buy():
         "```json\n"
         '{"verdict":"BUY","entry":"100-105","tp":"110/115","sl":"98",'
         '"scenario_a":{"title":"Сценарий A","entry":"100-105",'
-        '"stop":"98","targets":"110/115","why":"откат","probability":"~65%"}'
+        '"stop":"98","targets":"110/115","why":"откат","probability":0.65,"rr":2.5}'
         "}\n"
         "```\n"
     )
@@ -34,9 +34,22 @@ def test_parse_response_verdict_buy():
     assert parsed["tp"] == "110/115"
     assert parsed["sl"] == "98"
     assert parsed["scenario_a"]["title"] == "Сценарий A"
-    assert parsed["scenario_a"]["probability"] == "~65%"
+    assert parsed["scenario_a"]["probability"] == 0.65
+    assert parsed["scenario_a"]["rr"] == 2.5
+    # Expected R = 0.65 × 2.5 − 0.35 × 1 = 1.625 − 0.35 = 1.275
+    assert parsed["scenario_a"]["expected_r"] == 1.275
     data = json.loads(parsed["scenario_json"])
     assert data["scenario_a"]["stop"] == "98"
+    assert data["scenario_a"]["expected_r"] == 1.275
+
+
+def test_parse_response_probability_percent_string():
+    # '~65%' → парсится в 0.65 (нормализация >1 → /100)
+    md = "```json\n{\"scenario_b\":{\"probability\":\"~65%\",\"rr\":2.0}}\n```\n"
+    parsed = parse_response(md)
+    assert parsed["scenario_b"]["probability"] == 0.65
+    # Expected R = 0.65 × 2.0 − 0.35 × 1 = 0.95
+    assert parsed["scenario_b"]["expected_r"] == 0.95
 
 
 def test_parse_response_lowercase_verdict():
@@ -56,7 +69,10 @@ def test_parse_response_no_block():
     parsed = parse_response("просто текст без JSON")
     assert parsed["verdict"] == ""
     assert parsed["entry"] == ""
-    assert parsed["scenario_json"] == '{"scenario_a": {}, "scenario_b": {}, "scenario_c": {}}'
+    data = json.loads(parsed["scenario_json"])
+    assert data["scenario_a"] == {"expected_r": None}
+    assert data["scenario_b"] == {"expected_r": None}
+    assert data["scenario_c"] == {"expected_r": None}
 
 
 # --- resolve_llm: выбор провайдера (ChatGPT первично, DeepSeek fallback) ---

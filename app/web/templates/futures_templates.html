@@ -1,23 +1,24 @@
 {% extends "base.html" %}
 {% block content %}
 <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-  <h1 style="margin:0">Шаблоны фьючерсов</h1>
+  <h1 style="margin:0">Шаблоны инструментов</h1>
   <a class="btn" href="/admin">← к админке</a>
 </div>
-<p class="muted small">Именованные списки фьючерсов (SECID) для отслеживания OI. Выбранный шаблон передаётся в скрипт «Обновить открытые позиции (OI)» как <code>--tickers</code>.</p>
+<p class="muted small">Именованные списки инструментов (<b>акций</b> или <b>фьючерсов</b>) через поле-тип <code>kind</code>. Фьючерсы берутся из MOEX ISS, акции — из справочника БД. Шаблон <code>kind=futures</code> передаётся в скрипт «Обновить открытые позиции (OI)» как <code>--tickers</code>; шаблон <code>kind=stock</code> используется для Теханализа группы акций (Top-5).</p>
 
-{% if error %}<p style="color:#c0392b">Укажите название шаблона и хотя бы один фьючерс.</p>{% endif %}
+{% if error %}<p style="color:#c0392b">Укажите название шаблона и хотя бы один инструмент.</p>{% endif %}
 {% if saved %}<p style="color:#2f7d32">Шаблон сохранён.</p>{% endif %}
 
 <section class="card">
   <h2>Сохранённые шаблоны</h2>
   {% if templates %}
   <table class="table" style="margin-top:8px">
-    <thead><tr><th>Название</th><th>Состав</th><th></th><th></th></tr></thead>
+    <thead><tr><th>Название</th><th>Тип</th><th>Состав</th><th></th><th></th></tr></thead>
     <tbody>
       {% for t in templates %}
       <tr>
         <td>{{ t.name }}</td>
+        <td>{% if t.kind == 'stock' %}<span class="badge">Акции</span>{% else %}<span class="badge">Фьючерсы</span>{% endif %}</td>
         <td class="muted small">{{ t.tickers }}</td>
         <td style="text-align:right;white-space:nowrap">
           <button type="button" class="icon-btn" data-open="{{ t.id }}" title="Редактировать шаблон">✎</button>
@@ -40,12 +41,18 @@
   <h2>Редактор шаблона</h2>
   <form method="post" action="/admin/futures-templates/save" id="tpl-form">
     <input type="hidden" name="id" id="tpl-id" value="">
+    <input type="hidden" name="kind" id="tpl-kind" value="futures">
     <label class="muted small" style="display:block;margin-top:8px">Название шаблона</label>
-    <input type="text" name="name" id="tpl-name" placeholder="Например: зерновые" style="width:100%">
+    <input type="text" name="name" id="tpl-name" placeholder="Например: металлургия" style="width:100%">
+    <label class="muted small" style="display:block;margin-top:8px">Тип инструментов</label>
+    <select name="kind_sel" id="tpl-kind-sel" style="width:100%">
+      <option value="futures">Фьючерсы</option>
+      <option value="stock">Акции</option>
+    </select>
     <input type="hidden" name="tickers" id="tpl-tickers" value="">
   </form>
 
-  <button type="button" class="btn" id="btn-load" style="margin-top:12px">Загрузить фьючерсы</button>
+  <button type="button" class="btn" id="btn-load" style="margin-top:12px">Загрузить инструменты</button>
   <span class="muted small" id="load-hint"></span>
 
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
@@ -115,6 +122,18 @@
 
   function badgeHtml(f) {
     var on = selected[f.secid] ? ' selected' : '';
+    var isStock = document.getElementById('tpl-kind-sel').value === 'stock';
+    var tags = isStock
+      ? '<span class="ft-tag">' + (f.sector || '—') + '</span>' +
+        '<span class="ft-tag">' + (f.market || '—') + '</span>'
+      : '<span class="ft-tag">' + (f.sector || '—') + '</span>' +
+        '<span class="ft-tag">' + fmtDate(f.lastdeldate) + '</span>';
+    var meta = isStock
+      ? '<div class="ft-meta">' + (f.currency || '') + '</div>'
+      : '<div class="ft-meta">OI ' + fmtInt(f.prevopenposition) + ' · лот ' + fmtInt(f.lotvolume) + '</div>' +
+        '<div class="ft-meta">ГО ' + (f.initialmargin != null ? fmtMoney(f.initialmargin) + ' ₽' : '—') +
+        (f.stepprice != null ? ' · шаг ' + fmtMoney(f.stepprice) + ' ₽' : '') + '</div>' +
+        '<div class="ft-meta">Поставка: —</div>';
     return '<label class="ft-badge' + on + '">' +
       '<input type="checkbox" class="ft-check" data-secid="' + f.secid + '"' + (on ? ' checked' : '') + '>' +
       '<div class="ft-head">' +
@@ -124,15 +143,9 @@
           '<div class="ft-short">' + (f.shortname || '') + '</div>' +
         '</div>' +
       '</div>' +
-      '<div class="ft-secname">' + (f.secname || '') + '</div>' +
-      '<div class="ft-tags">' +
-        '<span class="ft-tag">' + (f.sector || '—') + '</span>' +
-        '<span class="ft-tag">' + fmtDate(f.lastdeldate) + '</span>' +
-      '</div>' +
-      '<div class="ft-meta">OI ' + fmtInt(f.prevopenposition) + ' · лот ' + fmtInt(f.lotvolume) + '</div>' +
-      '<div class="ft-meta">ГО ' + (f.initialmargin != null ? fmtMoney(f.initialmargin) + ' ₽' : '—') +
-        (f.stepprice != null ? ' · шаг ' + fmtMoney(f.stepprice) + ' ₽' : '') + '</div>' +
-      '<div class="ft-meta">Поставка: —</div>' +
+      '<div class="ft-secname">' + (f.name || '') + '</div>' +
+      '<div class="ft-tags">' + tags + '</div>' +
+      meta +
       '</label>';
   }
 
@@ -225,7 +238,8 @@
         '<button type="button" class="icon-btn" data-remove="' + secid + '" title="Убрать">×</button>' +
         '</span>';
     }).join('');
-    selCount.textContent = '— ' + keys.length + ' фьючерсов';
+    selCount.textContent = '— ' + keys.length + ' ' +
+      (document.getElementById('tpl-kind-sel').value === 'stock' ? 'акций' : 'фьючерсов');
   }
 
   function allBySecid(secid) {
@@ -267,17 +281,19 @@
 
   document.getElementById('btn-load').addEventListener('click', function () {
     var hint = document.getElementById('load-hint');
+    var kind = document.getElementById('tpl-kind-sel').value;
+    var url = kind === 'stock' ? '/v1/indicators/stocks' : '/v1/indicators/futures';
     hint.textContent = 'Загрузка…';
-    fetch('/v1/indicators/futures')
+    fetch(url)
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        all = data.futures || [];
+        all = data.stocks || data.futures || [];
         fillTickerDatalist(all);
         fillSectorOptions();
         applyFilters();
-        hint.textContent = 'Загружено ' + all.length + ' фьючерсов.';
+        hint.textContent = 'Загружено ' + all.length + ' ' + (kind === 'stock' ? 'акций (из справочника БД).' : 'фьючерсов.');
       })
-      .catch(function () { hint.textContent = 'Ошибка загрузки. MOEX может быть недоступен.'; });
+      .catch(function () { hint.textContent = 'Ошибка загрузки. MOEX/БД может быть недоступен.'; });
   });
 
   document.getElementById('f-search').addEventListener('input', applyFilters);
@@ -335,6 +351,9 @@
         if (!tpl) return;
         document.getElementById('tpl-id').value = tpl.id;
         document.getElementById('tpl-name').value = tpl.name;
+        var kind = tpl.kind === 'stock' ? 'stock' : 'futures';
+        document.getElementById('tpl-kind-sel').value = kind;
+        document.getElementById('tpl-kind').value = kind;
         selected = {};
         (tpl.tickers || '').split(',').forEach(function (t) {
           t = t.trim();
@@ -347,7 +366,21 @@
     })(openBtns[o].getAttribute('data-open')));
   }
 
+  document.getElementById('tpl-kind-sel').addEventListener('change', function () {
+    document.getElementById('tpl-kind').value = this.value;
+    // Тип поменялся — сбрасываем загруженный список и выбор
+    all = [];
+    filtered = [];
+    selected = {};
+    renderSelected();
+    document.getElementById('badge-grid').innerHTML = '';
+    document.getElementById('pagination').innerHTML = '';
+    document.getElementById('load-hint').textContent = 'Список очищен — загрузите инструменты заново (' +
+      (this.value === 'stock' ? 'акции' : 'фьючерсы') + ').';
+  });
+
   document.getElementById('tpl-form').addEventListener('submit', function () {
+    document.getElementById('tpl-kind').value = document.getElementById('tpl-kind-sel').value;
     document.getElementById('tpl-tickers').value = Object.keys(selected).sort().join(',');
   });
 

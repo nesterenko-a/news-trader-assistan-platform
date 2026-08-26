@@ -441,16 +441,46 @@ class SystemNotice(Base):
 
 
 class FuturesTemplate(Base):
-    """Сохранённый шаблон списка фьючерсов (SECID) для отслеживания OI."""
+    """Сохранённый шаблон списка инструментов (акций или фьючерсов).
+
+    Поле `kind`: 'futures' (по умолчанию, для обратной совместимости) или
+    'stock'. Один шаблон содержит однородные инструменты одного kind.
+    Существующие шаблоны без явного kind трактуются как 'futures'.
+    """
 
     __tablename__ = "futures_templates"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
-    tickers: Mapped[str] = mapped_column(Text, nullable=False)  # CSV SECID
+    tickers: Mapped[str] = mapped_column(Text, nullable=False)  # CSV SECID/ticker
+    kind: Mapped[str] = mapped_column(String(20), default="futures")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, server_default=func.now()
     )
+
+
+class TechAnalysisBatch(Base):
+    """Лёгкий ярлык батча «Теханализ по группе акций шаблона» (Top-5).
+
+    Создаётся при запуске батча, связывает одиночные анализы (`batch_id`)
+    из по одной на акцию шаблона kind=stock. Статусы: running / success /
+    partial / failed.
+    """
+
+    __tablename__ = "tech_analysis_batches"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True, index=True
+    )
+    template_id: Mapped[int | None] = mapped_column(
+        ForeignKey("futures_templates.id"), nullable=True, index=True
+    )
+    status: Mapped[str] = mapped_column(String(20), default="running")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, server_default=func.now()
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class UserPipelinePref(Base):
@@ -489,6 +519,9 @@ class TechAnalysis(Base):
     tp: Mapped[str | None] = mapped_column(Text, nullable=True)
     sl: Mapped[str | None] = mapped_column(Text, nullable=True)
     scenario_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    batch_id: Mapped[int | None] = mapped_column(
+        ForeignKey("tech_analysis_batches.id"), nullable=True, index=True
+    )
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     provider: Mapped[str | None] = mapped_column(String(20), nullable=True)
     price_at_analysis: Mapped[str | None] = mapped_column(String(40), nullable=True)

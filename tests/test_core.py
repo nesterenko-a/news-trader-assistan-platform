@@ -1567,8 +1567,8 @@ async def test_futures_templates_page_access(session):
         )
 
     html = (await admin_futures_templates_page(make_request(admin_token), session)).body.decode()
-    assert "Шаблоны фьючерсов" in html
-    assert "Загрузить фьючерсы" in html
+    assert "Шаблоны инструментов" in html
+    assert "Загрузить инструменты" in html
 
     with pytest.raises(HTTPException) as excinfo:
         await admin_futures_templates_page(make_request(plain_token), session)

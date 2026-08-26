@@ -1,6 +1,6 @@
 # 25. Лучшая сделка из шаблона акций через Теханализ в LLM (ТЗ и дизайн)
 
-**Статус:** на согласовании v1.0
+**Статус:** реализовано v1.1 (миграция 027_top5_trades.xml: kind в futures_templates, tech_analysis_batches, batch_id; «Шаблоны инструментов» с kind stock/futures и редактором акций из БД; парсер — числовые probability/rr и Expected R; сервис батча app/tech_analysis/batch.py; API /v1/top5; страница /top5 по макету designer; конфиг TOP5_*; unit + e2e тесты)
 **Система:** NewsTrader Assistant
 **Приоритет задачи:** этап 2 дорожной карты (12-roadmap.md), «Углубление аналитики»
 **Связанные документы:** [10-api-specification.md](./10-api-specification.md), [12-roadmap.md](./12-roadmap.md), [13-operations.md](./13-operations.md), [14-web-interface.md](./14-web-interface.md), [16-working-process.md](./16-working-process.md), [23-tech-analysis-llm.md](./23-tech-analysis-llm.md), [24-market-realtime.md](./24-market-realtime.md)

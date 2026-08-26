@@ -13,6 +13,7 @@ from app.api.routes import (
     strategies,
     strategy,
     tech_analysis,
+    top5,
     watchlist,
 )
 
@@ -30,3 +31,4 @@ api_router.include_router(paper.router)
 api_router.include_router(indicators.router)
 api_router.include_router(sources.router)
 api_router.include_router(tech_analysis.router)
+api_router.include_router(top5.router)

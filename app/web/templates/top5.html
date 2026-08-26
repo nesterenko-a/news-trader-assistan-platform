@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Top-5 — лучшие сделки — NewsTrader Assistant{% endblock %}
+
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+  <h1 style="margin:0">Отбор сделок — Top 5</h1>
+  <p class="muted small" style="margin:0">Все стратегии по бумагам шаблона (Теханализ в LLM) → ранжирование → 5 лучших входов</p>
+</div>
+
+<section class="card">
+  <form method="get" action="/top5" id="tpl-select-form" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+    <div style="flex:1;min-width:260px">
+      <label class="muted small" style="display:block;margin-bottom:6px">Шаблон акций (kind=stock)</label>
+      <select name="template_id" id="tpl-select" style="width:100%">
+        <option value="">— выберите шаблон —</option>
+        {% for t in templates %}
+        <option value="{{ t.id }}" {% if selected_template_id == t.id %}selected{% endif %}>{{ t.name }} ({{ t.tickers }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="btn" type="submit">Показать выбор</button>
+  </form>
+  {% if not templates %}<p class="muted small" style="margin-top:8px">Шаблонов акций пока нет — создайте «Шаблон инструментов» типа «Акции» в админ-панели (<a href="/admin/futures-templates">Шаблоны инструментов</a>).</p>{% endif %}
+</section>
+
+{% if selected_template %}
+<section class="card" style="margin-top:12px">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+    <div>
+      <h2 style="margin:0">{{ selected_template.name }}</h2>
+      <p class="muted small" style="margin:4px 0 0">Состав: {{ selected_template.tickers }}</p>
+    </div>
+    <button class="btn active" id="btn-run" type="button" {% if result and result.get('running') %}disabled{% endif %}>Отправить на Теханализ в LLM</button>
+  </div>
+  <div id="run-progress" class="muted small" style="margin-top:10px"></div>
+</section>
+{% endif %}
+
+{% if result and result['items'] %}
+<section class="card" style="margin-top:12px">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+    <h2 style="margin:0">Лучшие возможности</h2>
+    <span class="muted small">Кандидатов: {{ result['total'] }} · Лучший Expected R: {{ '%.2f' | format(result['items'][0]['expected_r']) if result['items'] else '—' }}</span>
+  </div>
+  <table class="table" style="margin-top:10px">
+    <thead><tr>
+      <th>#</th><th>Бумага / стратегия</th><th>Направление</th><th>Вход</th><th>Стоп</th>
+      <th>Цель</th><th>R/R</th><th>Вероятн.</th><th>Expected R</th>
+    </tr></thead>
+    <tbody>
+      {% for r in result['items'] %}
+      <tr class="top5-row" data-idx="{{ loop.index0 }}" style="cursor:pointer">
+        <td>{{ loop.index }}</td>
+        <td><div class="ticker-label"><b>{{ r.ticker }}</b> <span class="badge">S{{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }}</span></div>
+            <div class="muted small">{{ r.name }}</div></td>
+        <td class="{{ 'long' if r.dir == 'LONG' else 'short' }}" style="font-weight:700">{{ r.dir }}</td>
+        <td>{{ r.entry or '—' }}</td>
+        <td>{{ r.stop or '—' }}</td>
+        <td>{{ r.targets or '—' }}</td>
+        <td>{{ '%.2f' | format(r.rr) if r.rr is not none else '—' }}</td>
+        <td>{{ (r.probability * 100) | round | int }}%{% if r.probability is not none %} {% endif %}</td>
+        <td><b>{{ '%.2f' | format(r.expected_r) }}</b></td>
+      </tr>
+      <tr class="top5-detail" id="detail-{{ loop.index0 }}" style="display:none">
+        <td colspan="9">
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">
+            {% for key, letter, color in [('scenario_a','A','#16a34a'),('scenario_b','B','#f59e0b'),('scenario_c','C','#dc2626')] %}
+            {% set sc = r.scenario %}
+            <div style="border:1px solid var(--border);border-top:3px solid {{ color }};border-radius:10px;padding:12px;background:var(--panel-2)">
+              <div class="chart-head"><b>Сценарий {{ letter }}</b></div>
+              {% if sc and sc.get('title') %}<p class="muted small" style="margin:6px 0"><b>{{ sc.title }}</b></p>{% endif %}
+              {% if sc and sc.get('entry') %}<div><span class="label">Вход</span><span class="value">{{ sc.entry }}</span></div>{% endif %}
+              {% if sc and sc.get('stop') %}<div><span class="label">Стоп</span><span class="value">{{ sc.stop }}</span></div>{% endif %}
+              {% if sc and sc.get('targets') %}<div><span class="label">Цели</span><span class="value">{{ sc.targets }}</span></div>{% endif %}
+              {% if sc and sc.get('why') %}<p class="muted small">{{ sc.why }}</p>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          <p class="muted small" style="margin-top:8px"><a href="/tech_analysis/{{ r.analysis_id }}">Полный разбор «{{ r.ticker }}» →</a></p>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small" style="margin-top:10px">Показана одна лучшая стратегия каждой бумаги (по Expected R). Раскройте строку, чтобы увидеть все 3 сценария «Моя стратегия».</p>
+  <p class="muted small">Дисклеймер: материал носит информационный характер и не является инвестиционной рекомендацией. Занятое «Вероятн.» — оценка модели/аналитика, а не статистически подтверждённая вероятность.</p>
+</section>
+{% elif selected_template %}
+<section class="card" style="margin-top:12px"><p class="muted small">Запустите Теханализ, чтобы увидеть подборку лучших сделок по шаблону.</p></section>
+{% endif %}
+
+<script>
+(function () {
+  'use strict';
+  var btn = document.getElementById('btn-run');
+  var progress = document.getElementById('run-progress');
+  var templateId = {{ selected_template_id | default('null') if selected_template_id else 'null' }};
+  if (!btn || !templateId) return;
+
+  btn.addEventListener('click', function () {
+    btn.disabled = true;
+    progress.textContent = 'Запускаем Теханализ по шаблону…';
+    fetch('/v1/top5/run?template_id=' + templateId, { method: 'POST' })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) {
+          progress.textContent = 'Ошибка: ' + (res.d.detail || 'не удалось запустить');
+          btn.disabled = false;
+          return;
+        }
+        progress.textContent = 'Батч #' + res.d.batch_id + ' запущен. Обновляем страницу…';
+        setTimeout(function () { window.location.href = '/top5?template_id=' + templateId; }, 2500);
+      })
+      .catch(function () {
+        progress.textContent = 'Ошибка сети. Попробуйте ещё раз.';
+        btn.disabled = false;
+      });
+  });
+
+  // Раскрытие сценариев по клику на строку
+  var rows = document.querySelectorAll('.top5-row');
+  rows.forEach(function (row) {
+    row.addEventListener('click', function () {
+      var idx = row.getAttribute('data-idx');
+      var detail = document.getElementById('detail-' + idx);
+      if (detail) detail.style.display = detail.style.display === 'none' ? '' : 'none';
+    });
+  });
+})();
+</script>
+{% endblock %}

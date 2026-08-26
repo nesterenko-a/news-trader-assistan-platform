@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+
+    <!-- Рефакторинг «Шаблоны фьючерсов» → «Шаблоны инструментов»: поле kind
+         (stock | futures), без значения = futures (обратная совместимость). -->
+    <changeSet id="0270-futures-templates-kind" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="futures_templates" columnName="kind"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="futures_templates">
+            <column name="kind" type="varchar(20)" defaultValue="futures">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <!-- Лёгкий ярлык батча «Теханализ по группе акций шаблона» (Top-5). -->
+    <changeSet id="0271-tech-analysis-batches" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="tech_analysis_batches"/>
+            </not>
+        </preConditions>
+        <createTable tableName="tech_analysis_batches">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="bigint">
+                <constraints nullable="true"/>
+            </column>
+            <column name="template_id" type="bigint">
+                <constraints nullable="true"/>
+            </column>
+            <column name="status" type="varchar(20)" defaultValue="running">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamptz" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="finished_at" type="timestamptz">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+        <createIndex indexName="ix_tech_analysis_batches_user_id" tableName="tech_analysis_batches">
+            <column name="user_id"/>
+        </createIndex>
+        <createIndex indexName="ix_tech_analysis_batches_template_id" tableName="tech_analysis_batches">
+            <column name="template_id"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- Связь одиночного анализа с батчем Top-5. -->
+    <changeSet id="0272-tech-analyses-batch-id" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="tech_analyses" columnName="batch_id"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="tech_analyses">
+            <column name="batch_id" type="bigint">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        <createIndex indexName="ix_tech_analyses_batch_id" tableName="tech_analyses">
+            <column name="batch_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

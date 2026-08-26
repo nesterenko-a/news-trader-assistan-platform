@@ -107,7 +107,10 @@ test.describe("News manager и админка", () => {
     // скрипт завершается, статус и вывод подтягиваются AJAX (partial)
     await page.waitForSelector(".run-status:not(.run-running)", { timeout: 30_000 });
     await expect(page.locator(".run-status")).toHaveText(/успех|ошибка/);
-    expect((await page.locator("pre.run-output").innerText()).trim().length).toBeGreaterThan(0);
+    // вывод подтягивается асинхронно после смены статуса — ждём непустого лога
+    const out = page.locator("pre.run-output");
+    await expect(out).toHaveCount(1);
+    await expect(out).not.toBeEmpty({ timeout: 15_000 });
   });
 
   test("admin: дополнение графа — страница и добавление ссылки", async ({ page }) => {
@@ -137,10 +140,10 @@ test.describe("News manager и админка", () => {
   });
 
 
-  test("admin: шаблоны фьючерсов — создание и удаление", async ({ page }) => {
+  test("admin: шаблоны инструментов — создание и удаление", async ({ page }) => {
     await login(page, ADMIN.username, ADMIN.password);
     await page.goto("/admin/futures-templates");
-    await expect(page.locator("body")).toContainText("Шаблоны фьючерсов");
+    await expect(page.locator("body")).toContainText("Шаблоны инструментов");
 
     const name = "e2e_tpl_" + crypto.randomUUID().replace(/-/g, "").slice(0, 6);
     await page.fill("#tpl-name", name);

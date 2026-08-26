@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     chatgpt_model: str = "gpt-4o"
     chatgpt_request_timeout: float = 120.0
     tech_analysis_prompt_file: str = "docs/promt_tech_analize.md"
+    top5_fresh_hours: int = 6
+    top5_max_instruments: int = 20
     moex_base_url: str = "https://iss.moex.com/iss"
     telegram_bot_token: str = ""
     telegram_api_id: str = ""
