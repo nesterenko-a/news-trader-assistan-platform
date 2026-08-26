@@ -1567,6 +1567,11 @@ async def top5_page(
             "result": result,
         }
     )
+    _cfg = get_cfg()
+    context["llm_models"] = {
+        "chatgpt": _cfg.chatgpt_model,
+        "deepseek": _cfg.llm_model,
+    }
     return templates.TemplateResponse(request, "top5.html", context)
 
 

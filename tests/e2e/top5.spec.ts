@@ -12,6 +12,9 @@ test.describe("Top-5: лучшая сделка из шаблона акций",
     await page.click('button[type="submit"]');
     await page.waitForLoadState("domcontentloaded");
     await expect(page.locator("h2", { hasText: "e2e_top5" })).toBeVisible();
+    // селектор выбора LLM (Авто/ChatGPT/DeepSeek) по аналогии с одиночным анализом
+    await expect(page.locator("label", { hasText: "LLM для анализа" })).toBeVisible();
+    await expect(page.locator("#btn-provider")).toBeVisible();
     // в подборке должны быть SBER и отрендеренный Expected R сценария (0.65×2.5−0.35×1=1.275→"1.27")
     await expect(page.locator("td", { hasText: "SBER" }).first()).toBeVisible();
     await expect(page.locator("body")).toContainText("1.27");

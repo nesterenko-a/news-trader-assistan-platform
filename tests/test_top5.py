@@ -174,6 +174,9 @@ async def test_top5_page_renders(session):
     html = resp.body.decode()
     assert "Отбор сделок — Top 5" in html
     assert "AAA" in html
+    # селектор выбора LLM (Авто/ChatGPT/DeepSeek) по аналогии с одиночным анализом
+    assert "LLM для анализа" in html
+    assert "btn-provider" in html
     # Expected R = 0.6×2.5 − 0.4×1 = 1.1 (не 1.275): якорь — отрендеренное значение колонки
     assert "1.10" in html
 

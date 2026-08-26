@@ -31,7 +31,17 @@
       <h2 style="margin:0">{{ selected_template.name }}</h2>
       <p class="muted small" style="margin:4px 0 0">Состав: {{ selected_template.tickers }}</p>
     </div>
-    <button class="btn active" id="btn-run" type="button" {% if result and result.get('running') %}disabled{% endif %}>Отправить на Теханализ в LLM</button>
+    <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+      <div>
+        <label class="muted small" style="display:block;margin-bottom:6px">LLM для анализа</label>
+        <select id="btn-provider">
+          <option value="">Авто (приоритет ChatGPT)</option>
+          <option value="chatgpt">ChatGPT: {{ llm_models.chatgpt }}</option>
+          <option value="deepseek">DeepSeek: {{ llm_models.deepseek }}</option>
+        </select>
+      </div>
+      <button class="btn active" id="btn-run" type="button" {% if result and result.get('running') %}disabled{% endif %}>Отправить на Теханализ в LLM</button>
+    </div>
   </div>
   <div id="run-progress" class="muted small" style="margin-top:10px"></div>
 </section>
@@ -101,7 +111,11 @@
   btn.addEventListener('click', function () {
     btn.disabled = true;
     progress.textContent = 'Запускаем Теханализ по шаблону…';
-    fetch('/v1/top5/run?template_id=' + templateId, { method: 'POST' })
+    var providerSel = document.getElementById('btn-provider');
+    var provider = providerSel ? providerSel.value : '';
+    var url = '/v1/top5/run?template_id=' + templateId;
+    if (provider) url += '&provider=' + encodeURIComponent(provider);
+    fetch(url, { method: 'POST' })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {
         if (!res.ok) {
