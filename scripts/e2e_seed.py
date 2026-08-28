@@ -24,6 +24,7 @@ from app.db.models import (
     FuturesTemplate,
     MacroEvent,
     MarketCandle,
+    RealtimeConfig,
     Security,
     Source,
     Strategy,
@@ -71,6 +72,10 @@ async def seed(db_url: str) -> None:
                 )
             )
         sber = await session.scalar(select(Security).where(Security.ticker == "SBER"))
+        if (
+            await session.get(RealtimeConfig, 1) is None
+        ):
+            session.add(RealtimeConfig(id=1))
         if sber is not None:
             existing = await session.scalar(
                 select(Strategy).where(Strategy.security_id == sber.id)

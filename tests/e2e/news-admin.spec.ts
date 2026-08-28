@@ -181,4 +181,32 @@ test.describe("News manager и админка", () => {
     await expect(card.locator('input[list="futures-datalist"]')).toHaveCount(1);
     await expect(card.locator("#oi-all")).toHaveCount(1);
   });
+
+  test("admin: блок «Реальное время» рендерится и сохраняет настройки", async ({ page }) => {
+    await login(page, ADMIN.username, ADMIN.password);
+    await page.goto("/admin");
+    const form = page.locator('form[action="/admin/realtime/save"]');
+    await expect(form).toHaveCount(1);
+    // карточка демона присутствует в списке скриптов
+    await expect(
+      page.locator('form[action="/admin/scripts/run"]:has(input[name="script"][value="realtime_updater"])')
+    ).toHaveCount(1);
+    // включить актуализацию (чекбокс; скрытый input value=off для fallback одноимённый)
+    const enabled = form.locator('input[type="checkbox"][name="realtime_enabled"]');
+    if (!(await enabled.isChecked())) {
+      await enabled.check();
+    }
+    await form.locator('input[name="interval_quotes_sec"]').fill("45");
+    await Promise.all([
+      page.waitForURL("**/admin"),
+      form.locator('button[type="submit"]').click(),
+    ]);
+    // перезагружаем и проверяем состояние сохранилось
+    await page.goto("/admin");
+    const form2 = page.locator('form[action="/admin/realtime/save"]');
+    await expect(
+      form2.locator('input[type="checkbox"][name="realtime_enabled"]')
+    ).toBeChecked();
+    await expect(form2.locator('input[name="interval_quotes_sec"]')).toHaveValue("45");
+  });
 });
