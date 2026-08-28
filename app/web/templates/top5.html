@@ -29,12 +29,12 @@
 
 {% if selected_template %}
 <section class="card" style="margin-top:12px">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-    <div>
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+    <div style="flex:1;min-width:0">
       <h2 style="margin:0">{{ selected_template.name }}</h2>
       <p class="muted small" style="margin:4px 0 0;overflow-wrap:anywhere;word-break:break-word;white-space:normal">Состав: {{ selected_template.tickers }}</p>
     </div>
-    <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+    <div style="display:flex;align-items:flex-start;gap:14px;flex-shrink:0">
       <div>
         <label class="muted small" style="display:block;margin-bottom:6px">LLM для анализа</label>
         <select id="btn-provider">
@@ -43,10 +43,10 @@
           <option value="deepseek">DeepSeek: {{ llm_models.deepseek }}</option>
         </select>
       </div>
-      <label class="muted small" title="Игнорирует время свежести анализа (TOP5_FRESH_HOURS) и перезапускает Теханализ по всем акциям шаблона">
+      <label class="muted small" style="white-space:nowrap;display:inline-flex;align-items:center;gap:6px" title="Игнорирует время свежести анализа (TOP5_FRESH_HOURS) и перезапускает Теханализ по всем акциям шаблона">
         <input type="checkbox" id="btn-force"> Принудительно обновить
       </label>
-      <button class="btn active" id="btn-run" type="button" {% if result and result.get('running') %}disabled{% endif %}>Отправить на Теханализ в LLM</button>
+      <button class="btn active" id="btn-run" type="button" style="white-space:nowrap" {% if result and result.get('running') %}disabled{% endif %}>Отправить на Теханализ в LLM</button>
     </div>
   </div>
   <div id="run-progress" class="muted small" style="margin-top:10px"></div>
@@ -60,7 +60,7 @@
       <h2 style="margin:0">Лучшие возможности</h2>
       <div class="muted small">Все стратегии по бумагам шаблона → скоринг → лучшие входы. Клик по заголовку R/R · Риск · Score — сортировка.</div>
       {% if result.get('as_of') %}
-      <div class="muted small" style="margin-top:6px"><span class="label">Прогноз сформирован:</span> <span class="value" style="font-size:15px;color:var(--text)">{{ result['as_of'].strftime('%d.%m.%Y %H:%M') }}</span> <span class="badge" title="Временная зона расчёта прогноза">UTC</span></div>
+      <div class="muted small" style="margin-top:6px"><span style="white-space:nowrap"><span class="label">Прогноз сформирован:</span> <span class="value" style="font-size:15px;color:var(--text);margin-left:4px">{{ result['as_of'].strftime('%d.%m.%Y %H:%M') }}</span> <span class="badge">UTC</span></span></div>
       {% endif %}
     </div>
   </div>
@@ -184,7 +184,7 @@
         <td colspan="6">
           {% if b['top5'] %}
           <h3 style="margin:4px 0 8px">Лучшие возможности (батч #{{ b['id'] }})</h3>
-          {% if b.get('as_of') %}<p class="muted small" style="margin:0 0 8px"><span class="label">Прогноз сформирован:</span> <span class="value" style="font-size:15px;color:var(--text)">{{ b['as_of'].strftime('%d.%m.%Y %H:%M') }}</span> <span class="badge" title="Временная зона расчёта прогноза">UTC</span></p>{% endif %}
+          {% if b.get('as_of') %}<p class="muted small" style="margin:0 0 8px"><span style="white-space:nowrap"><span class="label">Прогноз сформирован:</span> <span class="value" style="font-size:15px;color:var(--text);margin-left:4px">{{ b['as_of'].strftime('%d.%m.%Y %H:%M') }}</span> <span class="badge">UTC</span></span></p>{% endif %}
           <table class="table">
             <thead><tr><th>#</th><th style="text-align:left">Бумага / стратегия<span class="sort-hint" data-hint="strategy">?</span><span class="isort-tip" data-tip="strategy"><b>Стратегия</b><br>SА — сценарий А (основной) · SВ — сценарий B (альтернативный) · SС — сценарий C (негативный).<br>Строка = лучшая стратегия бумаги (макс. Score).</span></th><th style="text-align:left">Направление</th><th style="text-align:left">Цена</th><th style="text-align:left">Вход</th><th style="text-align:left">Стоп</th><th style="text-align:left">Цель</th><th>R/R</th><th>Expected R</th><th>Score</th><th></th></tr></thead>
             <tbody>
