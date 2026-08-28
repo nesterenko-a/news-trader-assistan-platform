@@ -1,6 +1,6 @@
 # 10. Спецификация API
 
-**Статус:** утверждено v1.26 (в `/v1/top5` добавлены поля `as_of`/`price`/`scenarios`; см. [25-top5-trades.md](./25-top5-trades.md))
+**Статус:** утверждено v1.27 (в `/v1/top5` добавлено поле `final_assessment` — Ключевой уровень/Главный риск/Моя рекомендация; ранее — `as_of`/`price`/`scenarios`; см. [25-top5-trades.md](./25-top5-trades.md))
 **Система:** NewsTrader Assistant
 
 Программный интерфейс системы. Спецификация концептуальная; точные схемы запросов/ответов фиксируются на этапе разработки (например, в формате OpenAPI) и должны соответствовать этому документу.
@@ -272,7 +272,7 @@ GET /v1/indicators/oi?ticker=W4V6&from=2026-07-20&to=2026-08-05
 
 Все эндпоинты требуют аутентификации (Bearer-токен или cookie `nt_token`). Работают с «Шаблонами инструментов» `kind=stock` (см. [25-top5-trades.md](./25-top5-trades.md)).
 
-- `GET /v1/top5?template_id=&limit=` — рейтинг Top-5 лучших сделок по акциям шаблона: `{template, total, as_of, items:[{ticker, name, strategy, dir, entry, stop, targets, rr, probability, expected_r, score, price, as_of, scenarios:{a,b,c}, analysis_id}]}` (`price` — текущая цена бумаги; `as_of` — дата формирования прогноза; `scenarios` — все 3 сценария A/B/C).
+- `GET /v1/top5?template_id=&limit=` — рейтинг Top-5 лучших сделок по акциям шаблона: `{template, total, as_of, items:[{ticker, name, strategy, dir, entry, stop, targets, rr, probability, expected_r, score, price, as_of, scenarios:{a,b,c}, final_assessment:{key_level, main_risk, recommendation}, analysis_id}]}` (`price` — текущая цена бумаги; `as_of` — дата формирования прогноза; `scenarios` — все 3 сценария A/B/C; `final_assessment` — Ключевой уровень/Главный риск/Моя рекомендация из «Итоговой оценки»).
 - `POST /v1/top5/run?template_id=&provider=` — запуск батча Теханализа по акциям шаблона (создаёт `tech_analysis_batches` + по анализу на акцию, переиспользуя актуальные успешные); `409` при активном батче, `404` при неверном шаблоне/отсутствии ключа LLM.
 - `GET /v1/top5/{batch_id}/status` — прогресс батча: `{batch_id, status, total, done, success, running, failed, stage}`.
 - `GET /v1/top5/{batch_id}` — детали: анализы по акциям шаблона (ticker, status, analysis_id, verdict).
