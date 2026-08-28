@@ -50,29 +50,111 @@ async function capturePage() {
   }
 }
 
-// Реальное время (docs/24): JS подписка на SSE live-котировок на карточке бумаги.
+// Реальное время (docs/24): странично-широкий live-обновление котировок по SSE.
+// Поддерживает: карточку бумаги (#rt-quotes → цена/макс-мин/объём) и общие
+// ячейки/строки на других страницах:
+//   - ячейка цены:   [data-rt-price="TICKER"]
+//   - строка с P&L:  tr[data-rt-recalc="TICKER"][data-rq][data-cost],
+//                    дочерние ячейки [data-rt-field="cost|pnl|pnlpct"]
+//   - итоги:         [data-rt-total="value|pnl"]
 function initRealtimeQuotes() {
-  const wrap = document.getElementById("rt-quotes");
-  if (!wrap) return;
-  const ticker = wrap.getAttribute("data-ticker");
-  if (!ticker) return;
+  const tickers = new Set();
 
-  const priceEl = document.getElementById("rt-price");
-  const hlEl = document.getElementById("rt-highlow");
-  const volEl = document.getElementById("rt-volume");
+  // Карточка бумаги
+  const cardWrap = document.getElementById("rt-quotes");
+  const cardTicker = cardWrap ? cardWrap.getAttribute("data-ticker") : null;
+  if (cardTicker) tickers.add(cardTicker);
 
-  let es = null;
-  function open() {
-    if (es) es.close();
-    es = new EventSource("/v1/realtime/stream?tickers=" + encodeURIComponent(ticker));
-    es.addEventListener("quote", function (e) {
-      let data;
-      try {
-        data = JSON.parse(e.data);
-      } catch (err) {
-        return;
+  // Общие ячейки цены
+  const priceCells = document.querySelectorAll("[data-rt-price]");
+  const priceByTicker = {};
+  priceCells.forEach(function (el) {
+    const t = el.getAttribute("data-rt-price");
+    if (!t) return;
+    tickers.add(t);
+    (priceByTicker[t] = priceByTicker[t] || []).push(el);
+  });
+
+  // Строки с P&L (портфель/paper)
+  const recalcs = [];
+  document.querySelectorAll("tr[data-rt-recalc]").forEach(function (row) {
+    const t = row.getAttribute("data-rt-recalc");
+    const qty = parseFloat(row.getAttribute("data-rq"));
+    const cost = parseFloat(row.getAttribute("data-cost"));
+    if (!t || isNaN(qty) || isNaN(cost)) return;
+    tickers.add(t);
+    recalcs.push({ ticker: t, qty: qty, cost: cost, row: row });
+  });
+
+  if (tickers.size === 0) return;
+
+  const costText = function (v) {
+    if (v == null || isNaN(v)) return "—";
+    return v.toFixed(2);
+  };
+
+  function fmtNumber(v) {
+    if (v == null || isNaN(v)) return "—";
+    return v.toFixed(2);
+  }
+
+  function fmtPercent(v) {
+    if (v == null || isNaN(v)) return "—";
+    return v.toFixed(2) + "%";
+  }
+
+  function recompute(recalc, price) {
+    const marketValue = recalc.qty * price;
+    const cost = recalc.qty * recalc.cost;
+    const pnl = marketValue - cost;
+    const pct = cost !== 0 ? ((pnl / cost) * 100) : 0;
+    recalc.row.querySelectorAll("[data-rt-field]").forEach(function (cell) {
+      const f = cell.getAttribute("data-rt-field");
+      if (f === "cost") cell.textContent = fmtNumber(marketValue);
+      else if (f === "pnl") {
+        cell.textContent = fmtNumber(pnl);
+        cell.className = (pnl >= 0 ? "pos" : "neg");
+      } else if (f === "pnlpct") {
+        cell.textContent = fmtPercent(pct);
       }
-      if (data.ticker !== ticker) return;
+    });
+  }
+
+  function updateTotals() {
+    let v = 0, pnl = 0;
+    recalcs.forEach(function (r) {
+      const priceEl = (priceByTicker[r.ticker] || [])[0];
+      // цена может обновляться асинхронно; пересчитываем по последней известной
+      const last = priceEl ? parseFloat(priceEl.getAttribute("data-last")) : NaN;
+      if (!isNaN(last)) {
+        v += r.qty * last;
+        pnl += (r.qty * last) - (r.qty * r.cost);
+      }
+    });
+    const vEl = document.querySelector("[data-rt-total='value']");
+    const pEl = document.querySelector("[data-rt-total='pnl']");
+    if (vEl) vEl.textContent = fmtNumber(v);
+    if (pEl) {
+      pEl.textContent = fmtNumber(pnl);
+      pEl.className = (pnl >= 0 ? "pos" : "neg");
+    }
+  }
+
+  const list = Array.from(tickers);
+  const es = new EventSource("/v1/realtime/stream?tickers=" + encodeURIComponent(list.join(",")));
+  es.addEventListener("quote", function (e) {
+    let data;
+    try {
+      data = JSON.parse(e.data);
+    } catch (err) {
+      return;
+    }
+    const range = data.last != null ? String(data.last) : "";
+    // Карточка
+    if (cardWrap && data.ticker === cardTicker) {
+      const priceEl = document.getElementById("rt-price");
+      const hlEl = document.getElementById("rt-highlow");
+      const volEl = document.getElementById("rt-volume");
       if (data.last != null && priceEl) priceEl.textContent = data.last;
       if (hlEl && (data.high != null || data.low != null)) {
         const h = data.high != null ? data.high : "";
@@ -80,17 +162,30 @@ function initRealtimeQuotes() {
         hlEl.textContent = (h + " / " + l).trim();
       }
       if (volEl && data.volume != null) volEl.textContent = data.volume;
-    });
-    es.onerror = function () {
-      // Страница может быть неавторизована/демон выключен — закрываем, не падаем.
-      if (es) es.close();
-      es = null;
-    };
-  }
-  open();
-  // Навигация SPA не используется; при уходе со страницы EventSource закроется сам.
+    }
+    // Общие ячейки цены
+    const els = priceByTicker[data.ticker];
+    if (els && data.last != null) {
+      els.forEach(function (el) {
+        el.textContent = range;
+        el.setAttribute("data-last", String(data.last));
+      });
+    }
+    // Строки P&L
+    const isDirty = els && data.last != null;
+    if (isDirty) {
+      recalcs.forEach(function (r) {
+        if (r.ticker === data.ticker) recompute(r, data.last);
+      });
+      updateTotals();
+    }
+  });
+  es.onerror = function () {
+    // Неавторизован/демон выключен — закрываем, не падаем.
+    es.close();
+  };
   window.addEventListener("pagehide", function () {
-    if (es) es.close();
+    es.close();
   });
 }
 

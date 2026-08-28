@@ -130,7 +130,7 @@
           <td><div class="ticker-label"><b>{{ r.ticker }}</b> <span class="badge" title="Стратегия — сценарий {{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }} (лучший по Score); все сценарии — в раскрытии строки / «Полном разборе»">S{{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }}</span></div>
               <div class="muted small">{{ r.name }}</div></td>
           <td>{% if r.dir == 'LONG' %}<span class="long">LONG</span>{% elif r.dir == 'SHORT' %}<span class="short">SHORT</span>{% else %}<span class="muted">Выжидать</span>{% endif %}{% if r.dir in ('LONG','SHORT') and r.await_confirmation %} <span class="await-conf" title="Стратегия определена, ждём подхода цены к точке входа и подтверждающих сигналов">⏳</span>{% endif %}</td>
-          <td>{% if r.price is not none %}{{ '%.2f' | format(r.price) }}{% else %}—{% endif %}</td>
+          <td data-rt-price="{{ r.ticker }}" data-last="{{ r.price }}">{% if r.price is not none %}{{ '%.2f' | format(r.price) }}{% else %}—{% endif %}</td>
           <td>{{ r.entry or '—' }}</td>
           <td>{{ r.stop or '—' }}</td>
           <td>{{ r.targets or '—' }}</td>
@@ -214,7 +214,7 @@
                 <td>{{ loop.index }}</td>
                 <td><div class="ticker-label"><b>{{ rb['ticker'] }}</b> <span class="badge" title="Стратегия — сценарий {{ 'A' if rb['strategy'] == 'scenario_a' else ('B' if rb['strategy'] == 'scenario_b' else 'C') }} (лучший по Score)">S{{ 'A' if rb['strategy'] == 'scenario_a' else ('B' if rb['strategy'] == 'scenario_b' else 'C') }}</span></div></td>
                 <td>{% if rb['dir'] == 'LONG' %}<span class="long">LONG</span>{% elif rb['dir'] == 'SHORT' %}<span class="short">SHORT</span>{% else %}Выжидать{% endif %}{% if rb['dir'] in ('LONG','SHORT') and rb.get('await_confirmation') %} <span class="await-conf" title="Ждём подхода цены к точке входа и подтверждающих сигналов">⏳</span>{% endif %}</td>
-                <td>{% if rb.get('price') is not none %}{{ '%.2f' | format(rb['price']) }}{% else %}—{% endif %}</td>
+                <td data-rt-price="{{ rb['ticker'] }}" data-last="{{ rb.get('price') }}">{% if rb.get('price') is not none %}{{ '%.2f' | format(rb['price']) }}{% else %}—{% endif %}</td>
                 <td>{{ rb['entry'] or '—' }}</td>
                 <td>{{ rb['stop'] or '—' }}</td>
                 <td>{{ rb['targets'] or '—' }}</td>

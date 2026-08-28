@@ -73,14 +73,14 @@
     </thead>
     <tbody>
       {% for p in view.positions %}
-      <tr>
+      <tr data-rt-recalc="{{ p.ticker }}" data-rq="{{ p.quantity }}" data-cost="{{ p.entry_price }}">
         <td><a href="/securities/{{ p.ticker }}">{{ p.ticker }}</a></td>
         <td>{{ p.quantity|int }}</td>
         <td>{{ "%.2f"|format(p.entry_price) }}</td>
-        <td>{{ "%.2f"|format(p.current_price) if p.current_price else "—" }}</td>
-        <td>{{ "%.2f"|format(p.market_value) if p.market_value else "—" }}</td>
-        <td class="{{ 'pos' if p.pnl and p.pnl >= 0 else 'neg' }}">{{ "%.2f"|format(p.pnl) if p.pnl is not none else "—" }}</td>
-        <td class="{{ 'pos' if p.pnl_percent and p.pnl_percent >= 0 else 'neg' }}">{{ "%.2f"|format(p.pnl_percent) if p.pnl_percent is not none else "—" }}%</td>
+        <td data-rt-price="{{ p.ticker }}" data-last="{{ p.current_price }}">{{ "%.2f"|format(p.current_price) if p.current_price else "—" }}</td>
+        <td data-rt-field="cost">{{ "%.2f"|format(p.market_value) if p.market_value else "—" }}</td>
+        <td class="{{ 'pos' if p.pnl and p.pnl >= 0 else 'neg' }}" data-rt-field="pnl">{{ "%.2f"|format(p.pnl) if p.pnl is not none else "—" }}</td>
+        <td class="{{ 'pos' if p.pnl_percent and p.pnl_percent >= 0 else 'neg' }}" data-rt-field="pnlpct">{{ "%.2f"|format(p.pnl_percent) if p.pnl_percent is not none else "—" }}%</td>
         <td>
           <form method="post" action="/api-paper-close">
             <input type="hidden" name="ticker" value="{{ p.ticker }}">
