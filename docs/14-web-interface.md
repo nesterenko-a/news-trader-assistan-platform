@@ -1,6 +1,6 @@
 # 14. Веб-интерфейс
 
-**Статус:** утверждено v1.85 (live-обновление **OI фьючерсов** по SSE на карточке и вкладке `/indicators`; ранее — live-котировки на всех страницах с ценами, «Состав шаблона», приоритет LLM, UTC, «Итоговая оценка»; см. [25-top5-trades.md](./25-top5-trades.md) и [24-market-realtime.md](./24-market-realtime.md))
+**Статус:** утверждено v1.86 (на страницах OI выведено замечание: числовые OI/ΔOI live, SVG-графики — при перезагрузке; ранее — live OI по SSE, live-котировки по страницам, «Состав шаблона»; см. [25-top5-trades.md](./25-top5-trades.md) и [24-market-realtime.md](./24-market-realtime.md))
 **Система:** NewsTrader Assistant
 
 Описание веб-интерфейса системы. Telegram-бот описан отдельно: [15-telegram-bot.md](./15-telegram-bot.md).
