@@ -10,12 +10,13 @@ Expected R каждого сценария = prob × rr − (1 − prob) × 1 (�
 """
 
 import asyncio
+import json as _json
 from datetime import datetime, timedelta
 
 from sqlalchemy import select
 
 from app.config import get_settings
-from app.db.models import FuturesTemplate, TechAnalysis, TechAnalysisBatch
+from app.db.models import FuturesTemplate, MarketCandle, RealTimeQuote, TechAnalysis, TechAnalysisBatch
 from app.tech_analysis.parser import expected_r
 from app.tech_analysis.service import start_analysis
 
@@ -213,9 +214,12 @@ async def list_batches(session, template_id: int, limit: int = 10) -> list[dict]
                 "analysis_id": a.id,
                 "scenario_json": a.scenario_json,
                 "await_confirmation": a.await_confirmation,
+                "finished_at": a.finished_at,
             }
             for a in analyses
         ]
+        batch_tickers = [i["ticker"] for i in items]
+        prices = await _current_prices(session, batch_tickers)
         # Собственный Top-5 батча: по его успешным анализам (сценарии + вердикт)
         top_rows = _rank_best_rows(
             [
@@ -226,11 +230,20 @@ async def list_batches(session, template_id: int, limit: int = 10) -> list[dict]
                     "verdict": a["verdict"],
                     "scenario_json": a["scenario_json"],
                     "await_confirmation": a.get("await_confirmation"),
+                    "price": prices.get(a["ticker"]),
+                    "as_of": a.get("finished_at"),
                 }
                 for a in items
                 if a["status"] == "success" and a.get("scenario_json")
             ]
         )
+        # Дата формирования прогноза батча
+        batch_as_of = None
+        for r in top_rows:
+            if r.get("as_of") is not None:
+                ts = r["as_of"].timestamp()
+                if batch_as_of is None or ts > batch_as_of.timestamp():
+                    batch_as_of = r["as_of"]
         success = sum(1 for a in analyses if a.status == "success")
         running = sum(1 for a in analyses if a.status == "running")
         failed_n = sum(1 for a in analyses if a.status == "failed")
@@ -248,6 +261,7 @@ async def list_batches(session, template_id: int, limit: int = 10) -> list[dict]
                 "status": live_status,
                 "created_at": b.created_at.strftime("%d.%m.%Y %H:%M") if b.created_at else "",
                 "finished_at": b.finished_at.strftime("%d.%m.%Y %H:%M") if b.finished_at else "",
+                "as_of": batch_as_of,
                 "total": len(items),
                 "success": success,
                 "running": running,
@@ -386,20 +400,72 @@ def _scenario_metrics(sc: dict) -> dict:
     }
 
 
+def _all_scenarios(ana: dict) -> dict:
+    """Все три сценария A/B/C анализа как {a, b, c} с метриками (для раскрытия строки Top-5)."""
+    out = {"a": {}, "b": {}, "c": {}}
+    if not ana.get("scenario_json"):
+        return out
+    try:
+        data = _json.loads(ana["scenario_json"])
+    except (ValueError, TypeError):
+        return out
+    for letter, key in (("a", "scenario_a"), ("b", "scenario_b"), ("c", "scenario_c")):
+        sc = data.get(key) or {}
+        out[letter] = _scenario_metrics(sc) if isinstance(sc, dict) else {}
+    return out
+
+
+async def _current_prices(session, tickers: list[str]) -> dict:
+    """Текущая цена по тикерам: live-котировка (RealTimeQuote.last) или последний close свечи."""
+    from app.db.models import Security
+
+    if not tickers:
+        return {}
+    secs = (
+        await session.scalars(select(Security).where(Security.ticker.in_(tickers)))
+    ).all()
+    sec_by_ticker = {s.ticker: s.id for s in secs}
+    idx_by_id = {sid: ticker for ticker, sid in sec_by_ticker.items()}
+    ids = list(idx_by_id.keys())
+    prices: dict[str, float] = {}
+    if ids:
+        quotes = await session.scalars(
+            select(RealTimeQuote).where(RealTimeQuote.security_id.in_(ids))
+        )
+        for q in quotes.all():
+            ticker = idx_by_id.get(q.security_id)
+            if ticker and q.last is not None:
+                prices[ticker] = float(q.last)
+    # Fallback: последний close дневной свечи для тикеров без live-котировки
+    for sid in ids:
+        ticker = idx_by_id[sid]
+        if ticker in prices:
+            continue
+        candle = await session.scalar(
+            select(MarketCandle)
+            .where(MarketCandle.security_id == sid)
+            .order_by(MarketCandle.trading_date.desc())
+            .limit(1)
+        )
+        if candle and candle.close is not None:
+            prices[ticker] = float(candle.close)
+    return prices
+
+
+
+
 def best_strategy(tickers_analyses: list[dict]) -> dict | None:
     """Для одной акции выбирает сценарий с наибольшим Expected R.
 
     Учитываются вердикты BUY/SELL/WAIT (чтобы результат был виден, даже если
     система по всем акциям сказала «выжидать» или сделки «неинтересны»).
-    Возвращает запись Top-5 вида {ticker, name, dir, ...}, либо None, если
-    нет валидного сценария (не парсится JSON или нет prob/rr).
+    Возвращает запись Top-5 вида {ticker, name, dir, ..., scenarios}, либо None,
+    если нет валидного сценария (не парсится JSON или нет prob/rr).
     """
     best = None
     for ana in tickers_analyses:
         if not ana.get("scenario_json"):
             continue
-        import json as _json
-
         try:
             data = _json.loads(ana["scenario_json"])
         except (ValueError, TypeError):
@@ -430,6 +496,10 @@ def best_strategy(tickers_analyses: list[dict]) -> dict | None:
                 "expected_r": round(er, 3),
                 "analysis_id": ana.get("id"),
                 "scenario": _scenario_metrics(sc),
+                # Все три сценария для раскрытия строки (идентично «Полному разбору»)
+                "scenarios": _all_scenarios(ana),
+                "price": ana.get("price"),
+                "as_of": ana.get("as_of"),
             }
             if best is None or candidate["expected_r"] > best["expected_r"]:
                 best = candidate
@@ -468,6 +538,7 @@ async def top5(session, template_id: int, limit: int = 5) -> dict:
             select(Security).where(Security.ticker.in_(tickers))
         )
         names = {s.ticker: s.name for s in secs.all()}
+    prices = await _current_prices(session, tickers)
     rows = []
     for ticker in tickers:
         ana = await _latest_analysis(session, ticker)
@@ -481,9 +552,18 @@ async def top5(session, template_id: int, limit: int = 5) -> dict:
                 "verdict": ana.verdict,
                 "scenario_json": ana.scenario_json,
                 "await_confirmation": ana.await_confirmation,
+                "price": prices.get(ana.ticker),
+                "as_of": ana.finished_at,
             }
         )
     results = _rank_best_rows(rows)
+    # Дата формирования прогноза: максимум finished_at по анализам, вошедшим в рейтинг
+    as_of = None
+    for r in results:
+        if r.get("as_of") is not None:
+            ts = r["as_of"].timestamp()
+            if as_of is None or ts > as_of.timestamp():
+                as_of = r["as_of"]
     # Агрегаты для панели метрик (как в макете)
     qualified = [r for r in results if _deal_qualified(r)]
     best_score_row = max(results, key=lambda r: r.get("score") or 0) if results and any(
@@ -492,6 +572,7 @@ async def top5(session, template_id: int, limit: int = 5) -> dict:
     return {
         "template_id": template_id,
         "template": {"id": template.id, "name": template.name, "kind": template.kind},
+        "as_of": as_of,
         "total": len(results),
         "qualified": len(qualified),
         "best_score": best_score_row["score"] if best_score_row else None,

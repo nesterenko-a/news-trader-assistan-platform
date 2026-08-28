@@ -333,3 +333,42 @@ async def test_run_batch_force_skips_fresh_reuse(session, monkeypatch):
     assert started == ["AAA"]
 
     await engine.dispose()
+
+
+def test_best_strategy_carries_distinct_scenarios_and_price():
+    """Правки Top-5 (docs/25): раскрытие строки — все 3 разных сценария (как «Полный разбор»),
+    а не один общий; текущая цена и время прогноза передаются в запись."""
+    from datetime import datetime
+
+    sc_a = {"title": "A основной", "entry": "100-105", "stop": "98", "targets": "110", "why": "wa",
+            "probability": 0.65, "rr": 2.5}
+    sc_b = {"title": "B альтернативный", "entry": "95", "stop": "92", "targets": "105", "why": "wb",
+            "probability": 0.25, "rr": 1.8}
+    sc_c = {"title": "C негативный", "entry": "", "stop": "", "targets": "", "why": "wc",
+            "probability": 0.10, "rr": 0.5}
+    ana = {
+        "ticker": "X",
+        "id": 1,
+        "name": "X Inc",
+        "verdict": "BUY",
+        "await_confirmation": False,
+        "price": 101.5,
+        "as_of": datetime(2026, 8, 1, 12, 0),
+        "scenario_json": json.dumps(
+            {"scenario_a": sc_a, "scenario_b": sc_b, "scenario_c": sc_c},
+            ensure_ascii=False,
+        ),
+    }
+    best = best_strategy([ana])
+    assert best is not None
+    assert best["price"] == 101.5
+    assert best["as_of"] == datetime(2026, 8, 1, 12, 0)
+    # три разных сценария A/B/C (не один общий)
+    sc = best["scenarios"]
+    assert sc["a"]["title"] == "A основной"
+    assert sc["b"]["title"] == "B альтернативный"
+    assert sc["c"]["title"] == "C негативный"
+    assert sc["a"]["entry"] == "100-105"
+    assert sc["b"]["entry"] == "95"
+    # лучший сценарий (макс. Expected R) — сценарий A
+    assert best["strategy"] == "scenario_a"

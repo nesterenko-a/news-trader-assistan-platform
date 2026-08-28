@@ -56,13 +56,20 @@
     <div>
       <h2 style="margin:0">Лучшие возможности</h2>
       <div class="muted small">Все стратегии по бумагам шаблона → скоринг → лучшие входы. Клик по заголовку R/R · Риск · Score — сортировка.</div>
+      {% if result.get('as_of') %}
+      <div class="muted small" style="margin-top:6px"><span class="label">Прогноз сформирован:</span> <b>{{ result['as_of'].strftime('%d.%m.%Y %H:%M') }}</b></div>
+      {% endif %}
     </div>
   </div>
 
   <div>
     <table class="table" id="top5-table">
       <thead><tr>
-        <th>#</th><th style="text-align:left">Бумага / стратегия</th><th style="text-align:left">Направление</th><th style="text-align:left">Вход</th><th style="text-align:left">Стоп</th>
+        <th>#</th>
+        <th style="text-align:left">Бумага / стратегия<span class="sort-hint" data-hint="strategy">?</span><span class="isort-tip" data-tip="strategy"><b>Стратегия</b><br>SА — сценарий А (основной) · SВ — сценарий B (альтернативный) · SС — сценарий C (негативный).<br>Строка = лучшая стратегия бумаги (макс. Score); все 3 сценария — в раскрытии строки и «Полном разборе».</span></th>
+        <th style="text-align:left">Направление</th>
+        <th style="text-align:left">Цена</th>
+        <th style="text-align:left">Вход</th><th style="text-align:left">Стоп</th>
         <th style="text-align:left">Цель</th>
         <th style="cursor:pointer" data-col="rr" class="sortable">
           R/R
@@ -96,9 +103,10 @@
         {% for r in result['items'] %}
         <tr class="top5-row" data-idx="{{ loop.index0 }}" data-dir="{{ r.dir }}" data-score="{{ r.score or 0 }}" data-rr="{{ r.rr or 0 }}" data-risk="{{ r.risk or 999 }}" style="cursor:pointer">
           <td class="t5-rank">{{ loop.index }}</td>
-          <td><div class="ticker-label"><b>{{ r.ticker }}</b> <span class="badge">S{{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }}</span></div>
+          <td><div class="ticker-label"><b>{{ r.ticker }}</b> <span class="badge" title="Стратегия — сценарий {{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }} (лучший по Score); все сценарии — в раскрытии строки / «Полном разборе»">S{{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }}</span></div>
               <div class="muted small">{{ r.name }}</div></td>
           <td>{% if r.dir == 'LONG' %}<span class="long">LONG</span>{% elif r.dir == 'SHORT' %}<span class="short">SHORT</span>{% else %}<span class="muted">Выжидать</span>{% endif %}{% if r.dir in ('LONG','SHORT') and r.await_confirmation %} <span class="await-conf" title="Стратегия определена, ждём подхода цены к точке входа и подтверждающих сигналов">⏳</span>{% endif %}</td>
+          <td>{% if r.price is not none %}{{ '%.2f' | format(r.price) }}{% else %}—{% endif %}</td>
           <td>{{ r.entry or '—' }}</td>
           <td>{{ r.stop or '—' }}</td>
           <td>{{ r.targets or '—' }}</td>
@@ -108,16 +116,17 @@
               {% if r.score is not none %}<div class="bar"><span style="width:{{ r.score }}%"></span></div>{% endif %}</td>
         </tr>
         <tr class="top5-detail" id="detail-{{ loop.index0 }}" style="display:none">
-          <td colspan="9">
+          <td colspan="10">
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">
-              {% for key, letter, color in [('scenario_a','A','#16a34a'),('scenario_b','B','#f59e0b'),('scenario_c','C','#dc2626')] %}
-              {% set sc = r.scenario %}
+              {% for key, letter, color in [('a','A','#16a34a'),('b','B','#f59e0b'),('c','C','#dc2626')] %}
+              {% set sc = r.scenarios[key] if (r.scenarios and r.scenarios.get(key)) else {} %}
               <div style="border:1px solid var(--border);border-top:3px solid {{ color }};border-radius:10px;padding:12px;background:var(--panel-2)">
                 <div class="chart-head"><b>Сценарий {{ letter }}</b></div>
                 {% if sc and sc.get('title') %}<p class="muted small" style="margin:6px 0"><b>{{ sc.title }}</b></p>{% endif %}
                 {% if sc and sc.get('entry') %}<div><span class="label">Вход</span><span class="value">{{ sc.entry }}</span></div>{% endif %}
                 {% if sc and sc.get('stop') %}<div><span class="label">Стоп</span><span class="value">{{ sc.stop }}</span></div>{% endif %}
                 {% if sc and sc.get('targets') %}<div><span class="label">Цели</span><span class="value">{{ sc.targets }}</span></div>{% endif %}
+                {% if sc and sc.get('probability') is not none %}<div><span class="label">Вероятность</span><span class="value">{{ '%.0f' | format(sc.probability * 100) }}%</span></div>{% endif %}
                 {% if sc and sc.get('why') %}<p class="muted small">{{ sc.why }}</p>{% endif %}
               </div>
               {% endfor %}
@@ -129,6 +138,7 @@
       </tbody>
     </table>
     <p class="muted small" style="margin-top:10px">Показана одна лучшая стратегия каждой бумаги (по Score). Раскройте строку, чтобы увидеть все 3 сценария «Моя стратегия».</p>
+    <p class="muted small"><b>Стратегия:</b> <span class="badge">SA</span> — сценарий A (основной) · <span class="badge">SB</span> — сценарий B (альтернативный) · <span class="badge">SC</span> — сценарий C (негативный); строка = лучший из трёх по Score.</p>
     <p class="muted small">Дисклеймер: материал носит информационный характер и не является инвестиционной рекомендацией. Значение «Score»/«conf» — оценка модели/аналитика, а не статистически подтверждённая вероятность.</p>
     <p class="muted small" style="margin-top:6px"><span class="await-conf">⏳</span> — стратегия определена (BUY/SELL), но ждём подхода цены к точке входа и подтверждающего сигнала.</p>
   </div>
@@ -161,25 +171,45 @@
       <tr class="batch-detail" id="batch-detail-{{ b['id'] }}" style="display:none">
         <td colspan="6">
           {% if b['top5'] %}
-          <h3 style="margin:4px 0 8px">Top-5 батча #{{ b['id'] }}</h3>
+          <h3 style="margin:4px 0 8px">Лучшие возможности (батч #{{ b['id'] }})</h3>
+          {% if b.get('as_of') %}<p class="muted small" style="margin:0 0 8px"><span class="label">Прогноз сформирован:</span> <b>{{ b['as_of'].strftime('%d.%m.%Y %H:%M') }}</b></p>{% endif %}
           <table class="table">
-            <thead><tr><th>#</th><th>Бумага</th><th>Направление</th><th>Вход</th><th>Стоп</th><th>Цель</th><th>R/R</th><th>Expected R</th><th></th></tr></thead>
+            <thead><tr><th>#</th><th style="text-align:left">Бумага / стратегия<span class="sort-hint" data-hint="strategy">?</span><span class="isort-tip" data-tip="strategy"><b>Стратегия</b><br>SА — сценарий А (основной) · SВ — сценарий B (альтернативный) · SС — сценарий C (негативный).<br>Строка = лучшая стратегия бумаги (макс. Score).</span></th><th style="text-align:left">Направление</th><th style="text-align:left">Цена</th><th style="text-align:left">Вход</th><th style="text-align:left">Стоп</th><th style="text-align:left">Цель</th><th>R/R</th><th>Expected R</th><th>Score</th><th></th></tr></thead>
             <tbody>
               {% for rb in b['top5'] %}
-              <tr>
+              <tr class="batch-top5-row" data-btop5="batch-{{ b['id'] }}-{{ loop.index0 }}" style="cursor:pointer">
                 <td>{{ loop.index }}</td>
-                <td><b>{{ rb['ticker'] }}</b></td>
+                <td><div class="ticker-label"><b>{{ rb['ticker'] }}</b> <span class="badge" title="Стратегия — сценарий {{ 'A' if rb['strategy'] == 'scenario_a' else ('B' if rb['strategy'] == 'scenario_b' else 'C') }} (лучший по Score)">S{{ 'A' if rb['strategy'] == 'scenario_a' else ('B' if rb['strategy'] == 'scenario_b' else 'C') }}</span></div></td>
                 <td>{% if rb['dir'] == 'LONG' %}<span class="long">LONG</span>{% elif rb['dir'] == 'SHORT' %}<span class="short">SHORT</span>{% else %}Выжидать{% endif %}{% if rb['dir'] in ('LONG','SHORT') and rb.get('await_confirmation') %} <span class="await-conf" title="Ждём подхода цены к точке входа и подтверждающих сигналов">⏳</span>{% endif %}</td>
+                <td>{% if rb.get('price') is not none %}{{ '%.2f' | format(rb['price']) }}{% else %}—{% endif %}</td>
                 <td>{{ rb['entry'] or '—' }}</td>
                 <td>{{ rb['stop'] or '—' }}</td>
                 <td>{{ rb['targets'] or '—' }}</td>
-                <td>{{ '%.2f' | format(rb['rr']) if rb['rr'] is not none else '—' }}</td>
-                <td><b>{{ '%.2f' | format(rb['expected_r']) }}</b></td>
+                <td><b>{{ '%.2f' | format(rb['rr']) if rb['rr'] is not none else '—' }}</b></td>
+                <td><b>{{ '%.2f' | format(rb['expected_r']) if rb.get('expected_r') is not none else '—' }}</b></td>
+                <td>{% if rb.get('score') is not none %}{{ '%.1f' | format(rb['score']) }}{% else %}—{% endif %}</td>
                 <td><a href="/tech_analysis/{{ rb['analysis_id'] }}">разбор →</a></td>
+              </tr>
+              <tr class="batch-top5-detail" id="btop5-detail-batch-{{ b['id'] }}-{{ loop.index0 }}" style="display:none">
+                <td colspan="11">
+                  {% for key, letter, color in [('a','A','#16a34a'),('b','B','#f59e0b'),('c','C','#dc2626')] %}
+                  {% set bsc = rb.get('scenarios', {}).get(key) if (rb.get('scenarios') and rb.get('scenarios').get(key)) else {} %}
+                  <div style="display:inline-block;vertical-align:top;width:220px;margin:0 8px 8px 0;border:1px solid var(--border);border-top:3px solid {{ color }};border-radius:10px;padding:12px;background:var(--panel-2)">
+                    <div class="chart-head"><b>Сценарий {{ letter }}</b></div>
+                    {% if bsc and bsc.get('title') %}<p class="muted small" style="margin:6px 0"><b>{{ bsc.title }}</b></p>{% endif %}
+                    {% if bsc and bsc.get('entry') %}<div><span class="label">Вход</span><span class="value">{{ bsc.entry }}</span></div>{% endif %}
+                    {% if bsc and bsc.get('stop') %}<div><span class="label">Стоп</span><span class="value">{{ bsc.stop }}</span></div>{% endif %}
+                    {% if bsc and bsc.get('targets') %}<div><span class="label">Цели</span><span class="value">{{ bsc.targets }}</span></div>{% endif %}
+                    {% if bsc and bsc.get('probability') is not none %}<div><span class="label">Вероятность</span><span class="value">{{ '%.0f' | format(bsc.probability * 100) }}%</span></div>{% endif %}
+                    {% if bsc and bsc.get('why') %}<p class="muted small">{{ bsc.why }}</p>{% endif %}
+                  </div>
+                  {% endfor %}
+                </td>
               </tr>
               {% endfor %}
             </tbody>
           </table>
+          <p class="muted small"><b>Стратегия:</b> <span class="badge">SA</span> — сценарий A (основной) · <span class="badge">SB</span> — сценарий B (альтернативный) · <span class="badge">SC</span> — сценарий C (негативный); строка = лучший из трёх по Score. Клик по строке раскрывает все 3 сценария.</p>
           {% else %}
           <p class="muted small">Готовых сценариев по этому батчу нет (анализы ещё выполняются или завершились без валидных prob/rr).</p>
           {% endif %}
@@ -320,6 +350,15 @@
   document.querySelectorAll('[data-batch-toggle]').forEach(function (el) {
     el.addEventListener('click', function () {
       toggleBatch(el.getAttribute('data-batch-toggle'));
+    });
+  });
+
+  // Раскрытие сценариев строки «Лучшие возможности» внутри истории батча
+  document.querySelectorAll('.batch-top5-row').forEach(function (row) {
+    row.addEventListener('click', function () {
+      var key = row.getAttribute('data-btop5');
+      var detail = document.getElementById('btop5-detail-' + key);
+      if (detail) detail.style.display = detail.style.display === 'none' ? '' : 'none';
     });
   });
 
