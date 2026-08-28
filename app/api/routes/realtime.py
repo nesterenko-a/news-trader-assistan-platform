@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
-from app.db.connection import get_session
+from app.db.connection import SessionLocal, get_session
 from app.db.models import (
     MarketOpenPosition,
     MarketOpenPositionClientGroup,
