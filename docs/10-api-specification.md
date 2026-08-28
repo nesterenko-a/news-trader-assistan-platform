@@ -1,6 +1,6 @@
 # 10. Спецификация API
 
-**Статус:** утверждено v1.27 (в `/v1/top5` добавлено поле `final_assessment` — Ключевой уровень/Главный риск/Моя рекомендация; ранее — `as_of`/`price`/`scenarios`; см. [25-top5-trades.md](./25-top5-trades.md))
+**Статус:** утверждено v1.28 (в `/v1/realtime/stream` для фьючерсов добавлено событие `oi` — OI/изменение/группы клиентов; ранее — `quote`, `as_of`/`price`/`scenarios`/`final_assessment` в `/v1/top5`; см. [25-top5-trades.md](./25-top5-trades.md) и [24-market-realtime.md](./24-market-realtime.md))
 **Система:** NewsTrader Assistant
 
 Программный интерфейс системы. Спецификация концептуальная; точные схемы запросов/ответов фиксируются на этапе разработки (например, в формате OpenAPI) и должны соответствовать этому документу.
@@ -295,6 +295,13 @@ GET /v1/indicators/oi?ticker=W4V6&from=2026-07-20&to=2026-08-05
   ```
 
   Если по тикеру нет записи — событие не шлётся. Комментарий `: keep-alive` для поддержания соединения; при отключении клиента стрим завершается. Эндпоинт агностичен к демону: читает `RealTimeQuote` из БД.
+
+  Для **фьючерсов** с данными OI дополнительно шлётся `event: oi` (последний `open_position`, изменение к предыдущему дню, группы клиентов физ/юр), читающий `market_open_positions`:
+
+  ```
+  event: oi
+  data: {"ticker":"W4V6","date":"2026-08-28","open_position":3270,"change_pct":1.05,"groups":{"physical":{"long":...,"short":...,"net":...},"juridical":{...}}}
+  ```
 
 - Админ-настройки (роут страницы, только роль `admin`):
   - `POST /admin/realtime/save` — сохранить настройки: `realtime_enabled` (on/off), `interval_quotes_sec`, `interval_candles_sec`, `interval_oi_sec` (положительные), `futures_template_id` (пусто/невалид → шаблон не выбран); 303-редирект на `/admin`.
