@@ -254,6 +254,95 @@ main { padding: 24px 16px 40px; }
   box-shadow: 0 0 0 1px var(--accent);
 }
 
+/* --- Блок «Состав шаблона» на /top5 (макет облака тикеров) --- */
+.tpl-cloud {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  max-height: 74px; /* ≈ 2 строки тегов + отступы */
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.tpl-cloud::-webkit-scrollbar { width: 6px; }
+.tpl-cloud::-webkit-scrollbar-track { background: transparent; border-radius: 10px; }
+.tpl-cloud::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+.tpl-cloud-mask { position: relative; }
+.tpl-cloud-mask::before,
+.tpl-cloud-mask::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 14px;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.tpl-cloud-mask.tpl-can-scroll::before {
+  top: 0;
+  background: linear-gradient(to bottom, var(--panel), transparent);
+  border-radius: 12px 12px 0 0;
+}
+.tpl-cloud-mask.tpl-can-scroll::after {
+  bottom: 0;
+  background: linear-gradient(to top, var(--panel), transparent);
+  border-radius: 0 0 12px 12px;
+}
+.tpl-list { display: flex; flex-wrap: wrap; gap: 6px 8px; padding: 2px 0; }
+.tpl-tag {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 3px 10px;
+  border-radius: 40px;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.tpl-tag:hover { border-color: var(--accent); }
+/* Панель управления */
+.tpl-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-top: 12px;
+}
+.tpl-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 40px;
+  padding: 5px 14px;
+}
+.tpl-control .label { margin: 0; }
+.tpl-control select {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 40px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+.tpl-priority-chip {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 40px;
+}
+.tpl-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; white-space: nowrap; }
+.tpl-toggle input[type="checkbox"] { accent-color: var(--accent); }
+
+
 .levels { margin: 8px 0; color: var(--muted); font-size: 14px; }
 .levels b { color: var(--text); }
 .rationale { border-left: 3px solid var(--accent); padding-left: 12px; color: var(--text); }

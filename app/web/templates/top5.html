@@ -29,24 +29,45 @@
 
 {% if selected_template %}
 <section class="card" style="margin-top:12px">
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
-    <div style="flex:1;min-width:0">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+    <div style="display:flex;align-items:center;gap:10px">
       <h2 style="margin:0">{{ selected_template.name }}</h2>
-      <p class="muted small" style="margin:4px 0 0;overflow-wrap:anywhere;word-break:break-word;white-space:normal">Состав: {{ selected_template.tickers }}</p>
+      <span class="badge">Все</span>
     </div>
-    <div style="display:flex;align-items:flex-start;gap:14px;flex-shrink:0">
-      <div>
-        <label class="muted small" style="display:block;margin-bottom:6px">LLM для анализа</label>
-        <select id="btn-provider">
-          <option value="">Авто (приоритет ChatGPT)</option>
-          <option value="chatgpt">ChatGPT: {{ llm_models.chatgpt }}</option>
-          <option value="deepseek">DeepSeek: {{ llm_models.deepseek }}</option>
-        </select>
+    <span class="muted small">Состав шаблона — {{ (selected_template.tickers.split(',') | reject('equalto','') | list | length) }} бумаг</span>
+  </div>
+
+  <div class="tpl-cloud-mask">
+    <div class="tpl-cloud" id="tpl-cloud">
+      <div class="tpl-list">
+        {% for tk in selected_template.tickers.split(',') if tk.strip() %}
+        <span class="tpl-tag">{{ tk.strip() }}</span>
+        {% endfor %}
       </div>
-      <label class="muted small" style="white-space:nowrap;display:inline-flex;align-items:center;gap:6px" title="Игнорирует время свежести анализа (TOP5_FRESH_HOURS) и перезапускает Теханализ по всем акциям шаблона">
-        <input type="checkbox" id="btn-force"> Принудительно обновить
+    </div>
+  </div>
+
+  <div class="tpl-controls">
+    <div class="tpl-control">
+      <label class="label" for="btn-provider"><span>🧠</span> LLM для анализа</label>
+      <select id="btn-provider">
+        <option value="">Авто</option>
+        <option value="chatgpt">ChatGPT</option>
+        <option value="deepseek">DeepSeek</option>
+      </select>
+    </div>
+    <div class="tpl-control">
+      <span class="label"><span>⚡</span> Приоритет:</span>
+      <span class="tpl-priority-chip" id="tpl-priority">Авто</span>
+    </div>
+    <div class="tpl-control" style="background:var(--panel-2)">
+      <label class="tpl-toggle" title="Игнорирует время свежести анализа (TOP5_FRESH_HOURS) и перезапускает Теханализ по всем акциям шаблона">
+        <input type="checkbox" id="btn-force">
+        <span>Принудительно обновить</span>
       </label>
-      <button class="btn active" id="btn-run" type="button" style="white-space:nowrap" {% if result and result.get('running') %}disabled{% endif %}>Отправить на Теханализ в LLM</button>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button class="btn active" id="btn-run" type="button" {% if result and result.get('running') %}disabled{% endif %}><span>📊</span>Теханализ в LLM</button>
     </div>
   </div>
   <div id="run-progress" class="muted small" style="margin-top:10px"></div>
@@ -263,6 +284,50 @@
   var progress = document.getElementById('run-progress');
   var templateId = {{ selected_template_id | default('null') if selected_template_id else 'null' }};
   if (!btn || !templateId) return;
+
+  // --- Облако тикеров: маска прокрутки (показываем, если контент выходит за 2 строки) ---
+  (function () {
+    var cloud = document.getElementById('tpl-cloud');
+    var mask = cloud ? cloud.parentElement : null;
+    if (!cloud || !mask) return;
+    function checkOverflow() {
+      var overflowing = cloud.scrollHeight > cloud.clientHeight + 2;
+      mask.classList.toggle('tpl-can-scroll', overflowing);
+    }
+    window.addEventListener('load', checkOverflow);
+    window.addEventListener('resize', checkOverflow);
+    setTimeout(checkOverflow, 300);
+  })();
+
+  // --- Приоритет LLM: восстановление из cookie + отображение чипа "Приоритет" ---
+  function getCookie(name) {
+    var m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+  function setCookie(name, value, days) {
+    var d = new Date();
+    d.setTime(d.getTime() + (days || 365) * 24 * 60 * 60 * 1000);
+    document.cookie = name + '=' + encodeURIComponent(value) + '; expires=' + d.toUTCString() + '; path=/';
+  }
+  var PRIORITY_KEY = 'top5_llm_priority';
+  var providerSel = document.getElementById('btn-provider');
+  var priorityChip = document.getElementById('tpl-priority');
+  function labelForPriority(val) {
+    if (val === 'chatgpt') return 'ChatGPT';
+    if (val === 'deepseek') return 'DeepSeek';
+    return 'Авто';
+  }
+  if (providerSel) {
+    var saved = getCookie(PRIORITY_KEY);
+    if (saved === 'chatgpt' || saved === 'deepseek') {
+      providerSel.value = saved;
+    }
+    if (priorityChip) priorityChip.textContent = labelForPriority(providerSel.value);
+    providerSel.addEventListener('change', function () {
+      setCookie(PRIORITY_KEY, providerSel.value);
+      if (priorityChip) priorityChip.textContent = labelForPriority(providerSel.value);
+    });
+  }
 
   btn.addEventListener('click', function () {
     btn.disabled = true;

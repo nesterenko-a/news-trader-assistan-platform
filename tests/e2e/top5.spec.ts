@@ -14,6 +14,19 @@ test.describe("Top-5: лучшая сделка из шаблона акций",
     // селектор выбора LLM (Авто/ChatGPT/DeepSeek) по аналогии с одиночным анализом
     await expect(page.locator("label", { hasText: "LLM для анализа" })).toBeVisible();
     await expect(page.locator("#btn-provider")).toBeVisible();
+    // облако тикеров «Состав шаблона»
+    await expect(page.locator("#tpl-cloud")).toBeVisible();
+    await expect(page.locator(".tpl-tag").first()).toBeVisible();
+    // приоритет LLM сохраняется между перезагрузками (cookie)
+    await expect(page.locator("#tpl-priority")).toHaveText("Авто");
+    await page.selectOption("#btn-provider", "deepseek");
+    await expect(page.locator("#tpl-priority")).toHaveText("DeepSeek");
+    await page.reload();
+    await page.waitForLoadState("domcontentloaded");
+    await expect(page.locator("#btn-provider")).toHaveValue("deepseek");
+    await expect(page.locator("#tpl-priority")).toHaveText("DeepSeek");
+    // приводим приоритет к дефолту, чтобы не влиять на прочие прогоны
+    await page.selectOption("#btn-provider", "");
     // история запусков батчей по шаблону (из сидинга)
     await expect(page.locator("h2", { hasText: "История запусков Top-5" })).toBeVisible();
     await expect(page.locator("[data-batch-toggle]").first()).toBeVisible();
