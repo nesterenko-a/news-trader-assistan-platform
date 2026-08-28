@@ -240,6 +240,20 @@ main { padding: 24px 16px 40px; }
 .label { display: block; font-size: 12px; color: var(--muted); }
 .value { font-size: 17px; font-weight: 600; }
 
+/* Карточки выбора шаблона акций на /top5 */
+.top5-tpl-card {
+  border: 1px solid var(--border);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.top5-tpl-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.top5-tpl-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
 .levels { margin: 8px 0; color: var(--muted); font-size: 14px; }
 .levels b { color: var(--text); }
 .rationale { border-left: 3px solid var(--accent); padding-left: 12px; color: var(--text); }

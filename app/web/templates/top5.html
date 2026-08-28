@@ -9,19 +9,22 @@
 </div>
 
 <section class="card">
-  <form method="get" action="/top5" id="tpl-select-form" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-    <div style="flex:1;min-width:260px">
-      <label class="muted small" style="display:block;margin-bottom:6px">Шаблон акций (kind=stock)</label>
-      <select name="template_id" id="tpl-select" style="width:100%">
-        <option value="">— выберите шаблон —</option>
-        {% for t in templates %}
-        <option value="{{ t.id }}" {% if selected_template_id == t.id %}selected{% endif %}>{{ t.name }} ({{ t.tickers }})</option>
-        {% endfor %}
-      </select>
-    </div>
-    <button class="btn" type="submit">Показать выбор</button>
-  </form>
-  {% if not templates %}<p class="muted small" style="margin-top:8px">Шаблонов акций пока нет — создайте «Шаблон инструментов» типа «Акции» в админ-панели (<a href="/admin/futures-templates">Шаблоны инструментов</a>).</p>{% endif %}
+  <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap">
+    <h2 style="margin:0">Шаблон акций (kind=stock)</h2>
+    {% if templates %}<span class="muted small">Клик по карточке выбирает шаблон</span>{% endif %}
+  </div>
+  {% if templates %}
+  <div class="grid top5-tpl-grid" style="margin-top:12px">
+    {% for t in templates %}
+    <a class="mini top5-tpl-card {% if selected_template_id == t.id %}top5-tpl-active{% endif %}" href="/top5?template_id={{ t.id }}" style="text-decoration:none;cursor:pointer">
+      <span class="label">{{ t.name }}</span>
+      <span class="muted small" style="display:block;margin-top:4px">Бумаг: {{ t.tickers.split(',') | length }}{% if selected_template_id == t.id %} · выбрано{% endif %}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted small" style="margin-top:8px">Шаблонов акций пока нет — создайте «Шаблон инструментов» типа «Акции» в админ-панели (<a href="/admin/futures-templates">Шаблоны инструментов</a>).</p>
+  {% endif %}
 </section>
 
 {% if selected_template %}

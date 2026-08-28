@@ -6,10 +6,9 @@ test.describe("Top-5: лучшая сделка из шаблона акций",
     await login(page, USER.username, USER.password);
     await page.goto("/top5");
     await expect(page.locator("h1", { hasText: "Top 5" }).first()).toBeVisible();
-    await expect(page.locator('select[name="template_id"]')).toBeVisible();
-    // выбираем сидовый шаблон акций и смотрим результат
-    await page.selectOption('select[name="template_id"]', { label: "e2e_top5 (SBER)" });
-    await page.click('button[type="submit"]');
+    // выбор шаблона — карточки (клик = выбор шаблона)
+    await expect(page.locator("a.top5-tpl-card").first()).toBeVisible();
+    await page.locator("a.top5-tpl-card", { hasText: "e2e_top5" }).first().click();
     await page.waitForLoadState("domcontentloaded");
     await expect(page.locator("h2", { hasText: "e2e_top5" })).toBeVisible();
     // селектор выбора LLM (Авто/ChatGPT/DeepSeek) по аналогии с одиночным анализом
@@ -36,8 +35,7 @@ test.describe("Top-5: лучшая сделка из шаблона акций",
   test("раскрытие сценариев по клику на строку", async ({ page }) => {
     await login(page, USER.username, USER.password);
     await page.goto("/top5");
-    await page.selectOption('select[name="template_id"]', { label: "e2e_top5 (SBER)" });
-    await page.click('button[type="submit"]');
+    await page.locator("a.top5-tpl-card", { hasText: "e2e_top5" }).first().click();
     await page.waitForLoadState("domcontentloaded");
     const row = page.locator(".top5-row").first();
     if (await row.count()) {
