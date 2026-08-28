@@ -49,18 +49,18 @@
   {% endif %}
 
   {% if quotes %}
-  <div class="grid">
+  <div class="grid" id="rt-quotes" data-ticker="{{ view.ticker }}">
     <div class="mini">
       <span class="label">Цена</span>
-      <span class="value">{{ quotes.price }}</span>
+      <span class="value" id="rt-price">{{ quotes.price }}</span>
     </div>
     <div class="mini">
       <span class="label">Макс/мин</span>
-      <span class="value">{{ quotes.high }} / {{ quotes.low }}</span>
+      <span class="value" id="rt-highlow">{{ quotes.high }} / {{ quotes.low }}</span>
     </div>
     <div class="mini">
       <span class="label">Объём</span>
-      <span class="value">{{ quotes.volume }}</span>
+      <span class="value" id="rt-volume">{{ quotes.volume }}</span>
     </div>
   </div>
   {% endif %}

@@ -30,6 +30,7 @@
     <include file="changelogs/023_tech_analysis_provider.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/024_tech_analysis_text_columns.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/025_tech_analysis_price.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/026_market_realtime.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/027_top5_trades.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/028_tech_analysis_await_confirmation.xml" relativeToChangelogFile="true"/>
 

@@ -49,3 +49,53 @@ async function capturePage() {
     captureForeignObject();
   }
 }
+
+// Реальное время (docs/24): JS подписка на SSE live-котировок на карточке бумаги.
+function initRealtimeQuotes() {
+  const wrap = document.getElementById("rt-quotes");
+  if (!wrap) return;
+  const ticker = wrap.getAttribute("data-ticker");
+  if (!ticker) return;
+
+  const priceEl = document.getElementById("rt-price");
+  const hlEl = document.getElementById("rt-highlow");
+  const volEl = document.getElementById("rt-volume");
+
+  let es = null;
+  function open() {
+    if (es) es.close();
+    es = new EventSource("/v1/realtime/stream?tickers=" + encodeURIComponent(ticker));
+    es.addEventListener("quote", function (e) {
+      let data;
+      try {
+        data = JSON.parse(e.data);
+      } catch (err) {
+        return;
+      }
+      if (data.ticker !== ticker) return;
+      if (data.last != null && priceEl) priceEl.textContent = data.last;
+      if (hlEl && (data.high != null || data.low != null)) {
+        const h = data.high != null ? data.high : "";
+        const l = data.low != null ? data.low : "";
+        hlEl.textContent = (h + " / " + l).trim();
+      }
+      if (volEl && data.volume != null) volEl.textContent = data.volume;
+    });
+    es.onerror = function () {
+      // Страница может быть неавторизована/демон выключен — закрываем, не падаем.
+      if (es) es.close();
+      es = null;
+    };
+  }
+  open();
+  // Навигация SPA не используется; при уходе со страницы EventSource закроется сам.
+  window.addEventListener("pagehide", function () {
+    if (es) es.close();
+  });
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initRealtimeQuotes);
+} else {
+  initRealtimeQuotes();
+}

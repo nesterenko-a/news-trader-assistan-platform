@@ -56,6 +56,7 @@ from app.db.models import (
     MarketCandle,
     MarketOpenPosition,
     PortfolioPosition,
+    RealtimeConfig,
     ScriptRun,
     Security,
     Source,
@@ -83,6 +84,7 @@ from app.api.routes.sources import (
 from app.news.feed_check import check_website, validate_feed_url
 from app.schemas import FeedCheckIn, FeedSearchIn, SourceIn
 from app.market.moex import MOEXClient
+from app.market.realtime import ensure_config as realtime_ensure_config
 from app.market.oi_data import (
     client_groups_series,
     futures_for_security,
@@ -2016,6 +2018,14 @@ async def admin_page(
         for run in runs
     ]
     futures_templates = (await session.scalars(select(FuturesTemplate).order_by(FuturesTemplate.name))).all()
+    realtime_cfg = await realtime_ensure_config(session)
+    # Статус демона: последний запуск realtime_updater из истории
+    rt_run = await session.scalar(
+        select(ScriptRun)
+        .where(ScriptRun.script_name == "realtime_updater")
+        .order_by(ScriptRun.id.desc())
+        .limit(1)
+    )
     context = await _base_context(session, user)
     context.update(
         {
@@ -2028,9 +2038,51 @@ async def admin_page(
             "tpl_name_error": request.query_params.get("error") == "3",
             "tpl_ticker_error": request.query_params.get("error") == "4",
             "busy_error": request.query_params.get("busy") == "1",
+            "realtime": realtime_cfg,
+            "realtime_run": rt_run,
         }
     )
     return templates.TemplateResponse(request, "admin.html", context)
+
+
+@router.post("/admin/realtime/save")
+async def admin_realtime_save(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
+    form = await request.form()
+
+    def _pos_int(name: str, default: int) -> int:
+        try:
+            return max(1, int(str(form.get(name) or default)))
+        except ValueError:
+            return default
+
+    config = await realtime_ensure_config(session)
+    config.enabled = str(form.get("realtime_enabled") or "") == "on"
+    config.interval_quotes_sec = _pos_int("interval_quotes_sec", 60)
+    config.interval_candles_sec = _pos_int("interval_candles_sec", 300)
+    config.interval_oi_sec = _pos_int("interval_oi_sec", 900)
+
+    tpl_raw = str(form.get("futures_template_id") or "").strip()
+    tpl_id = None
+    if tpl_raw:
+        try:
+            tpl = await session.get(FuturesTemplate, int(tpl_raw))
+            if tpl is not None:
+                tpl_id = tpl.id
+        except ValueError:
+            tpl_id = None
+    config.futures_template_id = tpl_id
+
+    config.updated_at = datetime.now(timezone.utc)
+    await session.commit()
+    return RedirectResponse(url="/admin", status_code=303)
 
 
 @router.post("/admin/scripts/run")

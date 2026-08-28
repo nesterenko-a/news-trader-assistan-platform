@@ -531,3 +531,53 @@ class TechAnalysis(Base):
         DateTime(timezone=True), default=datetime.utcnow, server_default=func.now()
     )
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class RealtimeConfig(Base):
+    """Настройки реалтайм-актуализации (демон + live-котировки), см. docs/24.
+
+    Singleton: одна строка, создаётся при сидинге (seed_db) или сервисом при
+    первом чтении. Настройки перечитываются демоном каждую итерацию.
+    """
+
+    __tablename__ = "realtime_config"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    interval_quotes_sec: Mapped[int] = mapped_column(Integer, default=60)
+    interval_candles_sec: Mapped[int] = mapped_column(Integer, default=300)
+    interval_oi_sec: Mapped[int] = mapped_column(Integer, default=900)
+    futures_template_id: Mapped[int | None] = mapped_column(
+        ForeignKey("futures_templates.id"), nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        server_default=func.now(),
+        onupdate=datetime.utcnow,
+    )
+
+
+class RealTimeQuote(Base):
+    """Live-котировка бумаги (одна запись на security_id, upsert), см. docs/24.
+
+    Поля — LAST/OHLC/объём дня из MOEX ISS. При отсутствии данных MOEX (LAST=None)
+    предыдущее значение last не перезаписывается.
+    """
+
+    __tablename__ = "real_time_quotes"
+
+    security_id: Mapped[int] = mapped_column(
+        ForeignKey("securities.id"), primary_key=True
+    )
+    last: Mapped[float | None] = mapped_column(nullable=True)
+    open: Mapped[float | None] = mapped_column(nullable=True)
+    high: Mapped[float | None] = mapped_column(nullable=True)
+    low: Mapped[float | None] = mapped_column(nullable=True)
+    volume: Mapped[int] = mapped_column(BigInteger, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        server_default=func.now(),
+        onupdate=datetime.utcnow,
+    )

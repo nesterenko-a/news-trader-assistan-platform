@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+
+    <!-- Realtime (демон актуализации + live-котировки SSE), см. docs/24.
+         Настройки realtime — singleton-строка (одна). -->
+    <changeSet id="0260-realtime-config" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="realtime_config"/>
+            </not>
+        </preConditions>
+        <createTable tableName="realtime_config">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="enabled" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="interval_quotes_sec" type="int" defaultValueNumeric="60">
+                <constraints nullable="false"/>
+            </column>
+            <column name="interval_candles_sec" type="int" defaultValueNumeric="300">
+                <constraints nullable="false"/>
+            </column>
+            <column name="interval_oi_sec" type="int" defaultValueNumeric="900">
+                <constraints nullable="false"/>
+            </column>
+            <column name="futures_template_id" type="bigint">
+                <constraints nullable="true" foreignKeyName="fk_realtime_config_futures_template_id" references="futures_templates(id)"/>
+            </column>
+            <column name="updated_at" type="timestamptz" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <!-- Live-котировки (одна запись на бумагу, upsert). -->
+    <changeSet id="0261-realtime-quotes" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="real_time_quotes"/>
+            </not>
+        </preConditions>
+        <createTable tableName="real_time_quotes">
+            <column name="security_id" type="bigint">
+                <constraints primaryKey="true" nullable="false" foreignKeyName="fk_real_time_quotes_security_id" references="securities(id)"/>
+            </column>
+            <column name="last" type="double precision"/>
+            <column name="open" type="double precision"/>
+            <column name="high" type="double precision"/>
+            <column name="low" type="double precision"/>
+            <column name="volume" type="bigint" defaultValueNumeric="0"/>
+            <column name="updated_at" type="timestamptz" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+</databaseChangeLog>

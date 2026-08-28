@@ -68,6 +68,53 @@
   <a class="btn" href="/admin/futures-templates" style="margin-top:8px">Управление шаблонами →</a>
 </section>
 
+{% if realtime %}
+<section class="card">
+  <h2>Реальное время</h2>
+  <p class="muted small" style="margin-top:6px">Автономный демон актуализации рыночных данных: live-котировки по акциям (watchlist + mvp-тикеры) и свечи/OI фьючерсов выбранного шаблона. Запускается карточкой «Актуализация рынка (демон)» в списке скриптов.</p>
+  <form method="post" action="/admin/realtime/save" class="btn-form" style="margin-top:10px;display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
+    <label class="muted small" style="display:flex;flex-direction:column;gap:4px">
+      Актуализация
+      <input type="hidden" name="realtime_enabled" value="off">
+      <input type="checkbox" name="realtime_enabled" value="on" {% if realtime.enabled %}checked{% endif %}>
+    </label>
+    <label class="muted small" style="display:flex;flex-direction:column;gap:4px">
+      Котировки (сек)
+      <input type="number" name="interval_quotes_sec" min="1" value="{{ realtime.interval_quotes_sec }}">
+    </label>
+    <label class="muted small" style="display:flex;flex-direction:column;gap:4px">
+      Свечи (сек)
+      <input type="number" name="interval_candles_sec" min="1" value="{{ realtime.interval_candles_sec }}">
+    </label>
+    <label class="muted small" style="display:flex;flex-direction:column;gap:4px">
+      OI фьючерсов (сек)
+      <input type="number" name="interval_oi_sec" min="1" value="{{ realtime.interval_oi_sec }}">
+    </label>
+    <label class="muted small" style="display:flex;flex-direction:column;gap:4px">
+      Шаблон фьючерсов
+      <select name="futures_template_id" style="min-width:180px">
+        <option value="">— не выбран (фьючерсы не обновляются) —</option>
+        {% for t in templates %}
+        {% if t.kind == "futures" %}
+        <option value="{{ t.id }}" {% if realtime.futures_template_id == t.id %}selected{% endif %}>{{ t.name }}</option>
+        {% endif %}
+        {% endfor %}
+      </select>
+    </label>
+    <button class="btn" type="submit">Сохранить</button>
+  </form>
+  {% if realtime_run %}
+  <p class="muted small" style="margin-top:10px">
+    Статус демона: последний запуск <strong>{{ realtime_run.status }}</strong> ({{ realtime_run.started_at.strftime('%d.%m.%Y %H:%M') if realtime_run.started_at else '—' }})
+    {% if realtime_run.exit_code != 0 and realtime_run.status == 'failed' %} · код {{ realtime_run.exit_code }}{% endif %}
+  </p>
+  {% endif %}
+  {% if not templates %}
+  <p class="muted small" style="margin-top:6px">Шаблонов ещё нет — создайте в карточке «Управление шаблонами →».</p>
+  {% endif %}
+</section>
+{% endif %}
+
 <section class="card">
   <h2>Граф влияний (научные ссылки)</h2>
   <p class="muted small" style="margin-top:6px">Дополнение knowledge graph научными/аналитическими обоснованиями (FR-05-08): прикрепить ссылку к существующему ребру или создать новое ребро/сущность.</p>

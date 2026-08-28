@@ -8,6 +8,7 @@ from app.api.routes import (
     macro,
     paper,
     portfolio,
+    realtime,
     securities,
     sources,
     strategies,
@@ -28,6 +29,7 @@ api_router.include_router(strategies.router)
 api_router.include_router(alerts.router)
 api_router.include_router(macro.router)
 api_router.include_router(paper.router)
+api_router.include_router(realtime.router)
 api_router.include_router(indicators.router)
 api_router.include_router(sources.router)
 api_router.include_router(tech_analysis.router)

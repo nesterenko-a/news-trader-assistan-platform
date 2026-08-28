@@ -232,6 +232,21 @@ SCRIPTS: list[dict] = [
         "args": ["--all"],
         "hidden": True,
     },
+    {
+        "key": "realtime_updater",
+        "module": "scripts.realtime_updater",
+        "title": "Актуализация рынка (демон)",
+        "no_timeout": True,
+        "description": (
+            "Демон-процесс актуализации рыночных данных в реальном времени: "
+            "live-котировки, дневные свечи и OI фьючерсов по настройкам "
+            "(тумблер включения, интервалы, шаблон фьючерсов) в админ-панели "
+            "«Реальное время». Запускать как демон, когда нужна актуальность "
+            "данных; останавливать при необходимости. Не собирает новости. "
+            "Настройки в админ-панели, блок «Реальное время»."
+        ),
+        "param": None,
+    },
 ]
 
 SCRIPTS_BY_KEY = {s["key"]: s for s in SCRIPTS}
@@ -243,13 +258,23 @@ def get_script(key: str) -> dict | None:
     return SCRIPTS_BY_KEY.get(key)
 
 
-def script_timeout_seconds(script_key: str) -> int:
+def script_timeout_seconds(script_key: str) -> int | None:
     """Таймаут запуска скрипта (сек).
 
     Приоритет: env `SCRIPT_TIMEOUT_SECONDS_<KEY>` (например
     SCRIPT_TIMEOUT_SECONDS_UPDATE_OI) > дефолт скрипта в SCRIPTS
     (timeout_seconds) > глобальный settings.script_timeout_seconds.
+    Для демонов (realtime_updater) при `no_timeout: True` возвращается None —
+    asyncio.timeout(None) отменяет таймаут (демон живёт до остановки).
     """
+    if get_script(script_key) is not None and get_script(script_key).get("no_timeout"):
+        env_value = os.getenv(f"SCRIPT_TIMEOUT_SECONDS_{script_key.upper()}")
+        if env_value:
+            try:
+                return int(env_value)
+            except ValueError:
+                pass
+        return None
     env_value = os.getenv(f"SCRIPT_TIMEOUT_SECONDS_{script_key.upper()}")
     if env_value:
         try:
