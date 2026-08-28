@@ -15,6 +15,15 @@ _JSON_BLOCK_RE = re.compile(
     r"```json\s*(\{.*?\})\s*```", re.DOTALL
 )
 
+# Поля «Итоговой оценки» (раздел 11 ответа LLM), извлекаемые для Top-5:
+# Ключевой уровень · Главный риск · Моя рекомендация.
+_FINAL_ASSESSMENT_LABELS = ["Ключевой уровень", "Главный риск", "Моя рекомендация"]
+_FINAL_ASSESSMENT_KEYS = {
+    "Ключевой уровень": "key_level",
+    "Главный риск": "main_risk",
+    "Моя рекомендация": "recommendation",
+}
+
 
 def extract_json_block(response_md: str) -> dict | None:
     """Извлекает первый ```json ... ``` блок из ответа."""
@@ -108,3 +117,39 @@ def parse_response(response_md: str) -> dict:
         ensure_ascii=False,
     )
     return parsed
+
+
+def parse_final_assessment(response_md: str) -> dict:
+    """Извлекает из ответа LLM (раздел «11. Итоговая оценка») три поля:
+    key_level (Ключевой уровень) · main_risk (Главный риск) · recommendation (Моя рекомендация).
+
+    Значения — строки (может быть многострочный текст, схлопывается через пробел).
+    Если поле отсутствует/пусто — пустая строка.
+    """
+    out = {"key_level": "", "main_risk": "", "recommendation": ""}
+    if not response_md:
+        return out
+    # Обрезаем JSON-блок в конце ответа, чтобы он не попал в значение рекомендации
+    text = response_md
+    json_pos = text.find("```json")
+    if json_pos != -1:
+        text = text[:json_pos]
+
+    positions = []
+    for label in _FINAL_ASSESSMENT_LABELS:
+        for match in re.finditer(re.escape(label) + r"\s*:", text):
+            positions.append((match.start(), label))
+    positions.sort(key=lambda p: p[0])
+    if not positions:
+        return out
+
+    for idx, (start, label) in enumerate(positions):
+        end = positions[idx + 1][0] if idx + 1 < len(positions) else len(text)
+        chunk = text[start:end]
+        head, _, body = chunk.partition(":")
+        # Убираем «…»-заглушки и маркеры списка
+        lines = [ln.strip().lstrip("-• ") for ln in body.splitlines() if ln.strip()]
+        lines = [ln for ln in lines if ln.strip().rstrip("….") != ""]
+        val = " ".join(lines).strip()
+        out[_FINAL_ASSESSMENT_KEYS[label]] = val
+    return out

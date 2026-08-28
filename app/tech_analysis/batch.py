@@ -17,7 +17,7 @@ from sqlalchemy import select
 
 from app.config import get_settings
 from app.db.models import FuturesTemplate, MarketCandle, RealTimeQuote, TechAnalysis, TechAnalysisBatch
-from app.tech_analysis.parser import expected_r
+from app.tech_analysis.parser import expected_r, parse_final_assessment
 from app.tech_analysis.service import start_analysis
 
 # Порог свежести анализа на акцию (если анализ успешен и не старше — переиспользуем)
@@ -215,6 +215,7 @@ async def list_batches(session, template_id: int, limit: int = 10) -> list[dict]
                 "scenario_json": a.scenario_json,
                 "await_confirmation": a.await_confirmation,
                 "finished_at": a.finished_at,
+                "response_md": a.response_md,
             }
             for a in analyses
         ]
@@ -232,6 +233,7 @@ async def list_batches(session, template_id: int, limit: int = 10) -> list[dict]
                     "await_confirmation": a.get("await_confirmation"),
                     "price": prices.get(a["ticker"]),
                     "as_of": a.get("finished_at"),
+                    "response_md": a.get("response_md"),
                 }
                 for a in items
                 if a["status"] == "success" and a.get("scenario_json")
@@ -500,6 +502,8 @@ def best_strategy(tickers_analyses: list[dict]) -> dict | None:
                 "scenarios": _all_scenarios(ana),
                 "price": ana.get("price"),
                 "as_of": ana.get("as_of"),
+                # Ключевой уровень / Главный риск / Моя рекомендация (из «Итоговой оценки»)
+                "final_assessment": parse_final_assessment(ana.get("response_md") or ""),
             }
             if best is None or candidate["expected_r"] > best["expected_r"]:
                 best = candidate
@@ -554,6 +558,7 @@ async def top5(session, template_id: int, limit: int = 5) -> dict:
                 "await_confirmation": ana.await_confirmation,
                 "price": prices.get(ana.ticker),
                 "as_of": ana.finished_at,
+                "response_md": ana.response_md,
             }
         )
     results = _rank_best_rows(rows)

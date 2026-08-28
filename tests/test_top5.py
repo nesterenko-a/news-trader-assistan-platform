@@ -372,3 +372,46 @@ def test_best_strategy_carries_distinct_scenarios_and_price():
     assert sc["b"]["entry"] == "95"
     # лучший сценарий (макс. Expected R) — сценарий A
     assert best["strategy"] == "scenario_a"
+
+
+def test_parse_final_assessment():
+    from app.tech_analysis.parser import parse_final_assessment
+
+    md = """## 11. Итоговая оценка
+
+### Итоговая оценка
+
+Направление: 🟢 BUY
+
+Среднесрочно: 7/10 в пользу роста
+Краткосрочно: 6/10 в пользу роста
+Качество точки входа сейчас: 7/10
+
+Лучший вход:
+3180-3220
+
+Стоп:
+3100
+
+Цели:
+3300 / 3400 / 3500
+
+Ключевой уровень:
+3200
+
+Главный риск:
+Внезапное решение ОПЕК+ по добыче
+
+Моя рекомендация:
+Я бы ждал отката к 3180-3220 и входил после подтверждения покупателя.
+
+```json
+{"verdict":"BUY"}
+```
+"""
+    fa = parse_final_assessment(md)
+    assert "3200" in fa["key_level"]
+    assert "ОПЕК" in fa["main_risk"]
+    assert "3180-3220" in fa["recommendation"]
+    # пустой ответ → пустые значения
+    assert parse_final_assessment("") == {"key_level": "", "main_risk": "", "recommendation": ""}

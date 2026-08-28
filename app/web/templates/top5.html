@@ -32,7 +32,7 @@
   <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
     <div>
       <h2 style="margin:0">{{ selected_template.name }}</h2>
-      <p class="muted small" style="margin:4px 0 0">Состав: {{ selected_template.tickers }}</p>
+      <p class="muted small" style="margin:4px 0 0;overflow-wrap:anywhere;word-break:break-word;white-space:normal">Состав: {{ selected_template.tickers }}</p>
     </div>
     <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
       <div>
@@ -60,7 +60,7 @@
       <h2 style="margin:0">Лучшие возможности</h2>
       <div class="muted small">Все стратегии по бумагам шаблона → скоринг → лучшие входы. Клик по заголовку R/R · Риск · Score — сортировка.</div>
       {% if result.get('as_of') %}
-      <div class="muted small" style="margin-top:6px"><span class="label">Прогноз сформирован:</span> <b>{{ result['as_of'].strftime('%d.%m.%Y %H:%M') }}</b></div>
+      <div class="muted small" style="margin-top:6px"><span class="label">Прогноз сформирован:</span> <span class="value" style="font-size:15px;color:var(--text)">{{ result['as_of'].strftime('%d.%m.%Y %H:%M') }}</span> <span class="badge" title="Временная зона расчёта прогноза">UTC</span></div>
       {% endif %}
     </div>
   </div>
@@ -134,6 +134,15 @@
               </div>
               {% endfor %}
             </div>
+            {% set fa = r.final_assessment if r.final_assessment else {} %}
+            {% if fa and (fa.get('key_level') or fa.get('main_risk') or fa.get('recommendation')) %}
+            <div style="margin-top:12px;border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--panel-2)">
+              <div class="chart-head"><b>Итоговая оценка</b></div>
+              {% if fa.get('key_level') %}<p class="small" style="margin:8px 0 0"><span class="label">Ключевой уровень</span> <span class="value" style="font-size:15px">{{ fa.key_level }}</span></p>{% endif %}
+              {% if fa.get('main_risk') %}<p class="small" style="margin:8px 0 0"><span class="label">Главный риск</span> <span class="value" style="font-size:15px">{{ fa.main_risk }}</span></p>{% endif %}
+              {% if fa.get('recommendation') %}<p class="small" style="margin:8px 0 0"><span class="label">Моя рекомендация</span> <span class="value" style="font-size:15px">{{ fa.recommendation }}</span></p>{% endif %}
+            </div>
+            {% endif %}
             <p class="muted small" style="margin-top:8px"><a href="/tech_analysis/{{ r.analysis_id }}">Полный разбор «{{ r.ticker }}» →</a></p>
           </td>
         </tr>
@@ -175,7 +184,7 @@
         <td colspan="6">
           {% if b['top5'] %}
           <h3 style="margin:4px 0 8px">Лучшие возможности (батч #{{ b['id'] }})</h3>
-          {% if b.get('as_of') %}<p class="muted small" style="margin:0 0 8px"><span class="label">Прогноз сформирован:</span> <b>{{ b['as_of'].strftime('%d.%m.%Y %H:%M') }}</b></p>{% endif %}
+          {% if b.get('as_of') %}<p class="muted small" style="margin:0 0 8px"><span class="label">Прогноз сформирован:</span> <span class="value" style="font-size:15px;color:var(--text)">{{ b['as_of'].strftime('%d.%m.%Y %H:%M') }}</span> <span class="badge" title="Временная зона расчёта прогноза">UTC</span></p>{% endif %}
           <table class="table">
             <thead><tr><th>#</th><th style="text-align:left">Бумага / стратегия<span class="sort-hint" data-hint="strategy">?</span><span class="isort-tip" data-tip="strategy"><b>Стратегия</b><br>SА — сценарий А (основной) · SВ — сценарий B (альтернативный) · SС — сценарий C (негативный).<br>Строка = лучшая стратегия бумаги (макс. Score).</span></th><th style="text-align:left">Направление</th><th style="text-align:left">Цена</th><th style="text-align:left">Вход</th><th style="text-align:left">Стоп</th><th style="text-align:left">Цель</th><th>R/R</th><th>Expected R</th><th>Score</th><th></th></tr></thead>
             <tbody>
@@ -207,6 +216,15 @@
                     {% if bsc and bsc.get('why') %}<p class="muted small">{{ bsc.why }}</p>{% endif %}
                   </div>
                   {% endfor %}
+                  {% set bfa = rb.get('final_assessment') if rb.get('final_assessment') else {} %}
+                  {% if bfa and (bfa.get('key_level') or bfa.get('main_risk') or bfa.get('recommendation')) %}
+                  <div style="margin-top:10px;border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--panel-2)">
+                    <div class="chart-head"><b>Итоговая оценка</b></div>
+                    {% if bfa.get('key_level') %}<p class="small" style="margin:8px 0 0"><span class="label">Ключевой уровень</span> <span class="value" style="font-size:15px">{{ bfa.key_level }}</span></p>{% endif %}
+                    {% if bfa.get('main_risk') %}<p class="small" style="margin:8px 0 0"><span class="label">Главный риск</span> <span class="value" style="font-size:15px">{{ bfa.main_risk }}</span></p>{% endif %}
+                    {% if bfa.get('recommendation') %}<p class="small" style="margin:8px 0 0"><span class="label">Моя рекомендация</span> <span class="value" style="font-size:15px">{{ bfa.recommendation }}</span></p>{% endif %}
+                  </div>
+                  {% endif %}
                 </td>
               </tr>
               {% endfor %}
