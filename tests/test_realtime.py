@@ -1,5 +1,6 @@
 """Тесты «Реальное время» (docs/24): сервис realtime, SSE-помощники, админ-блок."""
 
+import pytest
 import pytest_asyncio
 from fastapi import Request
 from sqlalchemy import select
@@ -7,10 +8,19 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.auth import create_session
 from app.db.connection import Base
-from app.db.models import FuturesTemplate, RealTimeQuote, RealtimeConfig, Security, User, WatchlistItem
+from app.db.models import (
+    FuturesTemplate,
+    MarketOpenPosition,
+    MarketOpenPositionClientGroup,
+    RealTimeQuote,
+    RealtimeConfig,
+    Security,
+    User,
+    WatchlistItem,
+)
 from app.graph.service import seed_graph
 from app.market.realtime import compute_scope, ensure_config, upsert_quote
-from app.api.routes.realtime import _current_quotes, _quote_event
+from app.api.routes.realtime import _current_quotes, _latest_oi, _oi_event, _quote_event
 from app.web.router import admin_page
 
 
@@ -217,3 +227,41 @@ async def test_realtime_updater_registered_no_timeout():
     assert script_timeout_seconds("realtime_updater") is None
     # прочие скрипты не задеты
     assert script_timeout_seconds("update_oi") == 7200
+
+
+async def test_latest_oi_and_oi_event(session):
+    """SSE `oi`-событие: последнее OI фьючерса, изменение к предыдущему дню и группы клиентов."""
+    from datetime import date
+
+    await seed_graph(session)
+    sec = Security(ticker="W4V6", name="SBRF-6.26", security_type="futures", currency="RUB")
+    session.add(sec)
+    await session.flush()
+    session.add_all(
+        [
+            MarketOpenPosition(security_id=sec.id, trading_date=date(2026, 8, 27), open_position=3000),
+            MarketOpenPosition(security_id=sec.id, trading_date=date(2026, 8, 28), open_position=3030),
+            MarketOpenPositionClientGroup(
+                security_id=sec.id, trading_date=date(2026, 8, 28), client_group="physical",
+                long_pos=500, short_pos=400,
+            ),
+        ]
+    )
+    await session.commit()
+
+    oi = await _latest_oi(session, sec.id)
+    assert oi is not None
+    assert oi["open_position"] == 3030
+    assert oi["change_pct"] == pytest.approx(1.0)  # (3030-3000)/3000*100
+    assert oi["groups"]["physical"] == {"long": 500, "short": 400, "net": 100}
+
+    ev = _oi_event("W4V6", oi)
+    assert "event: oi" in ev
+    assert '"ticker": "W4V6"' in ev
+    assert "3030" in ev
+
+    # нет данных OI → None
+    empty_sec = Security(ticker="zzz", name="z", security_type="futures", currency="RUB")
+    session.add(empty_sec)
+    await session.flush()
+    assert await _latest_oi(session, empty_sec.id) is None

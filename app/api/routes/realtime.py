@@ -18,7 +18,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
 from app.db.connection import get_session
-from app.db.models import RealTimeQuote, Security, User
+from app.db.models import (
+    MarketOpenPosition,
+    MarketOpenPositionClientGroup,
+    RealTimeQuote,
+    Security,
+    User,
+)
 
 router = APIRouter(prefix="/realtime", tags=["realtime"])
 
@@ -52,6 +58,61 @@ def _quote_event(security: Security, quote: RealTimeQuote) -> str:
     return f"event: quote\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
+async def _latest_oi(session: AsyncSession, security_id: int) -> dict | None:
+    """Последнее значение OI фьючерса (open_position) + изменение к предыдущему дню
+    + группы клиентов (физ/юр), из market_open_positions (обновляется демоном)."""
+    rows = (
+        await session.scalars(
+            select(MarketOpenPosition)
+            .where(MarketOpenPosition.security_id == security_id)
+            .order_by(MarketOpenPosition.trading_date.desc())
+            .limit(2)
+        )
+    ).all()
+    if not rows:
+        return None
+    latest = rows[0]
+    prev = rows[1] if len(rows) > 1 else None
+    change_pct = None
+    if prev is not None and prev.open_position:
+        change_pct = round(
+            (latest.open_position - prev.open_position) * 100.0 / prev.open_position, 2
+        )
+    groups = {"physical": None, "juridical": None}
+    grows = (
+        await session.scalars(
+            select(MarketOpenPositionClientGroup).where(
+                MarketOpenPositionClientGroup.security_id == security_id,
+                MarketOpenPositionClientGroup.trading_date == latest.trading_date,
+            )
+        )
+    ).all()
+    for g in grows:
+        groups[g.client_group] = {
+            "long": g.long_pos,
+            "short": g.short_pos,
+            "net": g.long_pos - g.short_pos,
+        }
+    return {
+        "ticker": None,  # заполняется в emit
+        "date": latest.trading_date.isoformat() if latest.trading_date else None,
+        "open_position": latest.open_position,
+        "change_pct": change_pct,
+        "groups": groups,
+    }
+
+
+def _oi_event(ticker: str, d: dict) -> str:
+    payload = {
+        "ticker": ticker,
+        "date": d.get("date"),
+        "open_position": d.get("open_position"),
+        "change_pct": d.get("change_pct"),
+        "groups": d.get("groups"),
+    }
+    return f"event: oi\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
 @router.get("/stream")
 async def realtime_stream(
     tickers: str = Query("", description="Список тикеров через запятую"),
@@ -68,11 +129,17 @@ async def realtime_stream(
                 while True:
                     quotes = await _current_quotes(session, ticker_list)
                     for ticker in ticker_list:
-                        quote = quotes.get(ticker)
                         security = security_by_ticker.get(ticker)
-                        if quote is None or security is None:
+                        if security is None:
                             continue
-                        yield _quote_event(security, quote)
+                        quote = quotes.get(ticker)
+                        if quote is not None:
+                            yield _quote_event(security, quote)
+                        # OI фьючерсов (если есть данные)
+                        if security.security_type == "futures":
+                            oi = await _latest_oi(session, security.id)
+                            if oi is not None:
+                                yield _oi_event(ticker, oi)
                     yield ": keep-alive\n\n"
                     await asyncio.sleep(POLL_INTERVAL)
             except asyncio.CancelledError:

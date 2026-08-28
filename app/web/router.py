@@ -1245,6 +1245,12 @@ async def indicators_page(
                     for s in ordered_signals
                 ]
 
+    oi_live = None
+    if indicator_name == "oi" and ticker:
+        from app.api.routes.realtime import _latest_oi
+        oi_sec = await session.scalar(select(Security).where(Security.ticker == ticker.upper()))
+        if oi_sec is not None:
+            oi_live = await _latest_oi(session, oi_sec.id)
     context.update(
         {
             "ticker": ticker,
@@ -1253,6 +1259,7 @@ async def indicators_page(
             "oi_threshold": (
                 oi_change_threshold_pct if oi_change_threshold_pct is not None else 1.0
             ),
+            "oi_live": oi_live,
             "error": error,
             "chart_oi": chart_oi,
             "chart_change": chart_change,
@@ -1345,11 +1352,17 @@ async def security_page(
     nearest_oi = None
     if nearest is not None:
         chart_oi, chart_change = await _build_oi_charts(session, nearest)
+        latest_oi = None
+        if nearest.id:
+            from app.api.routes.realtime import _latest_oi
+            latest_oi = await _latest_oi(session, nearest.id)
         if chart_oi:
             nearest_oi = {
                 "ticker": nearest.ticker,
                 "name": nearest.name,
                 "lastdeldate": nearest.lastdeldate.isoformat() if nearest.lastdeldate else "",
+                "oi_open": (latest_oi or {}).get("open_position"),
+                "oi_change_pct": (latest_oi or {}).get("change_pct"),
             }
 
     result = await generate_strategy(session, security.ticker)

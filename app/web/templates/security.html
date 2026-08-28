@@ -177,7 +177,10 @@
   <section class="card chart-card">
     <div class="chart-head">
       <h2>Открытый интерес фьючерса — {{ nearest_oi.name }} ({{ nearest_oi.ticker }})</h2>
-      <a class="btn" href="/indicators?ticker={{ nearest_oi.ticker }}">Полная страница OI →</a>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="muted small">OI: <b data-rt-oi-value="{{ nearest_oi.ticker }}" data-rt-oi="{{ nearest_oi.ticker }}">{{ nearest_oi.oi_open if nearest_oi.oi_open is not none else "—" }}</b> контр. · ΔOI: <b data-rt-oi-change="{{ nearest_oi.ticker }}" data-rt-oi="{{ nearest_oi.ticker }}">{{ "%+.2f"|format(nearest_oi.oi_change_pct) if nearest_oi.oi_change_pct is not none else "—" }}%</b></span>
+        <a class="btn" href="/indicators?ticker={{ nearest_oi.ticker }}">Полная страница OI →</a>
+      </div>
     </div>
     <svg class="chart" viewBox="0 0 {{ chart_oi.width }} {{ chart_oi.height }}" preserveAspectRatio="none">
       {% for seg in chart_oi.oi_segments %}<polyline points="{{ seg }}"/>{% endfor %}

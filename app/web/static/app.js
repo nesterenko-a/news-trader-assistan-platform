@@ -86,6 +86,19 @@ function initRealtimeQuotes() {
     recalcs.push({ ticker: t, qty: qty, cost: cost, row: row });
   });
 
+  // OI ячейки (фьючерсы): [data-rt-oi-value|change|groups][data-rt-oi="TICKER"]
+  const oiValueByTicker = {};
+  const oiChangeByTicker = {};
+  const oiGroupsByTicker = {};
+  document.querySelectorAll("[data-rt-oi]").forEach(function (el) {
+    const t = el.getAttribute("data-rt-oi");
+    if (!t) return;
+    tickers.add(t);
+    if (el.hasAttribute("data-rt-oi-value")) (oiValueByTicker[t] = oiValueByTicker[t] || []).push(el);
+    if (el.hasAttribute("data-rt-oi-change")) (oiChangeByTicker[t] = oiChangeByTicker[t] || []).push(el);
+    if (el.hasAttribute("data-rt-oi-groups")) (oiGroupsByTicker[t] = oiGroupsByTicker[t] || []).push(el);
+  });
+
   if (tickers.size === 0) return;
 
   const costText = function (v) {
@@ -178,6 +191,33 @@ function initRealtimeQuotes() {
         if (r.ticker === data.ticker) recompute(r, data.last);
       });
       updateTotals();
+    }
+  });
+  // OI (фьючерсы): обновляем последнее значение/изменение/группы клиентов
+  es.addEventListener("oi", function (e) {
+    let data;
+    try {
+      data = JSON.parse(e.data);
+    } catch (err) {
+      return;
+    }
+    const t = data.ticker;
+    const fmt = function (n) {
+      if (n == null || isNaN(n)) return "—";
+      return Number(n).toLocaleString("ru-RU");
+    };
+    const fmtPct = function (n) {
+      if (n == null || isNaN(n)) return "—";
+      return (n > 0 ? "+" : "") + n.toFixed(2) + "%";
+    };
+    if (oiValueByTicker[t]) oiValueByTicker[t].forEach(function (el) { el.textContent = fmt(data.open_position); });
+    if (oiChangeByTicker[t]) oiChangeByTicker[t].forEach(function (el) { el.textContent = fmtPct(data.change_pct); });
+    if (oiGroupsByTicker[t] && data.groups) {
+      oiGroupsByTicker[t].forEach(function (el) {
+        const phys = data.groups.physical ? data.groups.physical.net : null;
+        const jur = data.groups.juridical ? data.groups.juridical.net : null;
+        el.textContent = (phys != null ? "физ " + fmt(phys) : "") + (jur != null ? " · юр " + fmt(jur) : "");
+      });
     }
   });
   es.onerror = function () {

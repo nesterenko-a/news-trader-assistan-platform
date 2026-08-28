@@ -56,6 +56,9 @@
 <section class="card chart-card">
   <div class="chart-head">
     <h2>OI и цена — {{ security_name }} ({{ ticker }})</h2>
+    {% if oi_live %}
+    <div class="muted small">Текущий OI: <b data-rt-oi-value="{{ ticker }}" data-rt-oi="{{ ticker }}">{{ oi_live.open_position }}</b> контр. · ΔOI: <b data-rt-oi-change="{{ ticker }}" data-rt-oi="{{ ticker }}">{{ "%+.2f"|format(oi_live.change_pct) if oi_live.change_pct is not none else "—" }}%</b></div>
+    {% endif %}
   </div>
   <svg class="chart" viewBox="0 0 {{ chart_oi.width }} {{ chart_oi.height }}" preserveAspectRatio="none">
     {% for seg in chart_oi.oi_segments %}<polyline points="{{ seg }}"/>{% endfor %}
