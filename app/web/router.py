@@ -823,6 +823,7 @@ async def indicators_page(
     request: Request,
     name: str = "oi",
     ticker: str = "",
+    scope: str = "all",
     from_: date | None = Query(None, alias="from"),
     to: date | None = Query(None, alias="to"),
     oi_change_threshold_pct: float | None = Query(None, gt=0),
@@ -1744,6 +1745,7 @@ async def settings_page(
         .where(PaperAccount.user_id == user.id, PaperPosition.status == "open")
     )
     context = await _base_context(session, user)
+    context["favorites_scope"] = scope if scope in {"all", "stocks", "futures", "favorites"} else "all"
     context.update(
         {
             "profile": profile,

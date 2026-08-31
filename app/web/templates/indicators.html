@@ -10,6 +10,7 @@
     <a class="seg-item seg-link {{ 'seg-active' if key == indicator_name }}" href="/indicators?name={{ key }}{% if ticker %}&ticker={{ ticker }}{% endif %}">{{ meta.title }}</a>
     {% endfor %}
   </nav>
+  {% if user %}<nav class="seg" style="margin-bottom:12px"><a class="seg-item seg-link {{ 'seg-active' if favorites_scope == 'all' }}" href="/indicators?name={{ indicator_name }}{% if ticker %}&ticker={{ ticker }}{% endif %}&scope=all">Все</a><a class="seg-item seg-link {{ 'seg-active' if favorites_scope == 'stocks' }}" href="/indicators?name={{ indicator_name }}&scope=stocks">Акции</a><a class="seg-item seg-link {{ 'seg-active' if favorites_scope == 'futures' }}" href="/indicators?name={{ indicator_name }}&scope=futures">Фьючерсы</a><a class="seg-item seg-link {{ 'seg-active' if favorites_scope == 'favorites' }}" href="/indicators?name={{ indicator_name }}&scope=favorites">Избранное</a></nav>{% endif %}
   {% if indicator_name == 'oi' %}
   <p class="muted">Открытые позиции фьючерсов и сигналы «цена × OI». Выберите фьючерс и период.</p>
   <form method="get" action="/indicators" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">
@@ -45,7 +46,7 @@
     </div>
     <button class="btn" type="submit">Показать</button>
   </form>
-  <datalist id="futures-datalist"></datalist>
+  <datalist id="futures-datalist" data-source="tickers" data-filter="futures"></datalist>
 </section>
 
 {% if error %}
