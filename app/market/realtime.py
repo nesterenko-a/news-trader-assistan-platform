@@ -7,6 +7,7 @@
     и фьючерсы выбранного шаблона (FuturesTemplate, kind=futures).
 """
 
+from collections.abc import Callable
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -117,7 +118,10 @@ async def upsert_quote(session: AsyncSession, security_id: int, quote: dict) -> 
 
 
 async def fetch_scope_quotes(
-    session: AsyncSession, stocks: list[Security], futures: list[Security]
+    session: AsyncSession,
+    stocks: list[Security],
+    futures: list[Security],
+    on_result: Callable[[Security, dict | None, Exception | None], None] | None = None,
 ) -> int:
     """Обновляет live-котировки по составу (акции + фьючерсы). Возвращает число обновлённых."""
     scope = stocks + futures
@@ -128,10 +132,16 @@ async def fetch_scope_quotes(
     for security in scope:
         try:
             quote = await client.fetch_quote(security.ticker)
-        except Exception:
-            quote = None
+        except Exception as exc:
+            if on_result is not None:
+                on_result(security, None, exc)
+            continue
         if quote is None:
+            if on_result is not None:
+                on_result(security, None, None)
             continue
         await upsert_quote(session, security.id, quote)
         updated += 1
+        if on_result is not None:
+            on_result(security, quote, None)
     return updated

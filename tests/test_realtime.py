@@ -235,6 +235,15 @@ async def test_realtime_updater_registered_no_timeout():
     assert script_timeout_seconds("update_oi") == 7200
 
 
+def test_realtime_quote_log_line():
+    from scripts.realtime_updater import _quote_log_line
+
+    security = Security(ticker="W4V6", name="SBRF-6.26", security_type="futures")
+    assert "LAST=100.5" in _quote_log_line(security, {"price": 100.5, "volume": 20}, None)
+    assert "данных нет" in _quote_log_line(security, None, None)
+    assert "ошибка RuntimeError" in _quote_log_line(security, None, RuntimeError("network"))
+
+
 async def test_latest_oi_and_oi_event(session):
     """SSE `oi`-событие: последнее OI фьючерса, изменение к предыдущему дню и группы клиентов."""
     from datetime import date

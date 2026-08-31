@@ -15,7 +15,7 @@
 
 import argparse
 import asyncio
-from datetime import datetime, timezone
+import time
 
 from app.db.connection import SessionLocal, init_db
 from app.market.moex import MOEXClient
@@ -23,6 +23,17 @@ from app.market.oi_data import sync_security_oi
 from app.market.prices import sync_security_prices
 from app.market.realtime import compute_scope, ensure_config, fetch_scope_quotes
 from app.notices.monitor import set_source_notice
+
+
+def _quote_log_line(security, quote: dict | None, error: Exception | None) -> str:
+    if error is not None:
+        return f"[realtime] котировка {security.ticker}: ошибка {type(error).__name__}"
+    if quote is None:
+        return f"[realtime] котировка {security.ticker}: данных нет"
+    return (
+        f"[realtime] котировка {security.ticker}: обновлена "
+        f"LAST={quote.get('price')}, объём={quote.get('volume')}"
+    )
 
 
 async def _set_moex_notice(active: bool) -> None:
@@ -50,15 +61,37 @@ async def run_once() -> None:
             print("Realtime отключён", flush=True)
             return None
         stocks, futures = await compute_scope(session, config)
+        scope = list(stocks) + list(futures)
+        started = time.monotonic()
+        print(
+            f"[realtime] проход: акции={len(stocks)}, фьючерсы={len(futures)}; "
+            f"инструменты: {', '.join(s.ticker for s in scope) or 'нет'}",
+            flush=True,
+        )
 
         # Обновляем live-котировки
-        await fetch_scope_quotes(session, stocks, futures)
+        quotes_updated = await fetch_scope_quotes(
+            session,
+            stocks,
+            futures,
+            on_result=lambda security, quote, error: print(
+                _quote_log_line(security, quote, error), flush=True
+            ),
+        )
 
         # Свечи акций и фьючерсов
+        candles_inserted = 0
         for security in list(stocks) + list(futures):
-            await sync_security_prices(session, security.ticker)
+            inserted = await sync_security_prices(session, security.ticker)
+            candles_inserted += inserted
+            print(
+                f"[realtime] свечи {security.ticker}: "
+                f"{'добавлено ' + str(inserted) if inserted else 'актуальны'}",
+                flush=True,
+            )
 
         # OI фьючерсов (свечи + OI + группы клиентов)
+        oi_inserted = 0
         if futures:
             client = MOEXClient()
             try:
@@ -74,15 +107,28 @@ async def run_once() -> None:
                 futures_meta = {}
             cache: dict = {}
             for security in futures:
-                await sync_security_oi(
+                inserted = await sync_security_oi(
                     session,
                     security.ticker,
                     futures_meta=futures_meta,
                     client_groups_cache=cache,
                 )
+                oi_inserted += inserted
+                print(
+                    f"[realtime] OI {security.ticker}: "
+                    f"{'добавлено ' + str(inserted) if inserted else 'актуален или данных нет'}",
+                    flush=True,
+                )
 
         await _set_moex_notice(False)
-        return min(config.interval_quotes_sec, config.interval_candles_sec, config.interval_oi_sec)
+        sleep_for = min(config.interval_quotes_sec, config.interval_candles_sec, config.interval_oi_sec)
+        print(
+            f"[realtime] проход завершён: котировок {quotes_updated}/{len(scope)}, "
+            f"свечей добавлено {candles_inserted}, OI добавлено {oi_inserted}, "
+            f"время {time.monotonic() - started:.1f} c; следующий проход через {sleep_for} c",
+            flush=True,
+        )
+        return sleep_for
 
 
 async def main() -> None:
