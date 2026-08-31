@@ -842,6 +842,7 @@ async def indicators_page(
     """Страница индикаторов: вкладки из реестра (OI, Volume Profile, ...)."""
     user = await _optional_user(request, session)
     context = await _base_context(session, user)
+    context["favorites_scope"] = scope if scope in {"all", "stocks", "futures", "favorites"} else "all"
     indicator_name = name if name in REGISTRY else "oi"
     indicators_list = sorted(REGISTRY.items())
 
@@ -1745,7 +1746,6 @@ async def settings_page(
         .where(PaperAccount.user_id == user.id, PaperPosition.status == "open")
     )
     context = await _base_context(session, user)
-    context["favorites_scope"] = scope if scope in {"all", "stocks", "futures", "favorites"} else "all"
     context.update(
         {
             "profile": profile,
