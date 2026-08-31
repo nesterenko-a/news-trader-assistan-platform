@@ -1,6 +1,6 @@
 # 27. Настройки пользователя — ТЗ и дизайн
 
-**Статус:** на согласовании v1.0
+**Статус:** утверждено, реализация отложена v1.1
 **Система:** NewsTrader Assistant
 **Приоритет:** P1, этап 2 дорожной карты
 **Связанные документы:** [05-non-functional-requirements.md](./05-non-functional-requirements.md), [07-data-model.md](./07-data-model.md), [10-api-specification.md](./10-api-specification.md), [11-security-compliance.md](./11-security-compliance.md), [12-roadmap.md](./12-roadmap.md), [14-web-interface.md](./14-web-interface.md), [26-favorites.md](./26-favorites.md)
