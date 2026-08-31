@@ -39,6 +39,7 @@ async def notice_state(session: AsyncSession, limit: int = 50) -> dict:
         "state": state,
         "notices": [
             {
+                "id": notice.id,
                 "level": notice.level,
                 "source": notice.source,
                 "text": notice.text,
@@ -49,6 +50,26 @@ async def notice_state(session: AsyncSession, limit: int = 50) -> dict:
             for notice in notices
         ],
     }
+
+
+async def dismiss_notice(session: AsyncSession, notice_id: int) -> bool:
+    notice = await session.get(SystemNotice, notice_id)
+    if notice is None or not notice.is_active:
+        return False
+    notice.is_active = False
+    await session.commit()
+    return True
+
+
+async def dismiss_all_notices(session: AsyncSession) -> int:
+    notices = (
+        await session.scalars(select(SystemNotice).where(SystemNotice.is_active.is_(True)))
+    ).all()
+    for notice in notices:
+        notice.is_active = False
+    if notices:
+        await session.commit()
+    return len(notices)
 
 
 async def notify_script_failed(title: str, exit_code: int, phase: str | None = None) -> None:

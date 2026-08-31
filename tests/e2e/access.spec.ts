@@ -48,4 +48,36 @@ test.describe("Контроль доступа", () => {
     await expect(importForm).toHaveCount(1);
     await expect(importForm.locator('input[type="file"][name="file"]'));
   });
+
+  test("авторизованный пользователь может снять одно предупреждение и все предупреждения", async ({ page }) => {
+    await login(page, USER.username, USER.password);
+    let notices = [
+      { id: 101, level: "warning", source: "rss", text: "Лента временно недоступна", created_at: "31.08.2026 12:00" },
+      { id: 102, level: "info", source: "stale_prices", text: "Цены давно не обновлялись", created_at: "31.08.2026 11:00" },
+    ];
+    await page.route("**/api/notices", async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({ contentType: "application/json", body: JSON.stringify({ state: "warning", notices, can_dismiss: true }) });
+        return;
+      }
+      await route.continue();
+    });
+    await page.route("**/api/notices/*/dismiss", async (route) => {
+      const id = Number(route.request().url().match(/notices\/(\d+)\/dismiss/)?.[1]);
+      notices = notices.filter((notice) => notice.id !== id);
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ dismissed: 1 }) });
+    });
+    await page.route("**/api/notices/dismiss-all", async (route) => {
+      notices = [];
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ dismissed: 1 }) });
+    });
+    await page.goto("/");
+
+    await page.locator(".attention-toggle").click();
+    await expect(page.getByText("Лента временно недоступна")).toBeVisible();
+    await page.getByRole("button", { name: "Прочитано" }).first().click();
+    await expect(page.getByText("Лента временно недоступна")).toHaveCount(0);
+    await page.getByRole("button", { name: "Прочитать всё" }).click();
+    await expect(page.locator("#attention-list")).toContainText("Ошибок нет");
+  });
 });

@@ -47,7 +47,7 @@ from app.paper.service import (
     latest_closes,
     reset_account,
 )
-from app.notices.service import notice_state
+from app.notices.service import dismiss_all_notices, dismiss_notice, notice_state
 from app.db.connection import get_session
 from app.db.models import (
     FuturesTemplate,
@@ -2877,9 +2877,31 @@ async def paper_reset_form(
 
 @router.get("/api/notices")
 async def notices_api(
+    request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    return await notice_state(session)
+    state = await notice_state(session)
+    state["can_dismiss"] = await _optional_user(request, session) is not None
+    return state
+
+
+@router.post("/api/notices/{notice_id}/dismiss")
+async def dismiss_notice_api(
+    notice_id: int,
+    _: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    if not await dismiss_notice(session, notice_id):
+        raise HTTPException(status_code=404, detail="Уведомление не найдено")
+    return {"dismissed": 1}
+
+
+@router.post("/api/notices/dismiss-all")
+async def dismiss_all_notices_api(
+    _: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    return {"dismissed": await dismiss_all_notices(session)}
 
 
 @router.get("/macro")

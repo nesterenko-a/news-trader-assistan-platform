@@ -22,7 +22,10 @@
             <span class="attention-badge" id="attention-badge" hidden></span>
           </a>
           <div class="menu-dropdown" id="attention-popup">
-            <span class="menu-user">Внимание</span>
+            <div class="attention-head">
+              <span class="menu-user">Внимание</span>
+              <button type="button" class="attention-dismiss-all" id="attention-dismiss-all" hidden>Прочитать всё</button>
+            </div>
             <div id="attention-list" class="attention-list"></div>
           </div>
         </div>
@@ -129,6 +132,8 @@
       var list = document.getElementById("attention-list");
       if (!list) return;
       list.innerHTML = "";
+      var dismissAll = document.getElementById("attention-dismiss-all");
+      if (dismissAll) dismissAll.hidden = !data.can_dismiss || !data.notices.length;
       if (!data.notices.length) {
         var empty = document.createElement("div");
         empty.className = "muted small";
@@ -152,8 +157,25 @@
         var time = document.createElement("span");
         time.className = "attention-time";
         time.textContent = n.created_at;
+        var footer = document.createElement("div");
+        footer.className = "attention-footer";
+        footer.appendChild(time);
+        if (data.can_dismiss) {
+          var dismiss = document.createElement("button");
+          dismiss.type = "button";
+          dismiss.className = "attention-dismiss";
+          dismiss.textContent = "Прочитано";
+          dismiss.addEventListener("click", function (event) {
+            event.stopPropagation();
+            dismiss.disabled = true;
+            fetch("/api/notices/" + n.id + "/dismiss", { method: "POST", credentials: "same-origin" })
+              .then(function (r) { if (!r.ok) throw new Error("dismiss failed"); return loadNotices(); })
+              .catch(function () { dismiss.disabled = false; });
+          });
+          footer.appendChild(dismiss);
+        }
         item.appendChild(row);
-        item.appendChild(time);
+        item.appendChild(footer);
         list.appendChild(item);
       });
     }
@@ -163,6 +185,17 @@
         .then(function (r) { return r.json(); })
         .then(renderNotices)
         .catch(function () {});
+    }
+
+    var dismissAll = document.getElementById("attention-dismiss-all");
+    if (dismissAll) {
+      dismissAll.addEventListener("click", function (event) {
+        event.stopPropagation();
+        dismissAll.disabled = true;
+        fetch("/api/notices/dismiss-all", { method: "POST", credentials: "same-origin" })
+          .then(function (r) { if (!r.ok) throw new Error("dismiss all failed"); return loadNotices(); })
+          .finally(function () { dismissAll.disabled = false; });
+      });
     }
 
     loadNotices();

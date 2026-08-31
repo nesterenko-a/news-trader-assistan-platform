@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db.models import Base, ScriptRun, SystemNotice
 from app.notices.service import (
+    dismiss_all_notices,
+    dismiss_notice,
     extract_script_title,
     resolve_script_run_notices,
 )
@@ -93,3 +95,31 @@ async def test_resolve_keeps_notice_for_other_script(session):
     assert resolved == 0
     await session.refresh(notice)
     assert notice.is_active is True
+
+
+async def test_dismiss_notice_marks_only_selected_notice_inactive(session):
+    first = _notice("Первая ошибка")
+    second = _notice("Вторая ошибка")
+    session.add_all([first, second])
+    await session.commit()
+
+    assert await dismiss_notice(session, first.id) is True
+    await session.refresh(first)
+    await session.refresh(second)
+    assert first.is_active is False
+    assert second.is_active is True
+    assert await dismiss_notice(session, first.id) is False
+
+
+async def test_dismiss_all_notices_marks_all_active_notices_inactive(session):
+    active = _notice("Активное")
+    inactive = _notice("Снятое")
+    inactive.is_active = False
+    session.add_all([active, inactive])
+    await session.commit()
+
+    assert await dismiss_all_notices(session) == 1
+    await session.refresh(active)
+    await session.refresh(inactive)
+    assert active.is_active is False
+    assert inactive.is_active is False
