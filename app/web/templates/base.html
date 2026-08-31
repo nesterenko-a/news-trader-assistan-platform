@@ -157,14 +157,13 @@
         var time = document.createElement("span");
         time.className = "attention-time";
         time.textContent = n.created_at;
-        var footer = document.createElement("div");
-        footer.className = "attention-footer";
-        footer.appendChild(time);
         if (data.can_dismiss) {
           var dismiss = document.createElement("button");
           dismiss.type = "button";
-          dismiss.className = "attention-dismiss";
-          dismiss.textContent = "Прочитано";
+          dismiss.className = "feed-edit attention-dismiss";
+          dismiss.textContent = "✓";
+          dismiss.title = "Отметить прочитанным";
+          dismiss.setAttribute("aria-label", "Отметить прочитанным");
           dismiss.addEventListener("click", function (event) {
             event.stopPropagation();
             dismiss.disabled = true;
@@ -172,10 +171,10 @@
               .then(function (r) { if (!r.ok) throw new Error("dismiss failed"); return loadNotices(); })
               .catch(function () { dismiss.disabled = false; });
           });
-          footer.appendChild(dismiss);
+          row.appendChild(dismiss);
         }
         item.appendChild(row);
-        item.appendChild(footer);
+        item.appendChild(time);
         list.appendChild(item);
       });
     }

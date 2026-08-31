@@ -830,22 +830,23 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
   border: 1px solid var(--border, #2b3750); border-radius: 10px; padding: 10px 12px;
   background: var(--panel, #1a2233);
 }
-.attention-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.attention-head { display: flex; align-items: center; gap: 8px; }
 .attention-head .menu-user { flex: 1; }
-.attention-dismiss-all, .attention-dismiss {
+.attention-dismiss-all {
   appearance: none;
   border: 0;
   background: transparent;
-  color: var(--muted);
+  color: var(--accent);
   cursor: pointer;
   font: inherit;
   font-size: 12px;
-  padding: 4px 6px;
+  padding: 4px 10px;
   border-radius: 5px;
+  white-space: nowrap;
 }
-.attention-dismiss-all:hover, .attention-dismiss:hover { color: var(--text); background: var(--panel-2); }
+.attention-dismiss-all:hover { color: var(--text); background: var(--panel-2); }
 .attention-dismiss-all:disabled, .attention-dismiss:disabled { cursor: wait; opacity: .55; }
-.attention-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.attention-dismiss { flex: 0 0 auto; margin: -2px 0 0 auto; }
 .graph-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .graph-card-title { font-size: 14px; overflow-wrap: anywhere; }
 .graph-card-actions { display: flex; align-items: center; gap: 2px; white-space: nowrap; }

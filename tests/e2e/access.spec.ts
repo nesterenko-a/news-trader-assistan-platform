@@ -75,7 +75,7 @@ test.describe("Контроль доступа", () => {
 
     await page.locator(".attention-toggle").click();
     await expect(page.getByText("Лента временно недоступна")).toBeVisible();
-    await page.getByRole("button", { name: "Прочитано" }).first().click();
+    await page.getByRole("button", { name: "Отметить прочитанным" }).first().click();
     await expect(page.getByText("Лента временно недоступна")).toHaveCount(0);
     await page.getByRole("button", { name: "Прочитать всё" }).click();
     await expect(page.locator("#attention-list")).toContainText("Ошибок нет");
