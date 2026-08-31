@@ -120,6 +120,10 @@ test.describe("Приватные функции", () => {
     await expect(star).toHaveCount(1);
     await star.click();
     await expect(star).toHaveClass(/is-favorite/);
+    await page.goto("/indicators?name=volume_profile&ticker=AFLT");
+    const indicatorStar = page.locator('.chart-head .favorite-toggle[data-ticker="AFLT"]');
+    await expect(indicatorStar).toHaveCount(1);
+    await expect(indicatorStar).toHaveClass(/is-favorite/);
     await page.goto("/settings#favorites");
     await expect(page.locator('[data-favorite-row="AFLT"]')).toHaveCount(1);
     await page.locator('[data-favorite-row="AFLT"] .favorite-toggle').click();

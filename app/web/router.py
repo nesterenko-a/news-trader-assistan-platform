@@ -823,7 +823,6 @@ async def indicators_page(
     request: Request,
     name: str = "oi",
     ticker: str = "",
-    scope: str = "all",
     from_: date | None = Query(None, alias="from"),
     to: date | None = Query(None, alias="to"),
     oi_change_threshold_pct: float | None = Query(None, gt=0),
@@ -842,9 +841,23 @@ async def indicators_page(
     """Страница индикаторов: вкладки из реестра (OI, Volume Profile, ...)."""
     user = await _optional_user(request, session)
     context = await _base_context(session, user)
-    context["favorites_scope"] = scope if scope in {"all", "stocks", "futures", "favorites"} else "all"
     indicator_name = name if name in REGISTRY else "oi"
     indicators_list = sorted(REGISTRY.items())
+    is_favorite = False
+    if user is not None and ticker:
+        favorite_security = await session.scalar(
+            select(Security).where(Security.ticker == ticker.upper())
+        )
+        is_favorite = bool(
+            favorite_security is not None
+            and await session.scalar(
+                select(UserFavorite.id).where(
+                    UserFavorite.user_id == user.id,
+                    UserFavorite.security_id == favorite_security.id,
+                )
+            )
+        )
+    context["is_favorite"] = is_favorite
 
     if indicator_name == "volume_profile":
         vp_period_used = vp_period if vp_period is not None else 60

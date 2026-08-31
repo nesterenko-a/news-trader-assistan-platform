@@ -3,6 +3,9 @@
 {% block title %}Индикаторы — NewsTrader Assistant{% endblock %}
 
 {% block content %}
+{% macro favorite_ticker(value) -%}
+<span class="ticker-with-favorite">{% if user %}<button class="favorite-toggle {{ 'is-favorite' if is_favorite else '' }}" type="button" data-ticker="{{ value }}" aria-label="{{ 'Убрать из избранного' if is_favorite else 'Добавить в избранное' }}" title="{{ 'Убрать из избранного' if is_favorite else 'Добавить в избранное' }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3.1 6.3 7 1-5 4.9 1.2 6.9-6.3-3.3-6.3 3.3 1.2-6.9-5-4.9 7-1z"/></svg></button>{% endif %}{{ value }}</span>
+{%- endmacro %}
 <section class="card">
   <h1>Индикаторы</h1>
   <nav class="seg" style="margin-bottom:12px">
@@ -10,7 +13,6 @@
     <a class="seg-item seg-link {{ 'seg-active' if key == indicator_name }}" href="/indicators?name={{ key }}{% if ticker %}&ticker={{ ticker }}{% endif %}">{{ meta.title }}</a>
     {% endfor %}
   </nav>
-  {% if user %}<nav class="seg" style="margin-bottom:12px"><a class="seg-item seg-link {{ 'seg-active' if favorites_scope == 'all' }}" href="/indicators?name={{ indicator_name }}{% if ticker %}&ticker={{ ticker }}{% endif %}&scope=all">Все</a><a class="seg-item seg-link {{ 'seg-active' if favorites_scope == 'stocks' }}" href="/indicators?name={{ indicator_name }}&scope=stocks">Акции</a><a class="seg-item seg-link {{ 'seg-active' if favorites_scope == 'futures' }}" href="/indicators?name={{ indicator_name }}&scope=futures">Фьючерсы</a><a class="seg-item seg-link {{ 'seg-active' if favorites_scope == 'favorites' }}" href="/indicators?name={{ indicator_name }}&scope=favorites">Избранное</a></nav>{% endif %}
   {% if indicator_name == 'oi' %}
   <p class="muted">Открытые позиции фьючерсов и сигналы «цена × OI». Выберите фьючерс и период.</p>
   <form method="get" action="/indicators" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">
@@ -56,7 +58,7 @@
 {% if chart_oi %}
 <section class="card chart-card">
   <div class="chart-head">
-    <h2>OI и цена — {{ security_name }} ({{ ticker }})</h2>
+    <h2>OI и цена — {{ security_name }} ({{ favorite_ticker(ticker) }})</h2>
     {% if oi_live %}
     <div class="muted small">Текущий OI: <b data-rt-oi-value="{{ ticker }}" data-rt-oi="{{ ticker }}">{{ oi_live.open_position }}</b> контр. · ΔOI: <b data-rt-oi-change="{{ ticker }}" data-rt-oi="{{ ticker }}">{{ "%+.2f"|format(oi_live.change_pct) if oi_live.change_pct is not none else "—" }}%</b></div>
     {% endif %}
@@ -412,7 +414,7 @@
 {% if ema_charts %}
 <section class="card chart-card" style="margin-top:12px">
   <div class="chart-head">
-    <h2>{{ 'EMA' if indicator_name == 'ema' else 'MACD' }} — {{ ema_security_name }} ({{ ticker }})</h2>
+    <h2>{{ 'EMA' if indicator_name == 'ema' else 'MACD' }} — {{ ema_security_name }} ({{ favorite_ticker(ticker) }})</h2>
     {% if ema_meta.trend == 'up' %}<span class="muted">тренд вверх ↑</span>
     {% elif ema_meta.trend == 'down' %}<span class="muted">тренд вниз ↓</span>{% endif %}
   </div>
@@ -473,7 +475,7 @@
 {% if vp %}
 <section class="card chart-card" style="margin-top:12px">
   <div class="chart-head">
-    <h2>Профиль объёма — {{ vp_security_name }} ({{ ticker }})</h2>
+    <h2>Профиль объёма — {{ vp_security_name }} ({{ favorite_ticker(ticker) }})</h2>
   </div>
   <p class="muted small">За последние {{ vp.candles }} торговых дней ({{ vp.from }} → {{ vp.to }}). Ширина бара — объём на ценовом уровне.</p>
   <svg class="chart" viewBox="0 0 900 {{ vp.height }}" preserveAspectRatio="none">
@@ -569,7 +571,7 @@
 {% if tech_charts %}
 <section class="card chart-card" style="margin-top:12px">
   <div class="chart-head">
-    <h2>{{ {'bollinger': 'Полосы Боллинджера', 'atr': 'ATR', 'adx': 'ADX/DI', 'rsi': 'RSI'}[indicator_name] }} — {{ tech_security_name }} ({{ ticker }})</h2>
+    <h2>{{ {'bollinger': 'Полосы Боллинджера', 'atr': 'ATR', 'adx': 'ADX/DI', 'rsi': 'RSI'}[indicator_name] }} — {{ tech_security_name }} ({{ favorite_ticker(ticker) }})</h2>
     {% if indicator_name == 'bollinger' and tech_meta.zone == 'upper' %}<span class="muted">выше верхней полосы — перекупленность</span>
     {% elif indicator_name == 'bollinger' and tech_meta.zone == 'lower' %}<span class="muted">ниже нижней полосы — перепроданность</span>
     {% elif indicator_name == 'adx' and tech_meta.state == 'trend' %}<span class="muted">тренд: ADX ≥ 25 ({{ tech_meta.trend }})</span>
@@ -649,7 +651,7 @@
 {% if sr %}
 <section class="card chart-card" style="margin-top:12px">
   <div class="chart-head">
-    <h2>Уровни — {{ sr_security_name }} ({{ ticker }})</h2>
+    <h2>Уровни — {{ sr_security_name }} ({{ favorite_ticker(ticker) }})</h2>
   </div>
   <p class="muted small">За {{ sr.candles }} торговых дней ({{ sr.from }} → {{ sr.to }}). ATR ≈ {{ sr.atr }} · последнее закрытие {{ sr.last_close }}.</p>
   <table class="table">
@@ -711,7 +713,7 @@
 {% if basis_charts %}
 <section class="card chart-card" style="margin-top:12px">
   <div class="chart-head">
-    <h2>Базис — {{ basis_security_name }} ({{ ticker }})</h2>
+    <h2>Базис — {{ basis_security_name }} ({{ favorite_ticker(ticker) }})</h2>
     {% if basis_meta.state == 'contango' %}<span class="muted">контанго</span>
     {% elif basis_meta.state == 'backwardation' %}<span class="muted">бэквордация</span>{% endif %}
   </div>

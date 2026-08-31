@@ -222,7 +222,8 @@
       var lists = document.querySelectorAll('datalist[data-source="tickers"]');
       if (!lists.length) return;
       if (window._securitiesCache === null) {
-        Promise.all([fetch('/v1/securities').then(function (r) { return r.json(); }), fetch('/v1/favorites').then(function (r) { return r.ok ? r.json() : {items: []}; })])
+        var favoritesRequest = {% if user %}fetch('/v1/favorites').then(function (r) { return r.ok ? r.json() : {items: []}; }){% else %}Promise.resolve({items: []}){% endif %};
+        Promise.all([fetch('/v1/securities').then(function (r) { return r.json(); }), favoritesRequest])
           .then(function (data) {
             var favoriteTickers = new Set((data[1].items || []).map(function (item) { return item.ticker; }));
             window._securitiesCache = (data[0] || []).map(function (security) { security.is_favorite = favoriteTickers.has(security.ticker); return security; });

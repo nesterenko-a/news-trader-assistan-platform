@@ -77,7 +77,8 @@ async def test_indicators_bollinger_tab(session):
         session=session,
     )
     html = resp.body.decode()
-    assert "Полосы Боллинджера — Тестовая бумага (TEST)" in html
+    assert "Полосы Боллинджера — Тестовая бумага (" in html
+    assert '<span class="ticker-with-favorite">TEST</span>' in html
     assert "middle=" in html and "upper=" in html and "lower=" in html
     assert "svg" in html
     assert "Бумага не найдена" not in html
@@ -96,7 +97,8 @@ async def test_indicators_atr_tab(session):
         session=session,
     )
     html = resp.body.decode()
-    assert "ATR — Тестовая бумага (TEST)" in html
+    assert "ATR — Тестовая бумага (" in html
+    assert '<span class="ticker-with-favorite">TEST</span>' in html
     assert "ATR=" in html and "ATR % от цены=" in html
     assert "Бумага не найдена" not in html
 
@@ -114,7 +116,8 @@ async def test_indicators_adx_tab(session):
         session=session,
     )
     html = resp.body.decode()
-    assert "ADX/DI — Тестовая бумага (TEST)" in html
+    assert "ADX/DI — Тестовая бумага (" in html
+    assert '<span class="ticker-with-favorite">TEST</span>' in html
     assert "ADX=" in html and "+DI=" in html and "−DI=" in html
     assert "Бумага не найдена" not in html
 
