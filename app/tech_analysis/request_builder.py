@@ -42,6 +42,9 @@ WINDOWS = [
     (30, "1M"),
 ]
 
+CLIENT_POSITIONS_DAYS = 31
+CLIENT_POSITIONS_MAX_ROWS = 22
+
 
 async def _candles_window(
     session,
@@ -74,6 +77,31 @@ def _candles_md(candles: list, title: str) -> str:
         d = getattr(c, "trading_date", None) or getattr(c, "date", None)
         vol = getattr(c, "volume", None)
         lines.append(f"| {d} | {_fmt_price(c.close)} | {vol if vol is not None else '—'} |")
+    return "\n".join(lines) + "\n"
+
+
+def _client_positions_md(groups: list[dict]) -> str:
+    recent = groups[-CLIENT_POSITIONS_MAX_ROWS:]
+    first_date = recent[0].get("date")
+    last_date = recent[-1].get("date")
+    lines = [
+        "### Клиентские позиции",
+        (
+            f"Последние известные позиции за {first_date} — {last_date} "
+            f"({len(recent)} торговых дат; окно до {CLIENT_POSITIONS_DAYS} календарного дня)."
+        ),
+        "| Дата | Физ long | Физ short | Физ нетто | Юр long | Юр short | Юр нетто |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    for row in recent:
+        physical = row.get("physical") or {}
+        juridical = row.get("juridical") or {}
+        lines.append(
+            f"| {row.get('date')} | {physical.get('long', '—')} | "
+            f"{physical.get('short', '—')} | {physical.get('net', '—')} | "
+            f"{juridical.get('long', '—')} | {juridical.get('short', '—')} | "
+            f"{juridical.get('net', '—')} |"
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -168,16 +196,13 @@ async def build_analysis_request(session, security: Security) -> dict:
                 f"- OI сигнал: {oi_signal.get('kind', '')}"
                 f" — {oi_signal.get('note', '')}\n"
             )
-        groups = await client_groups_series(session, security.id)
+        groups = await client_groups_series(
+            session,
+            security.id,
+            from_date=date.today() - timedelta(days=CLIENT_POSITIONS_DAYS),
+        )
         if groups:
-            last = groups[-1]
-            ph = last.get("physical") or {}
-            ju = last.get("juridical") or {}
-            parts.append(
-                f"- Клиентские позиции ({last.get('date')}): физ long={ph.get('long')}, "
-                f"short={ph.get('short')}, нетто={ph.get('net')}; "
-                f"юр long={ju.get('long')}, short={ju.get('short')}, нетто={ju.get('net')}\n"
-            )
+            parts.append(_client_positions_md(groups))
         basis = await basis_for_ticker(session, security.ticker)
         if basis.values:
             parts.append(
