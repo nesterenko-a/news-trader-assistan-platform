@@ -8,7 +8,8 @@
   <p class="muted">Запуск основных скриптов проекта и контроль их выполнения.</p>
   {% if busy_error %}<p class="error">Другой скрипт уже выполняется. Дождитесь завершения.</p>{% endif %}
   {% if param_error %}<p class="error">Недопустимый параметр.</p>{% endif %}
-  {% if busy %}<p class="muted">Выполняется скрипт — новые запуски недоступны до его завершения.</p>{% endif %}
+  {% if busy %}<p class="muted">Выполняется скрипт — другие разовые запуски недоступны до его завершения.</p>{% endif %}
+  {% if daemon_busy %}<p class="muted">Демон актуализации рынка работает. Разовые скрипты можно запускать параллельно.</p>{% endif %}
 </section>
 
 <section class="card">
@@ -54,7 +55,7 @@
           <input type="checkbox" id="oi-all" name="param_all" value="1"> Скачать OI по всем фьючерсам (--all)
         </label>
         {% endif %}
-        <button class="btn" type="submit" {% if busy %}disabled{% endif %} style="margin-top:8px">Запустить</button>
+        <button class="btn" type="submit" {% if (s.get('no_timeout') and daemon_busy) or (not s.get('no_timeout') and busy) %}disabled{% endif %} style="margin-top:8px">Запустить</button>
       </form>
     </div>
     {% endif %}

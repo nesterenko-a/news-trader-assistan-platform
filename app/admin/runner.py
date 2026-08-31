@@ -251,7 +251,12 @@ SCRIPTS: list[dict] = [
 
 SCRIPTS_BY_KEY = {s["key"]: s for s in SCRIPTS}
 
-_active_run_id: int | None = None
+_active_run_ids: dict[str, int | None] = {"regular": None, "daemon": None}
+
+
+def _run_slot(script_key: str) -> str:
+    script = get_script(script_key)
+    return "daemon" if script is not None and script.get("no_timeout") else "regular"
 
 
 def get_script(key: str) -> dict | None:
@@ -464,20 +469,27 @@ async def run_script_task(run_id: int, script_key: str, param_values: dict | Non
                     await resolve_script_run_notices(session)
             except Exception:
                 pass
-        global _active_run_id
-        _active_run_id = None
+        slot = _run_slot(script_key)
+        if _active_run_ids.get(slot) == run_id:
+            _active_run_ids[slot] = None
 
 
 def launch(run_id: int, script_key: str, param_values: dict | None) -> None:
-    global _active_run_id
-    if _active_run_id is not None:
+    slot = _run_slot(script_key)
+    if _active_run_ids[slot] is not None:
+        if slot == "daemon":
+            raise RuntimeError("Демон уже выполняется")
         raise RuntimeError("Другой скрипт уже выполняется")
-    _active_run_id = run_id
+    _active_run_ids[slot] = run_id
     asyncio.get_running_loop().create_task(run_script_task(run_id, script_key, param_values))
 
 
 def is_busy() -> bool:
-    return _active_run_id is not None
+    return _active_run_ids["regular"] is not None
+
+
+def is_daemon_busy() -> bool:
+    return _active_run_ids["daemon"] is not None
 
 
 async def mark_stale_runs(session) -> int:

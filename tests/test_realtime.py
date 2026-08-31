@@ -141,7 +141,7 @@ async def test_current_quotes_and_quote_event(session):
 
 # --- Админ-блок «Реальное время» ---
 
-async def test_admin_page_renders_realtime_block(session):
+async def test_admin_page_renders_realtime_block(session, monkeypatch):
     await seed_graph(session)
     await ensure_config(session)
     admin = User(username="rtadmin", password_hash="x", role="admin")
@@ -149,6 +149,7 @@ async def test_admin_page_renders_realtime_block(session):
     await session.flush()
     token = await create_session(session, admin)
     await session.commit()
+    monkeypatch.setattr("app.web.router.is_daemon_busy", lambda: True)
 
     req = await _make_request("GET", token, "/admin")
     resp = await admin_page(req, session)
@@ -156,6 +157,11 @@ async def test_admin_page_renders_realtime_block(session):
     assert "Реальное время" in html
     assert "Актуализация рынка (демон)" in html
     assert "realtime_enabled" in html
+    assert "Разовые скрипты можно запускать параллельно" in html
+    oi_form = html[html.index('value="update_oi"'):html.index('value="realtime_updater"')]
+    daemon_form = html[html.index('value="realtime_updater"'):]
+    assert "disabled" not in oi_form
+    assert "disabled" in daemon_form
 
 
 async def test_admin_realtime_save_persists(session):

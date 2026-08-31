@@ -30,6 +30,12 @@ test.describe("Контроль доступа", () => {
     await page.goto("/admin");
     await expect(page.locator("body")).toContainText("Администрирование");
     await expect(page.locator('form[action="/admin/scripts/run"]')).not.toHaveCount(0);
+    await expect(
+      page.locator('form:has(input[value="update_oi"]) button[type="submit"]'),
+    ).toBeEnabled();
+    await expect(
+      page.locator('form:has(input[value="realtime_updater"]) button[type="submit"]'),
+    ).toBeEnabled();
   });
 
   test("admin: перенос графа — скачивание дампа и форма импорта", async ({ page }) => {

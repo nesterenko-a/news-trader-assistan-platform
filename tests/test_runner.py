@@ -1,5 +1,8 @@
+import asyncio
+
 import pytest
 
+from app.admin import runner
 from app.admin.runner import SCRIPTS, build_argv
 from app.web.router import _run_progress
 
@@ -69,3 +72,31 @@ def test_build_argv_extra_param_passthrough():
     # Без --tickers в param_values он не добавляется
     argv = build_argv("daily_pipeline", {"--from-phase": 1})
     assert "--tickers" not in argv
+
+
+def test_realtime_daemon_does_not_block_regular_script_launch(monkeypatch):
+    started = []
+
+    def fake_create_task(coro):
+        started.append(coro)
+        coro.close()
+        return None
+
+    monkeypatch.setattr(
+        asyncio,
+        "get_running_loop",
+        lambda: type("Loop", (), {"create_task": staticmethod(fake_create_task)})(),
+    )
+    runner._active_run_ids.update({"regular": None, "daemon": None})
+    try:
+        runner.launch(101, "realtime_updater", None)
+        runner.launch(102, "update_oi", None)
+        assert runner.is_daemon_busy() is True
+        assert runner.is_busy() is True
+        with pytest.raises(RuntimeError, match="Демон уже выполняется"):
+            runner.launch(103, "realtime_updater", None)
+        with pytest.raises(RuntimeError, match="Другой скрипт"):
+            runner.launch(104, "daily_pipeline", None)
+        assert len(started) == 2
+    finally:
+        runner._active_run_ids.update({"regular": None, "daemon": None})

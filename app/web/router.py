@@ -31,7 +31,7 @@ from app.auth import (
 )
 from app.bot.linking import consume_link_code, set_user_chat, unlink_telegram
 from app.bot.push import get_bot_username
-from app.admin.runner import SCRIPTS, _pipeline_failed_phase, get_script, is_busy, launch
+from app.admin.runner import SCRIPTS, _pipeline_failed_phase, get_script, is_busy, is_daemon_busy, launch
 from app.api.routes.indicators import _calculate_oi
 from app.feedback.service import (
     get_rating,
@@ -2046,6 +2046,7 @@ async def admin_page(
             "runs": items,
             "templates": futures_templates,
             "busy": is_busy(),
+            "daemon_busy": is_daemon_busy(),
             "error": request.query_params.get("error") == "1",
             "param_error": request.query_params.get("error") == "2",
             "tpl_name_error": request.query_params.get("error") == "3",
