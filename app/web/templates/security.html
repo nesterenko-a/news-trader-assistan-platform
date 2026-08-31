@@ -491,8 +491,9 @@
           body: new URLSearchParams({ provider: provider })
         })
           .then(function (r) {
-            // Редирект на /login (неавторизован) или 401 — уводим пользователя на вход
-            if (r.status === 401 || r.status === 403 || r.redirected || /\/login/.test(r.url || '')) {
+            // Обычный POST завершается редиректом обратно на карточку бумаги; это не потеря сессии.
+            // На вход уходим только при фактической неавторизованности.
+            if (r.status === 401 || r.status === 403 || /\/login(?:[/?#]|$)/.test(r.url || '')) {
               window.location.href = '/login';
               return null;
             }

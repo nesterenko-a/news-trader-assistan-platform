@@ -29,6 +29,27 @@ test.describe("Теханализ в LLM", () => {
     expect((resp.headers()["location"] || "").toLowerCase()).toContain("/login");
   });
 
+  test("авторизованный запуск остаётся на карточке и показывает ход обработки", async ({ page }) => {
+    await login(page, USER.username, USER.password);
+    await page.goto("/securities/AFLT");
+    await page.route("**/securities/AFLT/tech-analysis", async (route) => {
+      await route.fulfill({ status: 303, headers: { location: "/securities/AFLT" } });
+    });
+    await page.route("**/v1/tech-analysis?ticker=AFLT&page=1", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ items: [{ status: "running", stage: "refreshing_data" }] }),
+      });
+    });
+
+    await page.getByRole("button", { name: "Запустить теханализ" }).click();
+
+    await expect(page).toHaveURL(/\/securities\/AFLT/);
+    await expect(page.locator("#ta-progress-ajax")).toBeVisible();
+    await expect(page.locator("#ta-stage-ajax")).toHaveText("актуализация данных");
+    await expect(page.locator("#ta-run-form")).toBeHidden();
+  });
+
   test("страница ответа доступна и рендерит сценарии", async ({ page }) => {
     const resp = await page.goto("/tech_analysis/999999");
     expect(resp ? resp.status() : 500).toBe(404);
