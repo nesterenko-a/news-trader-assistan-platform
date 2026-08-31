@@ -18,10 +18,10 @@ test.describe("Мобильное меню", () => {
     await toggle.click();
     expect(await menuOpen(page)).toBe(true);
     await Promise.all([
-      page.waitForURL("/watchlist"),
-      page.locator('#user-menu a[href="/watchlist"]').click(),
+      page.waitForURL("/settings"),
+      page.locator('#user-menu a[href="/settings"]').first().click(),
     ]);
-    await expect(page.locator("h1")).toHaveText("Watchlist");
+    await expect(page.locator("h1")).toHaveText("Настройки пользователя");
   });
 
   test("закрытие повторным кликом", async ({ page }) => {

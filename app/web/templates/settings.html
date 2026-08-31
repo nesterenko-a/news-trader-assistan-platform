@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Настройки пользователя — NewsTrader Assistant{% endblock %}
+
+{% block content %}
+<section class="card settings-head">
+  <div>
+    <h1>Настройки пользователя</h1>
+    <p class="muted">Управляйте профилем и быстро переходите к своим инвестиционным спискам.</p>
+  </div>
+  {% if profile and profile.avatar_path %}
+  <img class="profile-avatar" src="/uploads/{{ profile.avatar_path }}" alt="Аватар пользователя">
+  {% else %}
+  <div class="profile-avatar profile-avatar-placeholder" aria-hidden="true">{{ user.username[:1]|upper }}</div>
+  {% endif %}
+</section>
+
+{% if profile_updated %}<p class="form-success" role="status">Профиль сохранён.</p>{% endif %}
+{% if profile_error == "avatar" %}<p class="form-error" role="alert">Загрузите изображение JPEG, PNG или WebP не более 5 МБ.</p>{% endif %}
+{% if profile_error == "profile" %}<p class="form-error" role="alert">Проверьте длину полей профиля.</p>{% endif %}
+
+<div class="settings-layout">
+  <aside class="settings-nav" aria-label="Разделы настроек">
+    <a href="#profile">Профиль</a>
+    <a href="#investments">Мои инвестиции</a>
+    <a href="#notifications">Уведомления</a>
+    <a href="#subscription">Подписка</a>
+    <a href="#brokers">Брокеры и торговля</a>
+    <a href="#security">Безопасность</a>
+    <a href="#privacy">Данные и приватность</a>
+  </aside>
+
+  <div class="settings-content">
+    <section class="card" id="profile">
+      <h2>Профиль</h2>
+      <p class="muted">Личные данные необязательны и не используются в аналитике, Telegram или журналах.</p>
+      <form method="post" action="/settings/profile" enctype="multipart/form-data" class="settings-form">
+        <label>ФИО
+          <input name="full_name" maxlength="200" value="{{ profile.full_name if profile and profile.full_name else '' }}" autocomplete="name">
+        </label>
+        <label>Отображаемое имя
+          <input name="display_name" maxlength="100" value="{{ profile.display_name if profile and profile.display_name else '' }}">
+        </label>
+        <label>Аватар
+          <input name="avatar" type="file" accept="image/jpeg,image/png,image/webp">
+          <span class="field-help">JPEG, PNG или WebP, до 5 МБ. Изображение будет уменьшено до 256×256.</span>
+        </label>
+        <label>Адрес
+          <input type="text" value="В разработке: будет доступен после внедрения шифрования" disabled>
+          <span class="field-help">Адрес пока не принимается и не сохраняется.</span>
+        </label>
+        <button class="btn active" type="submit">Сохранить профиль</button>
+      </form>
+    </section>
+
+    <section class="card" id="investments">
+      <h2>Мои инвестиции</h2>
+      <div class="settings-cards">
+        <a class="settings-link-card" href="/watchlist"><span>Watchlist</span><strong>{{ watchlist_count }}</strong><small>отслеживаемых бумаг</small></a>
+        <a class="settings-link-card" href="/portfolio"><span>Портфель</span><strong>{{ portfolio_count }}</strong><small>открытых позиций</small></a>
+        <a class="settings-link-card" href="/paper"><span>Виртуальный портфель</span><strong>{{ paper_count }}</strong><small>открытых позиций</small></a>
+      </div>
+      <div class="settings-pending"><strong>Избранное</strong><span>Личный список акций и фьючерсов со звездой рядом с тикером — в разработке.</span></div>
+    </section>
+
+    <section class="card" id="notifications">
+      <h2>Уведомления</h2>
+      <p class="muted">Настройте порог алертов и подключение Telegram на существующей странице.</p>
+      <a class="btn" href="/alerts">Открыть алерты{% if user.telegram_chat_id %} · Telegram подключён{% endif %}</a>
+    </section>
+
+    <section class="card" id="subscription">
+      <h2>Подписка</h2>
+      <p class="muted">Текущий уровень: <b>Free</b>. Тарифы пока не продаются и не являются публичной офертой.</p>
+      <div class="settings-cards">
+        <div class="settings-pending"><strong>Pro Месяц · 990 ₽</strong><span>Расширенные лимиты и инструменты — в разработке.</span></div>
+        <div class="settings-pending"><strong>Pro Год · 9 900 ₽</strong><span>Экономия двух месяцев — в разработке.</span></div>
+      </div>
+      <a class="btn" href="/pricing">Тарифы — в разработке</a>
+    </section>
+
+    <section class="card" id="brokers"><h2>Брокеры и торговля</h2><p class="muted">Подключение брокеров и выставление заявок с Stop-loss/Take-profit — в разработке. API-ключи пока не вводятся и не хранятся.</p></section>
+    <section class="card" id="security"><h2>Безопасность</h2><p class="muted">Двухфакторная аутентификация, активные сессии и история входов — в разработке.</p></section>
+    <section class="card" id="privacy"><h2>Данные и приватность</h2><p class="muted">Экспорт данных, удаление аккаунта и управление согласиями — в разработке.</p></section>
+  </div>
+</div>
+{% endblock %}

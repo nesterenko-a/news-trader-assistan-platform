@@ -41,6 +41,21 @@ class User(Base):
     )
 
 
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    full_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    display_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    avatar_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class ScriptRun(Base):
     __tablename__ = "script_runs"
 

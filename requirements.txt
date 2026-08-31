@@ -14,5 +14,6 @@ python-telegram-bot==22.8
 python-multipart==0.0.32
 telethon==1.44.0
 pypdf==6.16.1
+Pillow==11.3.0
 markdown-it-py==4.2.0
 nh3==0.3.7

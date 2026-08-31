@@ -508,6 +508,33 @@ main { padding: 24px 16px 40px; }
   border-bottom: 1px solid var(--border);
   margin-bottom: 4px;
 }
+.menu-dropdown a.menu-user { color: var(--text); text-decoration: none; }
+
+.settings-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.settings-head h1 { margin-bottom: 4px; }
+.profile-avatar { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border); flex: 0 0 auto; }
+.profile-avatar-placeholder { display: grid; place-items: center; background: var(--panel-2); color: var(--accent); font-size: 26px; font-weight: 700; }
+.settings-layout { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 16px; align-items: start; }
+.settings-nav { position: sticky; top: 16px; display: grid; gap: 4px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+.settings-nav a { padding: 7px 9px; border-radius: 6px; color: var(--muted); font-size: 14px; }
+.settings-nav a:hover { background: var(--panel-2); color: var(--text); text-decoration: none; }
+.settings-content { display: grid; gap: 16px; }
+.settings-content .card { margin: 0; }
+.settings-form { display: grid; gap: 14px; max-width: 560px; }
+.settings-form label { display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
+.settings-form input { width: 100%; }
+.field-help { color: var(--muted); font-size: 12px; }
+.form-success, .form-error { padding: 10px 12px; border-radius: 8px; }
+.form-success { background: rgba(47, 191, 113, 0.13); color: var(--green); }
+.form-error { background: rgba(229, 72, 77, 0.13); color: var(--red); }
+.settings-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin: 12px 0; }
+.settings-link-card, .settings-pending { display: grid; gap: 2px; min-height: 112px; padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); }
+.settings-link-card { color: var(--text); }
+.settings-link-card:hover { border-color: var(--accent); text-decoration: none; }
+.settings-link-card strong { font-size: 26px; color: var(--accent); }
+.settings-link-card small, .settings-pending span { color: var(--muted); font-size: 13px; }
+.settings-pending { margin-top: 12px; }
+@media (max-width: 700px) { .settings-layout { grid-template-columns: 1fr; } .settings-nav { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); } .settings-head { align-items: flex-start; } }
 
 .attention-toggle {
   color: var(--muted);

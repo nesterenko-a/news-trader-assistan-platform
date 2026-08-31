@@ -90,4 +90,26 @@ test.describe("Приватные функции", () => {
     ]);
     expect(page.url()).toContain("/paper");
   });
+
+  test("настройки: профиль, инвестиционные ссылки и заглушки", async ({ page }) => {
+    await newUser(page);
+    await page.goto("/");
+    await page.locator(".menu-toggle").click();
+    await Promise.all([
+      page.waitForURL("/settings"),
+      page.locator('#user-menu a[href="/settings"]').first().click(),
+    ]);
+    const form = page.locator('form[action="/settings/profile"]');
+    await form.locator('input[name="full_name"]').fill("Иванов Иван Иванович");
+    await form.locator('input[name="display_name"]').fill("Иван");
+    await Promise.all([
+      page.waitForURL(/\/settings\?profile=updated/),
+      form.locator('button[type="submit"]').click(),
+    ]);
+    await expect(page.getByText("Профиль сохранён.")).toBeVisible();
+    await expect(form.locator('input[name="full_name"]')).toHaveValue("Иванов Иван Иванович");
+    await expect(page.locator('a[href="/watchlist"]')).toContainText("Watchlist");
+    await expect(page.getByRole("heading", { name: "Брокеры и торговля" })).toBeVisible();
+    await expect(page.getByText("API-ключи пока не вводятся и не хранятся.")).toBeVisible();
+  });
 });

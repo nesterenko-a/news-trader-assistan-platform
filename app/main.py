@@ -80,11 +80,12 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title="NewsTrader Assistant",
-    version="0.23.0",
+    version="0.24.0",
     lifespan=lifespan,
 )
 
 app.mount("/static", StaticFiles(directory="app/web/static"), name="static")
+app.mount("/uploads", StaticFiles(directory="uploads", check_dir=False), name="uploads")
 app.add_middleware(DatabaseGuardMiddleware)
 app.include_router(web_router)
 app.include_router(api_router)

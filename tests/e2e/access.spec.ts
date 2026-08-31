@@ -4,6 +4,7 @@ import { ADMIN, USER, login } from "./helpers";
 test.describe("Контроль доступа", () => {
   const PROTECTED = [
     "/watchlist",
+    "/settings",
     "/portfolio",
     "/alerts",
     "/history",

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Тарифы — NewsTrader Assistant{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h1>Тарифы и оплата</h1>
+  <p class="muted">Раздел находится в разработке. Сейчас доступен уровень Free; оплата и подписки не создаются.</p>
+  <div class="settings-cards">
+    <div class="settings-pending"><strong>Free · 0 ₽</strong><span>Базовая аналитика и личные списки.</span></div>
+    <div class="settings-pending"><strong>Pro Месяц · 990 ₽</strong><span>В разработке.</span></div>
+    <div class="settings-pending"><strong>Pro Год · 9 900 ₽</strong><span>В разработке.</span></div>
+  </div>
+  <a class="btn" href="/settings#subscription">Вернуться в Настройки</a>
+</section>
+{% endblock %}

@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import date, datetime, timedelta, timezone
+from io import BytesIO
 import os
 import re
 import uuid
@@ -11,8 +12,9 @@ from app.config import get_settings as get_cfg
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.datastructures import UploadFile
 
 from app.alerts.service import (
     get_settings,
@@ -56,6 +58,8 @@ from app.db.models import (
     MarketCandle,
     MarketOpenPosition,
     PortfolioPosition,
+    PaperAccount,
+    PaperPosition,
     RealtimeConfig,
     ScriptRun,
     Security,
@@ -63,10 +67,12 @@ from app.db.models import (
     Strategy,
     TechAnalysis,
     User,
+    UserProfile,
     UserPipelinePref,
     UserSource,
     WatchlistItem,
 )
+from PIL import Image, UnidentifiedImageError
 from app.news.sources_service import (
     SOURCE_CATEGORIES,
     add_default_sources_for_user,
@@ -145,6 +151,9 @@ SIGNAL_LABELS = {
 
 _web_context_factory = WebContextFactory()
 _moex = MOEXClient()
+_AVATAR_DIR = Path("uploads") / "avatars"
+_MAX_AVATAR_BYTES = 5 * 1024 * 1024
+_AVATAR_FORMATS = {"JPEG", "PNG", "WEBP"}
 
 
 def _build_indicator_charts(
@@ -197,6 +206,34 @@ async def _base_context(session: AsyncSession, user: User | None) -> dict:
         "is_admin": bool(user is not None and user.role == "admin"),
         "unread_alerts": unread_alerts,
     }
+
+
+async def _profile_for_user(session: AsyncSession, user_id: int) -> UserProfile | None:
+    return await session.get(UserProfile, user_id)
+
+
+async def _store_avatar(upload: UploadFile, previous_path: str | None) -> str:
+    content = await upload.read(_MAX_AVATAR_BYTES + 1)
+    if len(content) > _MAX_AVATAR_BYTES:
+        raise ValueError("Размер аватара не должен превышать 5 МБ")
+    try:
+        with Image.open(BytesIO(content)) as source:
+            if source.format not in _AVATAR_FORMATS:
+                raise ValueError("Поддерживаются только JPEG, PNG и WebP")
+            source.load()
+            image = source.convert("RGB")
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ValueError("Не удалось прочитать изображение") from exc
+    image.thumbnail((256, 256))
+    _AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+    filename = f"{uuid.uuid4().hex}.webp"
+    target = _AVATAR_DIR / filename
+    image.save(target, format="WEBP", quality=85, method=6)
+    if previous_path:
+        previous = _AVATAR_DIR / Path(previous_path).name
+        if previous.is_file():
+            previous.unlink()
+    return f"avatars/{filename}"
 
 
 def _build_chart(candles: list[MarketCandle], width: int = 900, height: int = 280) -> dict | None:
@@ -1662,6 +1699,80 @@ async def logout_page(
     response = RedirectResponse(url="/", status_code=303)
     response.delete_cookie("nt_token")
     return response
+
+
+@router.get("/settings")
+async def settings_page(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    profile = await _profile_for_user(session, user.id)
+    watchlist_count = await session.scalar(
+        select(func.count()).select_from(WatchlistItem).where(WatchlistItem.user_id == user.id)
+    )
+    portfolio_count = await session.scalar(
+        select(func.count()).select_from(PortfolioPosition).where(PortfolioPosition.user_id == user.id)
+    )
+    paper_count = await session.scalar(
+        select(func.count())
+        .select_from(PaperPosition)
+        .join(PaperAccount, PaperAccount.id == PaperPosition.account_id)
+        .where(PaperAccount.user_id == user.id, PaperPosition.status == "open")
+    )
+    context = await _base_context(session, user)
+    context.update(
+        {
+            "profile": profile,
+            "watchlist_count": watchlist_count or 0,
+            "portfolio_count": portfolio_count or 0,
+            "paper_count": paper_count or 0,
+            "profile_updated": request.query_params.get("profile") == "updated",
+            "profile_error": request.query_params.get("error"),
+        }
+    )
+    return templates.TemplateResponse(request, "settings.html", context)
+
+
+@router.post("/settings/profile")
+async def update_settings_profile(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    full_name = str(form.get("full_name") or "").strip()
+    display_name = str(form.get("display_name") or "").strip()
+    if len(full_name) > 200 or len(display_name) > 100:
+        return RedirectResponse(url="/settings?error=profile", status_code=303)
+    profile = await _profile_for_user(session, user.id)
+    if profile is None:
+        profile = UserProfile(user_id=user.id)
+        session.add(profile)
+    profile.full_name = full_name or None
+    profile.display_name = display_name or None
+    avatar = form.get("avatar")
+    if isinstance(avatar, UploadFile) and avatar.filename:
+        try:
+            profile.avatar_path = await _store_avatar(avatar, profile.avatar_path)
+        except ValueError:
+            return RedirectResponse(url="/settings?error=avatar", status_code=303)
+    await session.commit()
+    return RedirectResponse(url="/settings?profile=updated", status_code=303)
+
+
+@router.get("/pricing")
+async def pricing_page(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    context = await _base_context(session, user)
+    return templates.TemplateResponse(request, "pricing.html", context)
 
 
 @router.get("/watchlist")
