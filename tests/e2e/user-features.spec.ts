@@ -112,4 +112,17 @@ test.describe("Приватные функции", () => {
     await expect(page.getByRole("heading", { name: "Брокеры и торговля" })).toBeVisible();
     await expect(page.getByText("API-ключи пока не вводятся и не хранятся.")).toBeVisible();
   });
+
+  test("избранное: добавить и убрать без перезагрузки", async ({ page }) => {
+    await newUser(page);
+    await page.goto("/?type=all");
+    const star = page.locator('.favorite-toggle[data-ticker="AFLT"]');
+    await expect(star).toHaveCount(1);
+    await star.click();
+    await expect(star).toHaveClass(/is-favorite/);
+    await page.goto("/settings#favorites");
+    await expect(page.locator('[data-favorite-row="AFLT"]')).toHaveCount(1);
+    await page.locator('[data-favorite-row="AFLT"] .favorite-toggle').click();
+    await expect(page.locator('[data-favorite-row="AFLT"]')).toHaveCount(0);
+  });
 });

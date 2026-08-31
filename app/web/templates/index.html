@@ -26,6 +26,10 @@
         <input type="radio" name="type" value="futures" {% if current_type == 'futures' %}checked{% endif %} onchange="this.form.submit()">
         Фьючерсы
       </label>
+      {% if user %}<label class="seg-item">
+        <input type="radio" name="type" value="favorites" {% if current_type == 'favorites' %}checked{% endif %} onchange="this.form.submit()">
+        Избранное
+      </label>{% endif %}
       <label class="seg-item">
         <input type="radio" name="type" value="all" {% if current_type == 'all' %}checked{% endif %} onchange="this.form.submit()">
         Все
@@ -59,7 +63,7 @@
       <tbody>
         {% for sec in securities %}
         <tr>
-          <td><a href="/securities/{{ sec.ticker }}">{{ sec.ticker }}</a></td>
+          <td class="ticker-with-favorite">{% if user %}<button class="favorite-toggle {{ 'is-favorite' if sec.is_favorite else '' }}" data-ticker="{{ sec.ticker }}" aria-label="{{ 'Убрать из избранного' if sec.is_favorite else 'Добавить в избранное' }}" title="{{ 'Убрать из избранного' if sec.is_favorite else 'Добавить в избранное' }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3.1 6.3 7 1-5 4.9 1.2 6.9-6.3-3.3-6.3 3.3 1.2-6.9-5-4.9 7-1z"/></svg></button>{% endif %}<a href="/securities/{{ sec.ticker }}">{{ sec.ticker }}</a></td>
           <td>{{ sec.name }}{% if sec.is_futures %} <span class="muted small">(фьючерс)</span>{% endif %}</td>
           <td>{{ sec.sector }}</td>
           <td>{{ sec.market }}</td>
@@ -68,5 +72,6 @@
       </tbody>
     </table>
   </form>
+  {% if favorites_empty %}<p class="muted">Избранных бумаг пока нет. <a href="/?type=all">Показать все</a></p>{% endif %}
 </section>
 {% endblock %}

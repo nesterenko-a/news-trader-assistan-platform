@@ -34,5 +34,6 @@
     <include file="changelogs/027_top5_trades.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/028_tech_analysis_await_confirmation.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/029_user_profiles.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/030_user_favorites.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

@@ -22,6 +22,7 @@
 <div class="settings-layout">
   <aside class="settings-nav" aria-label="Разделы настроек">
     <a href="#profile">Профиль</a>
+    <a href="#favorites">Избранное</a>
     <a href="#investments">Мои инвестиции</a>
     <a href="#notifications">Уведомления</a>
     <a href="#subscription">Подписка</a>
@@ -60,7 +61,11 @@
         <a class="settings-link-card" href="/portfolio"><span>Портфель</span><strong>{{ portfolio_count }}</strong><small>открытых позиций</small></a>
         <a class="settings-link-card" href="/paper"><span>Виртуальный портфель</span><strong>{{ paper_count }}</strong><small>открытых позиций</small></a>
       </div>
-      <div class="settings-pending"><strong>Избранное</strong><span>Личный список акций и фьючерсов со звездой рядом с тикером — в разработке.</span></div>
+    </section>
+
+    <section class="card" id="favorites">
+      <h2>Избранное</h2>
+      {% if favorites %}<table class="table"><thead><tr><th>Тикер</th><th>Название</th><th>Тип</th><th>Сектор</th><th>Рынок</th></tr></thead><tbody>{% for item in favorites %}<tr data-favorite-row="{{ item.ticker }}"><td class="ticker-with-favorite"><button class="favorite-toggle is-favorite" data-ticker="{{ item.ticker }}" aria-label="Убрать из избранного" title="Убрать из избранного"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3.1 6.3 7 1-5 4.9 1.2 6.9-6.3-3.3-6.3 3.3 1.2-6.9-5-4.9 7-1z"/></svg></button><a href="/securities/{{ item.ticker }}">{{ item.ticker }}</a></td><td>{{ item.name }}</td><td>{{ item.type }}</td><td>{{ item.sector }}</td><td>{{ item.market }}</td></tr>{% endfor %}</tbody></table>{% else %}<p class="muted">Избранных бумаг пока нет. <a href="/?type=all">Открыть Аналитику</a></p>{% endif %}
     </section>
 
     <section class="card" id="notifications">

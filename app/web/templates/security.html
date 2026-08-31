@@ -8,7 +8,7 @@
 <section class="card">
   <div class="security-head">
     <div>
-      <h1>{{ view.ticker }}</h1>
+      <h1 class="ticker-with-favorite">{% if user %}<button class="favorite-toggle {{ 'is-favorite' if is_favorite else '' }}" data-ticker="{{ view.ticker }}" aria-label="{{ 'Убрать из избранного' if is_favorite else 'Добавить в избранное' }}" title="{{ 'Убрать из избранного' if is_favorite else 'Добавить в избранного' }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3.1 6.3 7 1-5 4.9 1.2 6.9-6.3-3.3-6.3 3.3 1.2-6.9-5-4.9 7-1z"/></svg></button>{% endif %}{{ view.ticker }}</h1>
       <p class="muted">{{ view.name }} · {{ view.sector }} · {{ view.market }}</p>
     </div>
     <div class="head-actions">

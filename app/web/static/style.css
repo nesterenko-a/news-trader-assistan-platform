@@ -509,6 +509,11 @@ main { padding: 24px 16px 40px; }
   margin-bottom: 4px;
 }
 .menu-dropdown a.menu-user { color: var(--text); text-decoration: none; }
+.ticker-with-favorite { display: inline-flex; align-items: center; gap: 5px; }
+.favorite-toggle { width: 20px; height: 20px; padding: 0; border: 0; background: transparent; color: #f0b429; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.favorite-toggle svg { width: 18px; height: 18px; fill: transparent; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+.favorite-toggle.is-favorite svg { fill: currentColor; }
+.favorite-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 
 .settings-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .settings-head h1 { margin-bottom: 4px; }

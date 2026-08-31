@@ -207,6 +207,7 @@
           if (filter === 'futures') return s.security_type === 'futures';
           return true;
         });
+        opts.sort(function (a, b) { return Number(Boolean(b.is_favorite)) - Number(Boolean(a.is_favorite)) || a.ticker.localeCompare(b.ticker); });
         dl.innerHTML = '';
         opts.forEach(function (s) {
           var o = document.createElement('option');
@@ -220,10 +221,10 @@
       var lists = document.querySelectorAll('datalist[data-source="tickers"]');
       if (!lists.length) return;
       if (window._securitiesCache === null) {
-        fetch('/v1/securities')
-          .then(function (r) { return r.json(); })
+        Promise.all([fetch('/v1/securities').then(function (r) { return r.json(); }), fetch('/v1/favorites').then(function (r) { return r.ok ? r.json() : {items: []}; })])
           .then(function (data) {
-            window._securitiesCache = data || [];
+            var favoriteTickers = new Set((data[1].items || []).map(function (item) { return item.ticker; }));
+            window._securitiesCache = (data[0] || []).map(function (security) { security.is_favorite = favoriteTickers.has(security.ticker); return security; });
             renderTickerLists(lists);
           })
           .catch(function () {});
@@ -232,6 +233,16 @@
       renderTickerLists(lists);
     }
     fillTickerDatalist();
+    document.querySelectorAll('.favorite-toggle').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var active = button.classList.contains('is-favorite');
+        button.disabled = true;
+        fetch('/v1/favorites/' + encodeURIComponent(button.dataset.ticker), {method: active ? 'DELETE' : 'PUT'})
+          .then(function (response) { if (!response.ok) throw new Error('favorite'); return response.json(); })
+          .then(function (data) { document.querySelectorAll('.favorite-toggle[data-ticker="' + data.ticker + '"]').forEach(function (item) { item.classList.toggle('is-favorite', data.is_favorite); item.setAttribute('aria-label', data.is_favorite ? 'Убрать из избранного' : 'Добавить в избранное'); item.title = item.getAttribute('aria-label'); }); var row = !data.is_favorite && document.querySelector('[data-favorite-row="' + data.ticker + '"]'); if (row) row.remove(); window._securitiesCache = null; fillTickerDatalist(); })
+          .finally(function () { button.disabled = false; });
+      });
+    });
   </script>
   <script src="/static/app.js"></script>
 </body>

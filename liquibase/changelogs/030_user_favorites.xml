@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+    <changeSet id="0300-user-favorites" author="newstrader">
+        <preConditions onFail="MARK_RAN"><not><tableExists tableName="user_favorites"/></not></preConditions>
+        <createTable tableName="user_favorites">
+            <column name="id" type="bigint" autoIncrement="true"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="user_id" type="bigint"><constraints nullable="false" foreignKeyName="fk_user_favorites_user" referencedTableName="users" referencedColumnNames="id"/></column>
+            <column name="security_id" type="bigint"><constraints nullable="false" foreignKeyName="fk_user_favorites_security" referencedTableName="securities" referencedColumnNames="id"/></column>
+            <column name="created_at" type="timestamptz" defaultValueComputed="now()"><constraints nullable="false"/></column>
+        </createTable>
+        <addUniqueConstraint tableName="user_favorites" columnNames="user_id,security_id" constraintName="uq_user_favorites_user_security"/>
+        <createIndex tableName="user_favorites" indexName="ix_user_favorites_user_created"><column name="user_id"/><column name="created_at" descending="true"/></createIndex>
+    </changeSet>
+</databaseChangeLog>

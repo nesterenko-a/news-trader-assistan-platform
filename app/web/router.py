@@ -67,6 +67,7 @@ from app.db.models import (
     Strategy,
     TechAnalysis,
     User,
+    UserFavorite,
     UserProfile,
     UserPipelinePref,
     UserSource,
@@ -662,9 +663,12 @@ def _filter_securities(
     sector: str,
     market: str,
     type_: str,
+    favorite_ids: set[int] | None = None,
 ) -> list[Security]:
     out = []
     for s in securities:
+        if type_ == "favorites" and s.id not in (favorite_ids or set()):
+            continue
         if type_ == "stocks" and s.security_type == "futures":
             continue
         if type_ == "futures" and s.security_type != "futures":
@@ -688,9 +692,14 @@ async def index(
     user = await _optional_user(request, session)
     securities = (await session.scalars(select(Security).order_by(Security.ticker))).all()
 
-    type_ = type if type in ("stocks", "futures", "all") else "all"
+    type_ = type if type in ("stocks", "futures", "favorites", "all") else "all"
+    favorite_ids: set[int] = set()
+    if user is not None:
+        favorite_ids = set((await session.scalars(select(UserFavorite.security_id).where(UserFavorite.user_id == user.id))).all())
+    if type_ == "favorites" and user is None:
+        type_ = "all"
     effective = _effective_sectors(securities)
-    filtered = _filter_securities(securities, effective, sector, market, type_)
+    filtered = _filter_securities(securities, effective, sector, market, type_, favorite_ids)
 
     sectors = sorted({eff for eff in effective.values() if eff})
     markets = sorted({s.market for s in securities if s.market})
@@ -705,6 +714,7 @@ async def index(
                     "sector": effective.get(s.id, ""),
                     "market": s.market,
                     "is_futures": s.security_type == "futures",
+                    "is_favorite": s.id in favorite_ids,
                 }
                 for s in filtered
             ],
@@ -713,6 +723,7 @@ async def index(
             "current_sector": sector,
             "current_market": market,
             "current_type": type_,
+            "favorites_empty": type_ == "favorites" and not filtered,
         }
     )
     return templates.TemplateResponse(request, "index.html", context)
@@ -1425,6 +1436,14 @@ async def security_page(
         if strategy_id is not None and user is not None
         else None
     )
+    is_favorite = bool(
+        user is not None
+        and await session.scalar(
+            select(UserFavorite.id).where(
+                UserFavorite.user_id == user.id, UserFavorite.security_id == security.id
+            )
+        )
+    )
     macro_rows = await list_security_events(session, security.id)
     macro_items = [
         {
@@ -1446,6 +1465,7 @@ async def security_page(
             "macro_events": macro_items,
             "strategy_id": strategy_id,
             "my_rating": my_rating,
+            "is_favorite": is_favorite,
             "futures": futures_items,
             "nearest_oi": nearest_oi,
             "chart_oi": chart_oi,
@@ -1710,6 +1730,7 @@ async def settings_page(
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
     profile = await _profile_for_user(session, user.id)
+    favorite_rows = (await session.execute(select(UserFavorite, Security).join(Security).where(UserFavorite.user_id == user.id).order_by(UserFavorite.created_at.desc()))).all()
     watchlist_count = await session.scalar(
         select(func.count()).select_from(WatchlistItem).where(WatchlistItem.user_id == user.id)
     )
@@ -1731,6 +1752,7 @@ async def settings_page(
             "paper_count": paper_count or 0,
             "profile_updated": request.query_params.get("profile") == "updated",
             "profile_error": request.query_params.get("error"),
+            "favorites": [{"ticker": security.ticker, "name": security.name, "type": "Фьючерс" if security.security_type == "futures" else "Акция", "sector": security.sector, "market": security.market, "created_at": favorite.created_at} for favorite, security in favorite_rows],
         }
     )
     return templates.TemplateResponse(request, "settings.html", context)
