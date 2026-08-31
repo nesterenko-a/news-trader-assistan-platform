@@ -1,9 +1,9 @@
 # 26. Избранные ценные бумаги — ТЗ и дизайн
 
-**Статус:** на согласовании v1.1
+**Статус:** утверждено, реализация отложена v1.2
 **Система:** NewsTrader Assistant
 **Приоритет:** P1, этап 2 дорожной карты
-**Связанные документы:** [03-user-scenarios.md](./03-user-scenarios.md), [04-functional-requirements.md](./04-functional-requirements.md), [07-data-model.md](./07-data-model.md), [10-api-specification.md](./10-api-specification.md), [12-roadmap.md](./12-roadmap.md), [14-web-interface.md](./14-web-interface.md), [16-working-process.md](./16-working-process.md)
+**Связанные документы:** [03-user-scenarios.md](./03-user-scenarios.md), [04-functional-requirements.md](./04-functional-requirements.md), [07-data-model.md](./07-data-model.md), [10-api-specification.md](./10-api-specification.md), [12-roadmap.md](./12-roadmap.md), [14-web-interface.md](./14-web-interface.md), [16-working-process.md](./16-working-process.md), [27-user-settings.md](./27-user-settings.md)
 
 ## 1. Цель и границы
 
