@@ -6,13 +6,32 @@
 {% macro favorite_ticker(value) -%}
 <span class="ticker-with-favorite">{% if user %}<button class="favorite-toggle {{ 'is-favorite' if is_favorite else '' }}" type="button" data-ticker="{{ value }}" aria-label="{{ 'Убрать из избранного' if is_favorite else 'Добавить в избранное' }}" title="{{ 'Убрать из избранного' if is_favorite else 'Добавить в избранное' }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3.1 6.3 7 1-5 4.9 1.2 6.9-6.3-3.3-6.3 3.3 1.2-6.9-5-4.9 7-1z"/></svg></button>{% endif %}{{ value }}</span>
 {%- endmacro %}
-<section class="card">
-  <h1>Индикаторы</h1>
-  <nav class="seg" style="margin-bottom:12px">
-    {% for key, meta in indicators_list %}
-    <a class="seg-item seg-link {{ 'seg-active' if key == indicator_name }}" href="/indicators?name={{ key }}{% if ticker %}&ticker={{ ticker }}{% endif %}">{{ meta.title }}</a>
+<div class="indicators-layout">
+  <aside class="indicators-catalog" aria-label="Выбор индикатора">
+    <span class="indicators-catalog-title">Индикаторы</span>
+    {% for category, items in indicator_groups %}
+    <div class="indicators-catalog-group">
+      <span class="indicators-catalog-group-title">{{ category }}</span>
+      {% for key, meta in items %}
+      <a class="indicator-nav-link {{ 'active' if key == indicator_name }}" href="/indicators?name={{ key }}{% if ticker %}&ticker={{ ticker }}{% endif %}">{{ meta.title }}</a>
+      {% endfor %}
+    </div>
     {% endfor %}
-  </nav>
+  </aside>
+  <main class="indicators-workspace">
+    <section class="card indicators-intro">
+      <h1>Индикаторы</h1>
+      <label class="indicator-mobile-label" for="indicator-select">Выбранный индикатор</label>
+      <select id="indicator-select" class="indicator-mobile-select" onchange="window.location.href=this.value">
+        {% for category, items in indicator_groups %}
+        <optgroup label="{{ category }}">
+          {% for key, meta in items %}
+          <option value="/indicators?name={{ key }}{% if ticker %}&ticker={{ ticker }}{% endif %}" {% if key == indicator_name %}selected{% endif %}>{{ meta.title }}</option>
+          {% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+      <p class="muted indicator-selected">Выбранный индикатор: <b>{{ indicator_title }}</b></p>
   {% if indicator_name == 'oi' %}
   <p class="muted">Открытые позиции фьючерсов и сигналы «цена × OI». Выберите фьючерс и период.</p>
   <form method="get" action="/indicators" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">
@@ -49,7 +68,7 @@
     <button class="btn" type="submit">Показать</button>
   </form>
   <datalist id="futures-datalist" data-source="tickers" data-filter="futures"></datalist>
-</section>
+    </section>
 
 {% if error %}
 <section class="card"><p class="error">{{ error }}</p></section>
@@ -772,4 +791,6 @@ fetch('/v1/indicators/futures')
   })
   .catch(function () {});
 </script>
+</main>
+</div>
 {% endblock %}

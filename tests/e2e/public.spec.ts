@@ -141,7 +141,7 @@ test.describe("Публичные страницы", () => {
     test(`индикаторы: вкладка ${name}`, async ({ page }) => {
       const url = ticker ? `/indicators?name=${name}&ticker=${ticker}` : `/indicators?name=${name}`;
       await page.goto(url);
-      await expect(page.locator(".seg-item.seg-active")).toContainText(label);
+      await expect(page.locator(".indicator-nav-link.active")).toContainText(label);
       await expect(page.locator('button[type="submit"]')).toHaveCount(1);
       if (["ema", "macd", "bollinger", "atr", "adx"].includes(name)) {
         await expect(page.locator("h2").first()).toContainText("Сбербанк (SBER)");
@@ -154,6 +154,17 @@ test.describe("Публичные страницы", () => {
       }
     });
   }
+
+  test("индикаторы: мобильный селектор без каталога", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto("/indicators?name=oi");
+    await expect(page.locator(".indicators-catalog")).toBeHidden();
+    const select = page.locator("#indicator-select");
+    await expect(select).toBeVisible();
+    await select.selectOption({ value: "/indicators?name=volume_profile" });
+    await expect(page).toHaveURL(/\/indicators\?name=volume_profile/);
+    await expect(select).toHaveValue("/indicators?name=volume_profile");
+  });
 
   const DATA_TABS: Array<[string, string | null]> = [
     ["volume_profile", "Профиль объёма — Сбербанк (SBER)"],

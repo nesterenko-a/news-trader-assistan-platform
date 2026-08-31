@@ -15,6 +15,13 @@ from app.market.indicators.adx import DEFAULT_PARAMS as ADX_DEFAULT_PARAMS
 from app.market.indicators.rsi_indicator import DEFAULT_PARAMS as RSI_DEFAULT_PARAMS
 from app.market.indicators.basis import DEFAULT_PARAMS as BASIS_DEFAULT_PARAMS
 
+INDICATOR_CATEGORIES: tuple[tuple[str, str], ...] = (
+    ("volume", "Объём и позиции"),
+    ("trend", "Тренд"),
+    ("momentum", "Волатильность и импульс"),
+    ("levels", "Уровни и связи"),
+)
+
 REGISTRY: dict[str, dict] = {
     "bollinger": {
         "title": "Полосы Боллинджера",
@@ -25,6 +32,7 @@ REGISTRY: dict[str, dict] = {
         "params": BOLLINGER_DEFAULT_PARAMS,
         "complexity": "easy",
         "markets": ["stocks", "futures"],
+        "category": "momentum",
     },
     "atr": {
         "title": "ATR (средний истинный диапазон)",
@@ -35,6 +43,7 @@ REGISTRY: dict[str, dict] = {
         "params": ATR_DEFAULT_PARAMS,
         "complexity": "easy",
         "markets": ["stocks", "futures"],
+        "category": "momentum",
     },
     "adx": {
         "title": "ADX / DI",
@@ -45,6 +54,7 @@ REGISTRY: dict[str, dict] = {
         "params": ADX_DEFAULT_PARAMS,
         "complexity": "medium",
         "markets": ["stocks", "futures"],
+        "category": "trend",
     },
     "rsi": {
         "title": "RSI (индекс относительной силы)",
@@ -56,6 +66,7 @@ REGISTRY: dict[str, dict] = {
         "params": RSI_DEFAULT_PARAMS,
         "complexity": "easy",
         "markets": ["stocks", "futures"],
+        "category": "momentum",
     },
     "ema": {
         "title": "EMA (скользящие средние)",
@@ -66,6 +77,7 @@ REGISTRY: dict[str, dict] = {
         "params": EMA_DEFAULT_PARAMS,
         "complexity": "easy",
         "markets": ["stocks", "futures"],
+        "category": "trend",
     },
     "macd": {
         "title": "MACD",
@@ -76,6 +88,7 @@ REGISTRY: dict[str, dict] = {
         "params": MACD_DEFAULT_PARAMS,
         "complexity": "easy",
         "markets": ["stocks", "futures"],
+        "category": "trend",
     },
     "oi": {
         "title": "Открытый интерес (OI)",
@@ -86,6 +99,7 @@ REGISTRY: dict[str, dict] = {
         "params": OI_DEFAULT_PARAMS,
         "complexity": "medium",
         "markets": ["futures"],
+        "category": "volume",
     },
     "volume_profile": {
         "title": "Профиль объёма (Volume Profile)",
@@ -96,6 +110,7 @@ REGISTRY: dict[str, dict] = {
         "params": VOLUME_PROFILE_DEFAULT_PARAMS,
         "complexity": "medium",
         "markets": ["stocks", "futures"],
+        "category": "volume",
     },
     "support_resistance": {
         "title": "Поддержка/сопротивление",
@@ -107,6 +122,7 @@ REGISTRY: dict[str, dict] = {
         "params": SUPPORT_RESISTANCE_DEFAULT_PARAMS,
         "complexity": "hard",
         "markets": ["stocks", "futures"],
+        "category": "levels",
     },
     "basis": {
         "title": "Базис (фьючерс против спота)",
@@ -117,5 +133,6 @@ REGISTRY: dict[str, dict] = {
         "params": BASIS_DEFAULT_PARAMS,
         "complexity": "medium",
         "markets": ["futures"],
+        "category": "levels",
     },
 }

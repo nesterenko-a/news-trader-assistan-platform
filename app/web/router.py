@@ -98,7 +98,7 @@ from app.market.oi_data import (
     nearest_future,
 )
 from app.market.indicators.oi import calculate_oi
-from app.market.indicators.registry import REGISTRY
+from app.market.indicators.registry import INDICATOR_CATEGORIES, REGISTRY
 from app.market.indicators.volume_profile import calculate_volume_profile
 from app.market.indicators.support_resistance import calculate_support_resistance
 from app.market.indicators.ema import calculate_ema
@@ -838,11 +838,27 @@ async def indicators_page(
     rsi_period: int | None = Query(None, ge=2, le=100),
     session: AsyncSession = Depends(get_session),
 ):
-    """Страница индикаторов: вкладки из реестра (OI, Volume Profile, ...)."""
+    """Страница индикаторов: каталог из реестра (OI, Volume Profile, ...)."""
     user = await _optional_user(request, session)
     context = await _base_context(session, user)
     indicator_name = name if name in REGISTRY else "oi"
-    indicators_list = sorted(REGISTRY.items())
+    category_titles = dict(INDICATOR_CATEGORIES)
+    grouped_indicators = {key: [] for key, _ in INDICATOR_CATEGORIES}
+    other_indicators: list[tuple[str, dict]] = []
+    for key, meta in REGISTRY.items():
+        category = meta.get("category")
+        if category in grouped_indicators:
+            grouped_indicators[category].append((key, meta))
+        else:
+            other_indicators.append((key, meta))
+    indicator_groups = [
+        (category_titles[key], items)
+        for key, items in grouped_indicators.items()
+        if items
+    ]
+    if other_indicators:
+        indicator_groups.append(("Прочие", other_indicators))
+    context["indicator_title"] = REGISTRY[indicator_name]["title"]
     is_favorite = False
     if user is not None and ticker:
         favorite_security = await session.scalar(
@@ -896,7 +912,7 @@ async def indicators_page(
         context.update(
             {
                 "indicator_name": indicator_name,
-                "indicators_list": indicators_list,
+                "indicator_groups": indicator_groups,
                 "ticker": ticker,
                 "vp": vp,
                 "vp_period": vp_period_used,
@@ -971,7 +987,7 @@ async def indicators_page(
         context.update(
             {
                 "indicator_name": indicator_name,
-                "indicators_list": indicators_list,
+                "indicator_groups": indicator_groups,
                 "ticker": ticker,
                 "ema_error": ema_error,
                 "ema_security_name": ema_security_name,
@@ -1027,7 +1043,7 @@ async def indicators_page(
         context.update(
             {
                 "indicator_name": indicator_name,
-                "indicators_list": indicators_list,
+                "indicator_groups": indicator_groups,
                 "ticker": ticker,
                 "sr": sr,
                 "sr_window": sr_window_used,
@@ -1079,7 +1095,7 @@ async def indicators_page(
         context.update(
             {
                 "indicator_name": indicator_name,
-                "indicators_list": indicators_list,
+                "indicator_groups": indicator_groups,
                 "ticker": ticker,
                 "basis_error": basis_err,
                 "basis_security_name": basis_security_name,
@@ -1157,7 +1173,7 @@ async def indicators_page(
         context.update(
             {
                 "indicator_name": indicator_name,
-                "indicators_list": indicators_list,
+                "indicator_groups": indicator_groups,
                 "ticker": ticker,
                 "tech_error": tech_error,
                 "tech_security_name": tech_security_name,
@@ -1334,7 +1350,7 @@ async def indicators_page(
             "params_used": params_used,
             "security_name": security_name,
             "indicator_name": indicator_name,
-            "indicators_list": indicators_list,
+            "indicator_groups": indicator_groups,
             "vp": None,
             "vp_period": 60,
             "vp_options": [30, 60, 90, 180, 365],
