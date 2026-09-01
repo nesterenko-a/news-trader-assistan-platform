@@ -1,6 +1,6 @@
 # 24. Реальное время — актуальные цены и показатели рынка (ТЗ и дизайн)
 
-**Статус:** реализовано v1.6 (демон выводит живой подробный лог по каждому проходу и инструменту)
+**Статус:** реализовано v1.7 (добавлена ручная актуализация данных карточки бумаги без перезагрузки)
 **Система:** NewsTrader Assistant
 **Приоритет задачи:** этап 2 дорожной карты (12-roadmap.md), «Углубление аналитики» — актуальность рыночных данных
 **Связанные документы:** [10-api-specification.md](./10-api-specification.md), [13-operations.md](./13-operations.md), [14-web-interface.md](./14-web-interface.md), [16-working-process.md](./16-working-process.md), [17-quickstart.md](./17-quickstart.md), [12-roadmap.md](./12-roadmap.md), [19-market-indicators.md](./19-market-indicators.md)

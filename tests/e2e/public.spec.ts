@@ -183,6 +183,18 @@ test.describe("Публичные страницы", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
   });
 
+  test("индикаторы: OI с пустым периодом берёт месяц, Basis не падает", async ({ page }) => {
+    await page.goto("/indicators?name=oi&ticker=SBER&from=&to=");
+    await expect(page.locator('input[name="from"]')).not.toHaveValue("");
+    await expect(page.locator('input[name="to"]')).not.toHaveValue("");
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await page.reload();
+    await expect(page.locator(".indicators-outline")).toBeVisible();
+    await expect(page.locator("#indicator-outline-links a").first()).toBeVisible();
+    await page.goto("/indicators?name=basis&ticker=SBER");
+    await expect(page).toHaveTitle(/Индикаторы/);
+  });
+
   const DATA_TABS: Array<[string, string | null]> = [
     ["volume_profile", "Профиль объёма — Сбербанк (SBER)"],
     ["support_resistance", null],

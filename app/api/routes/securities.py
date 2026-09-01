@@ -1,13 +1,58 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.connection import get_session
-from app.db.models import Article, ArticleEntity, Entity, Security
+from app.auth import get_current_user
+from app.db.connection import SessionLocal, get_session
+from app.db.models import Article, ArticleEntity, Entity, Security, User
 from app.graph.service import security_entity_ids
 from app.schemas import NewsItemOut, SecuritySummary
 
 router = APIRouter(prefix="/securities", tags=["securities"])
+_REFRESH: dict[str, dict] = {}
+
+
+async def _refresh_market(ticker: str) -> None:
+    from app.market.oi_data import nearest_future, sync_security_oi
+    from app.market.prices import sync_security_prices
+
+    state = _REFRESH[ticker]
+    try:
+        async with SessionLocal() as session:
+            state["stage"] = "обновляем свечи и объём"
+            await sync_security_prices(session, ticker, days=5)
+            security = await session.scalar(select(Security).where(Security.ticker == ticker))
+            target = security if security and security.security_type == "futures" else await nearest_future(session, ticker)
+            if target is not None:
+                state["stage"] = "обновляем OI"
+                await sync_security_oi(session, target.ticker, days=30)
+            state.update(status="success", stage="данные обновлены")
+    except Exception as exc:
+        state.update(status="failed", stage="ошибка", error=str(exc))
+
+
+@router.post("/{ticker}/refresh")
+async def refresh_security(
+    ticker: str,
+    _: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    ticker = ticker.upper()
+    if await session.scalar(select(Security.id).where(Security.ticker == ticker)) is None:
+        raise HTTPException(status_code=404, detail="Бумага не найдена")
+    state = _REFRESH.get(ticker)
+    if state and state.get("status") == "running":
+        return state
+    _REFRESH[ticker] = {"ticker": ticker, "status": "running", "stage": "запускаем обновление"}
+    asyncio.create_task(_refresh_market(ticker))
+    return _REFRESH[ticker]
+
+
+@router.get("/{ticker}/refresh")
+async def refresh_status(ticker: str, _: User = Depends(get_current_user)) -> dict:
+    return _REFRESH.get(ticker.upper(), {"ticker": ticker.upper(), "status": "idle", "stage": ""})
 
 
 @router.get("/search", response_model=list[SecuritySummary])

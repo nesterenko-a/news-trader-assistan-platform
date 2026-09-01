@@ -715,7 +715,7 @@
 {% if basis_meta %}
 <section class="card">
   <h2>Сводка</h2>
-  <p class="muted small">Базис = {{ basis_meta.latest_basis }} · в % от спота = {{ basis_meta.latest_basis_pct if basis_meta.latest_basis_pct is not None else '—' }} · состояние = {{ basis_meta.state }}</p>
+  <p class="muted small">Базис = {{ basis_meta.latest_basis }} · в % от спота = {{ basis_meta.latest_basis_pct if basis_meta.latest_basis_pct is not none else '—' }} · состояние = {{ basis_meta.state }}</p>
 </section>
 {% endif %}
 
@@ -756,5 +756,36 @@ fetch('/v1/indicators/futures')
   .catch(function () {});
 </script>
 </main>
+<aside class="indicators-outline" aria-label="Оглавление индикатора">
+  <span class="indicators-catalog-title">На этой странице</span>
+  <nav id="indicator-outline-links"></nav>
+</aside>
 </div>
+<script>
+(function () {
+  var workspace = document.querySelector('.indicators-workspace');
+  var outline = document.getElementById('indicator-outline-links');
+  if (!workspace || !outline) return;
+  var headings = Array.prototype.slice.call(workspace.querySelectorAll('.card h2'));
+  headings.forEach(function (heading, index) {
+    if (!heading.id) heading.id = 'indicator-section-' + index;
+    var link = document.createElement('a');
+    link.href = '#' + heading.id;
+    link.textContent = heading.textContent.trim();
+    link.addEventListener('click', function (event) {
+      event.preventDefault();
+      heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    outline.appendChild(link);
+  });
+  if (!headings.length) return;
+  var links = Array.prototype.slice.call(outline.querySelectorAll('a'));
+  var observer = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) links.forEach(function (link) { link.classList.toggle('active', link.hash === '#' + entry.target.id); });
+    });
+  }, { rootMargin: '-18% 0px -70% 0px' });
+  headings.forEach(function (heading) { observer.observe(heading); });
+})();
+</script>
 {% endblock %}

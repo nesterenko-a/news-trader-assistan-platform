@@ -76,6 +76,7 @@
 
 {% if result and result['items'] %}
 <section class="card" style="margin-top:12px">
+  {% if result.get('stale') %}<p class="warning small" style="margin-top:0">Данные нуждаются в обновлении: показана последняя успешная подборка{% if result.get('source_batch_id') %} (батч #{{ result['source_batch_id'] }}){% endif %}. Запустите Теханализ, чтобы получить актуальный рейтинг.</p>{% endif %}
   <div class="header-line" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
     <div>
       <h2 style="margin:0">Лучшие возможности</h2>

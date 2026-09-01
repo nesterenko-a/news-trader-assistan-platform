@@ -13,6 +13,7 @@
     </div>
     <div class="head-actions">
       <div class="badge badge-{{ view.verdict }}">{{ view.verdict }}</div>
+      {% if user %}<button class="btn" id="market-refresh" type="button">Обновить данные</button><span class="muted small" id="market-refresh-state" aria-live="polite"></span>{% endif %}
       <button class="btn" onclick="capturePage()">Сделать скриншот</button>
       {% if is_analyzable and user %}
       <a class="btn" href="#tech-analysis-section">Теханализ в LLM</a>
@@ -174,12 +175,12 @@
   {% endif %}
 
   {% if nearest_oi and chart_oi %}
-  <section class="card chart-card">
+  <section class="card chart-card" id="market-oi">
     <div class="chart-head">
       <h2>Открытый интерес фьючерса — {{ nearest_oi.name }} ({{ nearest_oi.ticker }})</h2>
       <div style="display:flex;align-items:center;gap:10px">
         <span class="muted small">OI: <b data-rt-oi-value="{{ nearest_oi.ticker }}" data-rt-oi="{{ nearest_oi.ticker }}">{{ nearest_oi.get('oi_open') if nearest_oi.get('oi_open') is not none else "—" }}</b> контр. · ΔOI: <b data-rt-oi-change="{{ nearest_oi.ticker }}" data-rt-oi="{{ nearest_oi.ticker }}">{{ "%+.2f"|format(nearest_oi.get('oi_change_pct')) if nearest_oi.get('oi_change_pct') is not none else "—" }}%</b></span>
-        <a class="btn" href="/indicators?ticker={{ nearest_oi.ticker }}">Полная страница OI →</a>
+        <a class="btn" href="/indicators?name=oi&ticker={{ nearest_oi.ticker }}&from={{ oi_period_from }}&to={{ oi_period_to }}">Открыть OI целиком →</a>
       </div>
     </div>
     <svg class="chart" viewBox="0 0 {{ chart_oi.width }} {{ chart_oi.height }}" preserveAspectRatio="none">
@@ -203,6 +204,22 @@
     <div class="chart-labels">
       <span>Изменение OI, % — макс. ±{{ chart_change.max_abs }}%</span>
     </div>
+    {% endif %}
+    {% if chart_oi_volume %}
+    <h3 style="margin:18px 0 8px">Объём торгов</h3>
+    <svg class="chart" viewBox="0 0 {{ chart_oi_volume.width }} {{ chart_oi_volume.height }}" preserveAspectRatio="none">
+      {{ chart_oi_volume.rects | safe }}
+    </svg>
+    <div class="chart-labels"><span>{{ chart_oi_volume.first_date }} → {{ chart_oi_volume.last_date }}</span><span>макс. объём: {{ chart_oi_volume.max_volume }} контр.</span></div>
+    {% endif %}
+    {% if chart_groups_net %}
+    <h3 style="margin:18px 0 8px">Нетто-позиции по группам клиентов (long − short)</h3>
+    <svg class="chart" viewBox="0 0 {{ chart_groups_net.width }} {{ chart_groups_net.height }}" preserveAspectRatio="none">
+      {% for seg in chart_groups_net.close_segments %}<polyline points="{{ seg }}" style="stroke:#e67e22"/>{% endfor %}
+      {% for r in chart_groups_net.net_rects %}<rect x="{{ r.x }}" y="{{ r.y }}" width="{{ r.w }}" height="{{ r.h }}" class="net-bar {{ 'net-ph' if r.group == 'ph' else 'net-jur' }}"/>{% endfor %}
+      <line x1="10" y1="{{ chart_groups_net.zero_y }}" x2="{{ chart_groups_net.width - 10 }}" y2="{{ chart_groups_net.zero_y }}" class="net-zero"/>
+    </svg>
+    <div class="chart-legend"><span class="legend-item"><i class="legend-dot" style="background:#3b82f6"></i> Физики</span><span class="legend-item"><i class="legend-dot" style="background:#e67e22"></i> Юрики и цена</span></div>
     {% endif %}
     <p class="muted small" style="margin-top:10px">Замечание: значения OI и ΔOI выше обновляются в реальном времени, а сами SVG-графики OI (линии за период) перерисовываются при перезагрузке страницы.</p>
   </section>
@@ -555,4 +572,14 @@
 })();
 </script>
 {% endif %}
+<script>
+(function () {
+  var button = document.getElementById('market-refresh'), state = document.getElementById('market-refresh-state');
+  if (!button || !state) return;
+  var ticker = {{ view.ticker | tojson }};
+  function replaceMarket() { fetch(window.location.href, {credentials:'same-origin'}).then(function(r){return r.text();}).then(function(html){ var next = new DOMParser().parseFromString(html, 'text/html').getElementById('market-oi'), current = document.getElementById('market-oi'); if(next && current) current.replaceWith(next); }); }
+  function poll(data) { state.textContent = data.stage || 'обновляем данные'; if(data.status === 'success') { replaceMarket(); button.disabled = false; return; } if(data.status === 'failed') { state.textContent = data.error || 'не удалось обновить данные'; button.disabled = false; return; } setTimeout(function(){fetch('/v1/securities/'+encodeURIComponent(ticker)+'/refresh',{credentials:'same-origin'}).then(function(r){return r.json();}).then(poll);},1200); }
+  button.addEventListener('click', function(){ button.disabled=true; fetch('/v1/securities/'+encodeURIComponent(ticker)+'/refresh',{method:'POST',credentials:'same-origin'}).then(function(r){return r.json();}).then(poll).catch(function(){state.textContent='не удалось запустить обновление';button.disabled=false;}); });
+})();
+</script>
 {% endblock %}

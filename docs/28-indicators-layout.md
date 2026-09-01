@@ -1,6 +1,6 @@
 # 28. Редизайн страницы «Индикаторы» — ТЗ и макет
 
-**Статус:** реализовано v1.1
+**Статус:** реализовано v1.2 (добавлено автоматическое правое оглавление на широком экране)
 **Система:** NewsTrader Assistant  
 **Приоритет:** P1, этап 2 дорожной карты  
 **Связанные документы:** [12-roadmap.md](./12-roadmap.md), [14-web-interface.md](./14-web-interface.md), [19-market-indicators.md](./19-market-indicators.md), [21-web-e2e-tests.md](./21-web-e2e-tests.md), [26-favorites.md](./26-favorites.md)

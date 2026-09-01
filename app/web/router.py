@@ -603,7 +603,9 @@ def _build_volume_bars(
 async def _build_oi_charts(
     session: AsyncSession,
     security: Security,
-) -> tuple[dict | None, dict | None]:
+    from_date: date | None = None,
+    to_date: date | None = None,
+) -> tuple[dict | None, dict | None, dict | None, dict | None]:
     """Двойной график OI+цена и столбцы ΔOI по данным фьючерса (как на /indicators)."""
     oi_rows = (
         await session.scalars(
@@ -612,8 +614,12 @@ async def _build_oi_charts(
             .order_by(MarketOpenPosition.trading_date)
         )
     ).all()
+    if from_date is not None:
+        oi_rows = [row for row in oi_rows if row.trading_date >= from_date]
+    if to_date is not None:
+        oi_rows = [row for row in oi_rows if row.trading_date <= to_date]
     if not oi_rows:
-        return None, None
+        return None, None, None, None
     candles = (
         await session.scalars(
             select(MarketCandle)
@@ -621,6 +627,10 @@ async def _build_oi_charts(
             .order_by(MarketCandle.trading_date)
         )
     ).all()
+    if from_date is not None:
+        candles = [row for row in candles if row.trading_date >= from_date]
+    if to_date is not None:
+        candles = [row for row in candles if row.trading_date <= to_date]
     close_by_date = {c.trading_date: c.close for c in candles}
     volume_by_date = {c.trading_date: c.volume for c in candles}
     oi_by_date = {r.trading_date: r.open_position for r in oi_rows}
@@ -639,7 +649,18 @@ async def _build_oi_charts(
     chart_change = _build_change_bars(
         [(d, change_vals.get(d)) for d in dates]
     )
-    return chart_oi, chart_change
+    chart_volume = _build_volume_bars(
+        [(d, volume_by_date.get(d)) for d in dates]
+    )
+    client_groups = await client_groups_series(session, security.id, from_date, to_date)
+    chart_groups_net = _build_net_bars(
+        [
+            (g["date"], (g.get("physical") or {}).get("net"), (g.get("juridical") or {}).get("net"))
+            for g in client_groups
+        ],
+        [(g["date"], close_by_date.get(g["date"])) for g in client_groups],
+    )
+    return chart_oi, chart_change, chart_volume, chart_groups_net
 
 
 def _effective_sectors(securities: list[Security]) -> dict[int, str]:
@@ -823,8 +844,8 @@ async def indicators_page(
     request: Request,
     name: str = "oi",
     ticker: str = "",
-    from_: date | None = Query(None, alias="from"),
-    to: date | None = Query(None, alias="to"),
+    from_: str | None = Query(None, alias="from"),
+    to: str | None = Query(None, alias="to"),
     oi_change_threshold_pct: float | None = Query(None, gt=0),
     vp_period: int | None = Query(None, ge=5, le=3650),
     fast: int | None = Query(None, ge=2, le=500),
@@ -839,9 +860,24 @@ async def indicators_page(
     session: AsyncSession = Depends(get_session),
 ):
     """Страница индикаторов: каталог из реестра (OI, Volume Profile, ...)."""
+    raw_from = from_.isoformat() if isinstance(from_, date) else (from_ or "").strip()
+    raw_to = to.isoformat() if isinstance(to, date) else (to or "").strip()
+    period_error = ""
+    try:
+        from_date = date.fromisoformat(raw_from) if raw_from else None
+        to_date = date.fromisoformat(raw_to) if raw_to else None
+    except ValueError:
+        from_date = to_date = None
+        period_error = "Укажите даты в формате ГГГГ-ММ-ДД."
+    if from_date is not None and to_date is not None and from_date > to_date:
+        period_error = "Дата начала периода не может быть позже даты окончания."
+    indicator_name = name if name in REGISTRY else "oi"
+    if indicator_name == "oi" and not period_error:
+        to_date = to_date or date.today()
+        from_date = from_date or (to_date - timedelta(days=30))
+    from_, to = from_date, to_date
     user = await _optional_user(request, session)
     context = await _base_context(session, user)
-    indicator_name = name if name in REGISTRY else "oi"
     category_titles = dict(INDICATOR_CATEGORIES)
     grouped_indicators = {key: [] for key, _ in INDICATOR_CATEGORIES}
     other_indicators: list[tuple[str, dict]] = []
@@ -1194,7 +1230,7 @@ async def indicators_page(
         )
         return templates.TemplateResponse(request, "indicators.html", context)
 
-    error = ""
+    error = period_error
     chart_oi = None
     chart_change = None
     chart_volume = None
@@ -1205,7 +1241,7 @@ async def indicators_page(
     params_used = None
     security_name = ""
 
-    if ticker:
+    if ticker and not period_error:
         security = await session.scalar(
             select(Security).where(Security.ticker == ticker.upper())
         )
@@ -1428,18 +1464,25 @@ async def security_page(
     nearest = await nearest_future(session, security.ticker)
     chart_oi = None
     chart_change = None
+    chart_oi_volume = None
+    chart_groups_net = None
     nearest_oi = None
-    if nearest is not None:
-        chart_oi, chart_change = await _build_oi_charts(session, nearest)
+    oi_target = security if security.security_type == "futures" else nearest
+    oi_period_from = date.today() - timedelta(days=30)
+    oi_period_to = date.today()
+    if oi_target is not None:
+        chart_oi, chart_change, chart_oi_volume, chart_groups_net = await _build_oi_charts(
+            session, oi_target, oi_period_from, oi_period_to
+        )
         latest_oi = None
-        if nearest.id:
+        if oi_target.id:
             from app.api.routes.realtime import _latest_oi
-            latest_oi = await _latest_oi(session, nearest.id)
+            latest_oi = await _latest_oi(session, oi_target.id)
         if chart_oi:
             nearest_oi = {
-                "ticker": nearest.ticker,
-                "name": nearest.name,
-                "lastdeldate": nearest.lastdeldate.isoformat() if nearest.lastdeldate else "",
+                "ticker": oi_target.ticker,
+                "name": oi_target.name,
+                "lastdeldate": oi_target.lastdeldate.isoformat() if oi_target.lastdeldate else "",
                 "oi_open": (latest_oi or {}).get("open_position"),
                 "oi_change_pct": (latest_oi or {}).get("change_pct"),
             }
@@ -1501,6 +1544,10 @@ async def security_page(
             "nearest_oi": nearest_oi,
             "chart_oi": chart_oi,
             "chart_change": chart_change,
+            "chart_oi_volume": chart_oi_volume,
+            "chart_groups_net": chart_groups_net,
+            "oi_period_from": oi_period_from.isoformat(),
+            "oi_period_to": oi_period_to.isoformat(),
             "vp": vp,
             "vp_period": vp_days,
             "vp_options": [30, 60, 90, 180, 365],
@@ -1659,6 +1706,17 @@ async def top5_page(
             selected = await session.get(FuturesTemplate, template_id)
             result = await top5_service(session, template_id)
             batches = await list_batches(session, template_id)
+            if result is not None and not result.get("items"):
+                for batch in batches:
+                    if batch.get("top5"):
+                        result = {
+                            **result,
+                            "items": batch["top5"][:5],
+                            "as_of": batch.get("as_of"),
+                            "stale": True,
+                            "source_batch_id": batch["id"],
+                        }
+                        break
         except ValueError:
             result = None
     context.update(
