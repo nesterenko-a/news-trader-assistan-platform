@@ -102,6 +102,12 @@ main { padding: 24px 16px 40px; }
 .indicators-intro h1 { margin-bottom: 10px; }
 .indicator-selected { margin: 0 0 16px; }
 .indicator-mobile-label, .indicator-mobile-select { display: none; }
+.oi-guide summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; list-style: none; }
+.oi-guide summary::-webkit-details-marker { display: none; }
+.oi-guide summary h2 { margin: 0; }
+.oi-guide summary::after { content: '⌄'; color: var(--muted); font-size: 18px; }
+.oi-guide[open] summary { margin-bottom: 16px; }
+.oi-guide[open] summary::after { transform: rotate(180deg); }
 
 .vp-bar { fill: var(--accent); opacity: 0.35; }
 .vp-poc { fill: var(--accent); opacity: 1; }

@@ -1,6 +1,6 @@
 # 19. Биржевые индикаторы — модули, ТЗ и roadmap
 
-**Статус:** утверждено v1.28 (исправлены пустой период OI и рендер Basis; OI-контекст за месяц доступен на карточке фьючерса; ранее реализованы индикаторы и каталог)
+**Статус:** утверждено v1.29 (справка OI перенесена после сигналов и сворачивается в спойлер; исправлены пустой период OI и рендер Basis; OI-контекст за месяц доступен на карточке фьючерса)
 **Система:** NewsTrader Assistant
 **Связанные документы:** [04-functional-requirements.md](./04-functional-requirements.md) (FR-04-02), [07-data-model.md](./07-data-model.md) (`MarketCandle`), [09-strategy-engine.md](./09-strategy-engine.md), [10-api-specification.md](./10-api-specification.md), [12-roadmap.md](./12-roadmap.md), [14-web-interface.md](./14-web-interface.md), [17-quickstart.md](./17-quickstart.md)
 

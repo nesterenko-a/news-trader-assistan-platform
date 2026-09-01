@@ -191,6 +191,10 @@ test.describe("Публичные страницы", () => {
     await page.reload();
     await expect(page.locator(".indicators-outline")).toBeVisible();
     await expect(page.locator("#indicator-outline-links a").first()).toBeVisible();
+    const guide = page.locator("#oi-guide");
+    await expect(guide).not.toHaveAttribute("open", "");
+    await page.locator('#indicator-outline-links a', { hasText: 'Как читать сигналы' }).click();
+    await expect(guide).toHaveAttribute("open", "");
     await page.goto("/indicators?name=basis&ticker=SBER");
     await expect(page).toHaveTitle(/Индикаторы/);
   });

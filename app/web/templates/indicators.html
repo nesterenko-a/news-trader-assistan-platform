@@ -204,8 +204,8 @@
 </script>
 {% endif %}
 
-<section class="card">
-  <h2>Как читать сигналы «цена × OI»</h2>
+<details class="card oi-guide" id="oi-guide">
+  <summary><h2>Как читать сигналы «цена × OI»</h2><span class="muted small">Открыть справочный материал</span></summary>
 
   <h3>Что такое открытый интерес</h3>
   <p class="muted">
@@ -324,9 +324,9 @@
     (<a href="https://www.tbank.ru/invest/social/profile/T-Investments/6fc31d15-5808-4571-aae0-67a5fd475392/?author=profile" target="_blank" rel="noopener">tbank.ru</a>);
     трактовки и примеры приведены с сокращениями.
   </p>
-</section>
+</details>
 
-<section class="card">
+<section class="card" id="oi-signals">
   <h2>Сигналы «цена × OI» <span class="muted small">— свежие сверху</span></h2>
   {% if signals %}
   <table class="table">
@@ -766,6 +766,9 @@ fetch('/v1/indicators/futures')
   var workspace = document.querySelector('.indicators-workspace');
   var outline = document.getElementById('indicator-outline-links');
   if (!workspace || !outline) return;
+  var oiGuide = document.getElementById('oi-guide');
+  var oiSignals = document.getElementById('oi-signals');
+  if (oiGuide && oiSignals) oiSignals.after(oiGuide);
   var headings = Array.prototype.slice.call(workspace.querySelectorAll('.card h2'));
   headings.forEach(function (heading, index) {
     if (!heading.id) heading.id = 'indicator-section-' + index;
@@ -774,6 +777,8 @@ fetch('/v1/indicators/futures')
     link.textContent = heading.textContent.trim();
     link.addEventListener('click', function (event) {
       event.preventDefault();
+      var details = heading.closest('details');
+      if (details) details.open = true;
       heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     outline.appendChild(link);
