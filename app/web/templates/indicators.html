@@ -155,85 +155,49 @@
 </section>
 
 <section class="card">
-  <div class="chart-head"><h2>Открытые позиции по группам клиентов</h2></div>
-  <table class="table" id="cg-table">
-    <thead>
-      <tr>
-        <th class="sortable" data-sort="date">Дата<span class="sort-arrow"></span></th>
-        <th>Физ long</th><th>Физ short</th>
-        <th class="sortable" data-sort="ph_net">Физ нетто<span class="sort-arrow"></span></th>
-        <th>Юр long</th><th>Юр short</th>
-        <th class="sortable" data-sort="ju_net">Юр нетто<span class="sort-arrow"></span></th>
-        <th>Сумма</th><th>Доля физ, %</th><th>Спред (юр−физ)</th><th>Δ OI<span class="tooltip" tabindex="0" aria-label="Справка: Δ OI"><span class="tooltip-icon">?</span><span class="tooltip-text">Динамика открытых позиций группы к предыдущему дню. Показаны: общий (long+short), отдельно длинные (L) и короткие (S). Стрелки: ↑↑↑ ≥ +10%, ↑↑ +5…+10%, ↑ +2…+5%, − до ±2%, ↓ −5…−2%, ↓↓ −10…−5%, ↓↓↓ ≤ −10%. Точные проценты — при наведении на строку.</span></span></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for g in client_groups %}
-      <tr class="{{ 'opposite' if (g.physical.net > 0) != (g.juridical.net > 0) }}"
-          data-date="{{ g.date.isoformat() }}" data-ph-net="{{ g.physical.net }}" data-ju-net="{{ g.juridical.net }}">
-        <td>{{ g.date.strftime("%d.%m.%Y") }}</td>
-        <td>{{ g.physical.long }}</td>
-        <td>{{ g.physical.short }}</td>
-        <td class="{{ 'pos' if g.physical.net >= 0 else 'neg' }}">{{ g.physical.net }}</td>
-        <td>{{ g.juridical.long }}</td>
-        <td>{{ g.juridical.short }}</td>
-        <td class="{{ 'pos' if g.juridical.net >= 0 else 'neg' }}">{{ g.juridical.net }}</td>
-        <td>{{ g.summary }}</td>
-        <td>{{ g.physical_share_pct if g.physical_share_pct is not none else '—' }}</td>
-        <td class="{{ 'pos' if g.net_spread >= 0 else 'neg' }}">{{ g.net_spread }}</td>
-        <td>
-          <span class="{{ 'delta ' + g.delta.physical.total.cls }}"
-                title="Физики: общ {{ '%+.1f'|format(g.delta.physical.total.pct) if g.delta.physical.total.pct is not none else '—' }}% · long {{ '%+.1f'|format(g.delta.physical.long.pct) if g.delta.physical.long.pct is not none else '—' }}% · short {{ '%+.1f'|format(g.delta.physical.short.pct) if g.delta.physical.short.pct is not none else '—' }}% к пред. дню">Физ {{ g.delta.physical.total.arrows }} <span class="delta-sub">L {{ g.delta.physical.long.arrows }} · S {{ g.delta.physical.short.arrows }}</span></span><br>
-          <span class="{{ 'delta ' + g.delta.juridical.total.cls }}"
-                title="Юрики: общ {{ '%+.1f'|format(g.delta.juridical.total.pct) if g.delta.juridical.total.pct is not none else '—' }}% · long {{ '%+.1f'|format(g.delta.juridical.long.pct) if g.delta.juridical.long.pct is not none else '—' }}% · short {{ '%+.1f'|format(g.delta.juridical.short.pct) if g.delta.juridical.short.pct is not none else '—' }}% к пред. дню">Юр {{ g.delta.juridical.total.arrows }} <span class="delta-sub">L {{ g.delta.juridical.long.arrows }} · S {{ g.delta.juridical.short.arrows }}</span></span>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-    {% if client_groups_totals %}
-    <tfoot>
-      <tr>
-        <td><b>Итого</b></td>
-        <td><b>{{ client_groups_totals.physical_long }}</b></td>
-        <td><b>{{ client_groups_totals.physical_short }}</b></td>
-        <td class="{{ 'pos' if client_groups_totals.physical_net >= 0 else 'neg' }}"><b>{{ client_groups_totals.physical_net }}</b></td>
-        <td><b>{{ client_groups_totals.juridical_long }}</b></td>
-        <td><b>{{ client_groups_totals.juridical_short }}</b></td>
-        <td class="{{ 'pos' if client_groups_totals.juridical_net >= 0 else 'neg' }}"><b>{{ client_groups_totals.juridical_net }}</b></td>
-        <td><b>{{ client_groups_totals.summary }}</b></td>
-        <td>{{ client_groups_totals.physical_share_pct if client_groups_totals.physical_share_pct is not none else '—' }}</td>
-        <td>—</td>
-        <td>—</td>
-      </tr>
-    </tfoot>
-    {% endif %}
-  </table>
-  <p class="muted small">Подсветка строки — нетто физиков и юриков имеют разные знаки (противоположные ставки). Данные — по базовому активу (все фьючерсы на него), за завершённый торговый день (см. docs/19 §8.14).</p>
+  <div class="chart-head client-groups-head">
+    <div><h2>Открытые позиции по группам клиентов</h2><p class="muted small">Данные по базовому активу за завершённый торговый день.</p></div>
+    <label class="client-groups-sort">Сортировка
+      <select id="cg-sort" aria-label="Сортировка позиций групп клиентов">
+        <option value="date-desc">Сначала новые</option>
+        <option value="date-asc">Сначала старые</option>
+        <option value="ph_net-desc">Физ нетто: больше</option>
+        <option value="ph_net-asc">Физ нетто: меньше</option>
+        <option value="ju_net-desc">Юр нетто: больше</option>
+        <option value="ju_net-asc">Юр нетто: меньше</option>
+      </select>
+    </label>
+  </div>
+  <div class="client-groups-list" id="cg-list">
+    {% for g in client_groups|reverse %}
+    <article class="client-group-row {{ 'opposite' if (g.physical.net > 0) != (g.juridical.net > 0) }}" data-date="{{ g.date.isoformat() }}" data-ph-net="{{ g.physical.net }}" data-ju-net="{{ g.juridical.net }}">
+      <div class="client-group-date"><b>{{ g.date.strftime("%d.%m.%Y") }}</b>{% if loop.first %}<span>Последние данные</span>{% endif %}{% if (g.physical.net > 0) != (g.juridical.net > 0) %}<em>Противоположные ставки</em>{% endif %}</div>
+      <section class="client-group-party physical"><div class="client-group-party-head"><span>Физические лица</span><b class="{{ 'pos' if g.physical.net >= 0 else 'neg' }}">{{ '%+d'|format(g.physical.net) }}</b></div><div class="client-group-numbers"><span>Long <b>{{ g.physical.long }}</b></span><span>Short <b>{{ g.physical.short }}</b></span></div></section>
+      <section class="client-group-party juridical"><div class="client-group-party-head"><span>Юридические лица</span><b class="{{ 'pos' if g.juridical.net >= 0 else 'neg' }}">{{ '%+d'|format(g.juridical.net) }}</b></div><div class="client-group-numbers"><span>Long <b>{{ g.juridical.long }}</b></span><span>Short <b>{{ g.juridical.short }}</b></span></div></section>
+      <section class="client-group-summary"><div><span>Сумма OI</span><b>{{ g.summary }}</b></div><div><span>Доля физиков</span><b>{{ g.physical_share_pct if g.physical_share_pct is not none else '—' }}{% if g.physical_share_pct is not none %}%{% endif %}</b></div><div><span>Спред юр−физ</span><b class="{{ 'pos' if g.net_spread >= 0 else 'neg' }}">{{ '%+d'|format(g.net_spread) }}</b></div><div class="client-group-delta"><span>Δ OI <span class="tooltip" tabindex="0" aria-label="Справка: Δ OI"><span class="tooltip-icon">?</span><span class="tooltip-text">Динамика открытых позиций группы к предыдущему дню. Показаны: общий (long+short), отдельно длинные (L) и короткие (S). Стрелки: ↑↑↑ ≥ +10%, ↑↑ +5…+10%, ↑ +2…+5%, − до ±2%, ↓ −5…−2%, ↓↓ −10…−5%, ↓↓↓ ≤ −10%. Точные проценты — при наведении на строку.</span></span></span><b class="{{ 'delta ' + g.delta.physical.total.cls }}" title="Физики: общ {{ '%+.1f'|format(g.delta.physical.total.pct) if g.delta.physical.total.pct is not none else '—' }}% · long {{ '%+.1f'|format(g.delta.physical.long.pct) if g.delta.physical.long.pct is not none else '—' }}% · short {{ '%+.1f'|format(g.delta.physical.short.pct) if g.delta.physical.short.pct is not none else '—' }}% к пред. дню">Физ {{ g.delta.physical.total.arrows }} · L {{ g.delta.physical.long.arrows }} · S {{ g.delta.physical.short.arrows }}</b><b class="{{ 'delta ' + g.delta.juridical.total.cls }}" title="Юрики: общ {{ '%+.1f'|format(g.delta.juridical.total.pct) if g.delta.juridical.total.pct is not none else '—' }}% · long {{ '%+.1f'|format(g.delta.juridical.long.pct) if g.delta.juridical.long.pct is not none else '—' }}% к пред. дню">Юр {{ g.delta.juridical.total.arrows }} · L {{ g.delta.juridical.long.arrows }} · S {{ g.delta.juridical.short.arrows }}</b></div>
+      </section>
+    </article>
+    {% endfor %}
+  </div>
+  {% if client_groups_totals %}
+  <section class="client-groups-total"><h3>Итого за период</h3><div class="client-groups-total-grid"><span>Физ: Long <b>{{ client_groups_totals.physical_long }}</b> · Short <b>{{ client_groups_totals.physical_short }}</b> · Нетто <b class="{{ 'pos' if client_groups_totals.physical_net >= 0 else 'neg' }}">{{ '%+d'|format(client_groups_totals.physical_net) }}</b></span><span>Юр: Long <b>{{ client_groups_totals.juridical_long }}</b> · Short <b>{{ client_groups_totals.juridical_short }}</b> · Нетто <b class="{{ 'pos' if client_groups_totals.juridical_net >= 0 else 'neg' }}">{{ '%+d'|format(client_groups_totals.juridical_net) }}</b></span><span>Сумма OI <b>{{ client_groups_totals.summary }}</b> · Доля физиков <b>{{ client_groups_totals.physical_share_pct if client_groups_totals.physical_share_pct is not none else '—' }}{% if client_groups_totals.physical_share_pct is not none %}%{% endif %}</b></span></div></section>
+  {% endif %}
 </section>
 <script>
 (function () {
-  var table = document.getElementById('cg-table');
-  if (table) {
-    var rows = Array.prototype.slice.call(table.querySelectorAll('tbody tr'));
-    var sortKey = 'date', sortDir = -1;
-    function renderSort() {
-      table.querySelectorAll('.sort-arrow').forEach(function (a) { a.textContent = ''; });
-      var arrow = table.querySelector('th[data-sort="' + sortKey + '"] .sort-arrow');
-      if (arrow) arrow.textContent = sortDir === 1 ? '▲' : '▼';
-      rows.sort(function (a, b) {
-        var av = a.getAttribute('data-' + sortKey), bv = b.getAttribute('data-' + sortKey);
-        var cmp = sortKey === 'date' ? (av < bv ? -1 : av > bv ? 1 : 0) : (parseFloat(av) - parseFloat(bv));
-        return cmp * sortDir;
-      });
-      rows.forEach(function (row) { table.querySelector('tbody').appendChild(row); });
-    }
-    table.querySelectorAll('th[data-sort]').forEach(function (th) {
-      th.addEventListener('click', function () {
-        var key = th.getAttribute('data-sort');
-        sortDir = key === sortKey ? -sortDir : -1;
-        sortKey = key;
-        renderSort();
-      });
+  var list = document.getElementById('cg-list');
+  var sort = document.getElementById('cg-sort');
+  if (list && sort) {
+    sort.addEventListener('change', function () {
+      var parts = sort.value.split('-');
+      var key = parts.slice(0, -1).join('-');
+      var direction = parts[parts.length - 1] === 'asc' ? 1 : -1;
+      Array.prototype.slice.call(list.querySelectorAll('.client-group-row')).sort(function (a, b) {
+        var attribute = 'data-' + key.replace('_', '-');
+        var av = a.getAttribute(attribute), bv = b.getAttribute(attribute);
+        var compare = key === 'date' ? (av < bv ? -1 : av > bv ? 1 : 0) : parseFloat(av) - parseFloat(bv);
+        return compare * direction;
+      }).forEach(function (row) { list.appendChild(row); });
     });
   }
 })();

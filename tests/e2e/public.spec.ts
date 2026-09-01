@@ -166,6 +166,23 @@ test.describe("Публичные страницы", () => {
     await expect(select).toHaveValue("/indicators?name=volume_profile");
   });
 
+  test("индикаторы: позиции групп клиентов читаемы и сортируются", async ({ page }) => {
+    await page.goto("/indicators?name=oi&ticker=SBER");
+    const rows = page.locator(".client-group-row");
+    await expect(rows).toHaveCount(6);
+    await expect(page.locator("#cg-table")).toHaveCount(0);
+    await expect(rows.first().getByText("Физические лица")).toBeVisible();
+    await expect(rows.first().getByText("Юридические лица")).toBeVisible();
+    await page.locator("#cg-sort").selectOption("ph_net-asc");
+    const firstNet = await rows.first().getAttribute("data-ph-net");
+    const lastNet = await rows.last().getAttribute("data-ph-net");
+    expect(Number(firstNet)).toBeLessThanOrEqual(Number(lastNet));
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.reload();
+    await expect(page.locator(".client-group-row").first()).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+  });
+
   const DATA_TABS: Array<[string, string | null]> = [
     ["volume_profile", "Профиль объёма — Сбербанк (SBER)"],
     ["support_resistance", null],

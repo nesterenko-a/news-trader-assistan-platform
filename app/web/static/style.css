@@ -371,6 +371,38 @@ main { padding: 24px 16px 40px; }
 .net-zero { stroke: #f1c40f; stroke-width: 1.6; stroke-dasharray: 8, 4; }
 .delta { white-space: nowrap; font-weight: 600; }
 .delta-sub { font-weight: 400; font-size: 11px; opacity: 0.85; }
+
+.client-groups-head { align-items: flex-start; margin-bottom: 12px; }
+.client-groups-head h2 { margin-bottom: 4px; }
+.client-groups-head p { margin: 0; }
+.client-groups-sort { display: grid; gap: 4px; font-size: 12px; color: var(--muted, #999); }
+.client-groups-sort select { min-width: 180px; }
+.client-groups-list { border-top: 1px solid var(--border); }
+.client-group-row { display: grid; grid-template-columns: 94px minmax(155px, 1fr) minmax(155px, 1fr) minmax(180px, 1.1fr); gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.client-group-row.opposite { background: transparent; border-left: 3px solid var(--accent); padding-left: 9px; }
+.client-group-date { padding: 8px 0; font-size: 13px; }
+.client-group-date b { display: block; color: var(--text); }
+.client-group-date span, .client-group-date em { display: block; margin-top: 4px; color: var(--muted, #999); font-size: 11px; font-style: normal; }
+.client-group-date em { color: var(--accent); }
+.client-group-party { padding: 10px; border-radius: 8px; background: var(--panel-2); }
+.client-group-party-head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: var(--muted, #999); font-size: 12px; }
+.client-group-party-head b { font-size: 15px; }
+.client-group-numbers { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.client-group-numbers span, .client-group-summary span { display: block; color: var(--muted, #999); font-size: 11px; }
+.client-group-numbers b { display: block; margin-top: 3px; color: var(--text); font-size: 13px; }
+.client-group-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; align-content: center; padding: 5px 0; }
+.client-group-summary > div > b { display: block; margin-top: 3px; color: var(--text); font-size: 12px; }
+.client-group-summary > div > b.pos, .client-group-summary > div > b.neg { color: inherit; }
+.client-group-summary > div > b.pos { color: var(--green); }
+.client-group-summary > div > b.neg { color: var(--red); }
+.client-group-delta { grid-column: 1 / -1; }
+.client-group-delta > b { display: block; line-height: 1.45; }
+.client-groups-total { margin-top: 14px; padding: 12px; border-radius: 8px; background: var(--panel-2); }
+.client-groups-total h3 { margin: 0 0 8px; font-size: 14px; }
+.client-groups-total-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; color: var(--muted, #999); font-size: 12px; }
+.client-groups-total-grid b { color: var(--text); }
+.client-groups-total-grid b.pos { color: var(--green); }
+.client-groups-total-grid b.neg { color: var(--red); }
 .delta-up { color: var(--green, #2f7d32); }
 .delta-down { color: var(--red, #c0392b); }
 .delta-flat { color: var(--muted, #8b97ad); }
@@ -923,6 +955,22 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
   .indicator-mobile-select { display: block; width: 100%; margin: 0 0 12px; }
   .indicator-selected { display: none; }
   .graph-cards { grid-template-columns: 1fr; }
+  .client-group-row { grid-template-columns: 1fr 1fr; }
+  .client-group-date, .client-group-summary { grid-column: 1 / -1; }
+  .client-group-date { display: flex; align-items: baseline; gap: 8px; }
+  .client-group-date span, .client-group-date em { margin: 0; }
+  .client-groups-total-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 600px) {
+  .client-groups-head { display: block; }
+  .client-groups-sort { margin-top: 10px; }
+  .client-groups-sort select { width: 100%; }
+  .client-group-row { grid-template-columns: 1fr; }
+  .client-group-date, .client-group-summary { grid-column: auto; }
+  .client-group-date { display: block; }
+  .client-group-date span, .client-group-date em { margin-top: 4px; }
+  .client-group-summary { grid-template-columns: 1fr 1fr; }
 }
 
 /* Карта зависимостей */

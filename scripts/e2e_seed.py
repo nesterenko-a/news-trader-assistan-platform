@@ -24,6 +24,8 @@ from app.db.models import (
     FuturesTemplate,
     MacroEvent,
     MarketCandle,
+    MarketOpenPosition,
+    MarketOpenPositionClientGroup,
     RealtimeConfig,
     Security,
     Source,
@@ -198,6 +200,49 @@ async def seed(db_url: str) -> None:
                         volume=100_000 + i * 1_000,
                     )
                 )
+        if sber is not None and (
+            await session.scalar(
+                select(MarketOpenPosition).where(
+                    MarketOpenPosition.security_id == sber.id
+                )
+            )
+            is None
+        ):
+            for i in range(6):
+                day = today - timedelta(days=5 - i)
+                physical_long = 25_000 + i * 350
+                physical_short = 16_500 + i * 120
+                juridical_long = 7_500 + i * 100
+                juridical_short = 16_000 + i * 330
+                summary = (
+                    physical_long
+                    + physical_short
+                    + juridical_long
+                    + juridical_short
+                )
+                session.add(
+                    MarketOpenPosition(
+                        security_id=sber.id,
+                        trading_date=day,
+                        open_position=summary // 2,
+                    )
+                )
+                for group, long_pos, short_pos in (
+                    ("physical", physical_long, physical_short),
+                    ("juridical", juridical_long, juridical_short),
+                ):
+                    session.add(
+                        MarketOpenPositionClientGroup(
+                            security_id=sber.id,
+                            trading_date=day,
+                            client_group=group,
+                            long_pos=long_pos,
+                            short_pos=short_pos,
+                            net_pos=long_pos - short_pos,
+                            participants=100 if group == "physical" else 10,
+                            summary=summary,
+                        )
+                    )
         source = await session.scalar(select(Source).where(Source.name == "e2e_feed"))
         if source is None:
             source = Source(
