@@ -3155,11 +3155,19 @@ def _task_state(phase_state: str, done: bool, index: int, has_marker: bool, acti
     return "waiting"
 
 
-def _pipeline_phases(output: str | None, status: str | None) -> list[dict] | None:
+def _pipeline_phases(
+    output: str | None, status: str | None, show_initial: bool = False,
+) -> list[dict] | None:
     """Состояния 5 фаз Ежедневного конвейера по логу: done/skipped/running/error/pending,
     с подзадачами (tasks) и процентом выполнения фазы."""
-    if not output or "Фаза " not in output:
-        return None
+    if not output:
+        if not (show_initial and status == "running"):
+            return None
+        output = ""
+    elif "Фаза " not in output and "Пропускаю фазы " not in output:
+        if not (show_initial and status == "running"):
+            return None
+        output = ""
     skipped = None
     m = re.search(r"Пропускаю фазы (\d+)\.\.(\d+)", output)
     if m:
@@ -3167,8 +3175,15 @@ def _pipeline_phases(output: str | None, status: str | None) -> list[dict] | Non
     started = [int(x) for x in re.findall(r"Фаза (\d+)/5:", output)]
     started = [x for x in started if 1 <= x <= 5]
     if not started and skipped is None:
-        return None
-    last = started[-1] if started else 0
+        if not (show_initial and status == "running"):
+            return None
+        last = 1
+    else:
+        last = (
+            started[-1]
+            if started
+            else skipped + 1 if show_initial and status == "running" else 0
+        )
     phases = []
     for n in range(1, 6):
         if skipped is not None and n <= skipped:
@@ -3268,7 +3283,11 @@ async def admin_run_detail(
     run = await session.get(ScriptRun, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Запуск не найден")
-    pipeline = _pipeline_phases(run.output, run.status) if run.script_name == "daily_pipeline" else None
+    pipeline = (
+        _pipeline_phases(run.output, run.status, show_initial=True)
+        if run.script_name == "daily_pipeline"
+        else None
+    )
     active_phase = None
     if pipeline:
         for ph in pipeline:

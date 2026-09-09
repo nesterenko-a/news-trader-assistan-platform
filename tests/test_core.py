@@ -1710,6 +1710,12 @@ def test_pipeline_phases_and_failed_phase():
         "done", "running", "pending", "pending", "pending",
     ]
     assert _pipeline_phases("обычный скрипт без фаз", "failed") is None
+    assert [p["state"] for p in _pipeline_phases(None, "running", show_initial=True)] == [
+        "running", "pending", "pending", "pending", "pending",
+    ]
+    assert [p["state"] for p in _pipeline_phases(
+        "Пропускаю фазы 1..2 (запуск с фазы 3/5)\n", "running", show_initial=True,
+    )] == ["skipped", "skipped", "running", "pending", "pending"]
     assert _pipeline_failed_phase(None) is None
 
 
