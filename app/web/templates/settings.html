@@ -94,7 +94,7 @@
       {% if active_runs %}
       <div class="settings-cards">
         {% for run in active_runs %}
-        <div class="settings-pending"><strong>{{ run.title }}</strong><span>Выполняется</span><form method="post" action="/admin/scripts/{{ run.id }}/stop" onsubmit="return confirm('Остановить задачу? Результат может быть частичным.')"><input type="hidden" name="return_to" value="/settings#administration"><button class="realtime-toggle is-on" type="submit" aria-label="Остановить: {{ run.title }}" title="Остановить"><span aria-hidden="true"></span></button></form></div>
+        <div class="settings-pending"><strong>{{ run.title }}</strong><span>Выполняется</span><form method="post" action="/admin/scripts/{{ run.id }}/stop"><input type="hidden" name="return_to" value="/settings#administration"><button class="realtime-toggle is-on" type="submit" aria-label="Остановить: {{ run.title }}" title="Остановить"><span aria-hidden="true"></span></button></form></div>
         {% endfor %}
       </div>
       {% else %}<p class="muted">Активных задач нет.</p>{% endif %}

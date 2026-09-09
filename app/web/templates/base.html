@@ -16,7 +16,6 @@
         <a href="/indicators">Индикаторы</a>
         <a href="/map">Карта зависимостей</a>
         <a href="/docs">API</a>
-        {% if is_admin %}<form method="post" action="/admin/realtime/toggle" class="header-realtime"><input type="hidden" name="enabled" value="{{ '' if realtime_enabled else 'on' }}"><input type="hidden" name="return_to" value="{{ request.url.path }}"><button type="submit" class="realtime-status{% if realtime_enabled %} is-on{% else %} is-off{% endif %}" aria-label="{{ 'Выключить realtime' if realtime_enabled else 'Включить realtime' }}" title="{{ 'Остановить realtime-актуализацию' if realtime_enabled else 'Запустить realtime-актуализацию' }}"><b>{{ 'ON' if realtime_enabled else 'OFF' }}</b><span>Обновление {{ 'включено' if realtime_enabled else 'выключено' }}</span></button></form>{% else %}<span class="realtime-status{% if realtime_enabled %} is-on{% else %} is-off{% endif %}" role="status" title="Управление актуализацией доступно администратору"><b>{{ 'ON' if realtime_enabled else 'OFF' }}</b><span>Обновление {{ 'включено' if realtime_enabled else 'выключено' }}</span></span>{% endif %}
         <div class="menu">
           <a class="attention-toggle" href="#" aria-label="Внимание" aria-expanded="false">
             <span class="attention-icon attention-none" id="attention-icon">!</span>

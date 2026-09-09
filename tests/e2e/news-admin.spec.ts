@@ -151,16 +151,16 @@ test.describe("News manager и админка", () => {
     await expect(page.locator("details").first()).toContainText("E2E-доказательство связи");
   });
 
-  test("realtime: переключатель виден всем, а компактный блок есть в настройках админа", async ({ page }) => {
+  test("realtime: в шапке нет переключателя, а компактный блок есть в настройках админа", async ({ page }) => {
     await login(page, USER.username, USER.password);
     await page.goto("/");
-    await expect(page.locator(".realtime-status")).toContainText("OFF");
-    await expect(page.locator("button.realtime-status")).toHaveCount(0);
+    await expect(page.locator(".topbar .realtime-toggle")).toHaveCount(0);
+    await expect(page.locator('.topbar form[action="/admin/realtime/toggle"]')).toHaveCount(0);
     await login(page, ADMIN.username, ADMIN.password);
     await page.goto("/settings");
     await expect(page.locator('.settings-nav a[href="#administration"]')).toHaveCount(1);
     await expect(page.locator('#user-menu a[href="/settings/admin"]')).toHaveCount(0);
-    await expect(page.locator("form.header-realtime button.realtime-status")).toContainText("OFF");
+    await expect(page.locator('.topbar form[action="/admin/realtime/toggle"]')).toHaveCount(0);
     await expect(page.locator("#administration")).toContainText(/Выполняется|Активных задач нет/);
     await expect(page.locator('#administration form[action="/admin/scripts/run"]')).toHaveCount(0);
     await expect(page.locator("#administration")).not.toContainText("Последние запуски");

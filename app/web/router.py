@@ -206,14 +206,10 @@ async def _optional_user(
 
 async def _base_context(session: AsyncSession, user: User | None) -> dict:
     unread_alerts = await unread_count(session, user.id) if user is not None else 0
-    realtime = await session.get(RealtimeConfig, 1)
-    realtime_running = active_run_id("realtime_updater") is not None
     return {
         "user": user,
         "is_admin": bool(user is not None and user.role == "admin"),
         "unread_alerts": unread_alerts,
-        "realtime_enabled": bool(realtime is not None and realtime.enabled and realtime_running),
-        "realtime_running": realtime_running,
     }
 
 
