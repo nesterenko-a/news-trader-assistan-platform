@@ -1,6 +1,6 @@
 # 24. Реальное время — актуальные цены и показатели рынка (ТЗ и дизайн)
 
-**Статус:** реализовано v1.7 (добавлена ручная актуализация данных карточки бумаги без перезагрузки)
+**Статус:** реализовано v1.8 (добавлена остановка демона из интерфейса)
 **Система:** NewsTrader Assistant
 **Приоритет задачи:** этап 2 дорожной карты (12-roadmap.md), «Углубление аналитики» — актуальность рыночных данных
 **Связанные документы:** [10-api-specification.md](./10-api-specification.md), [13-operations.md](./13-operations.md), [14-web-interface.md](./14-web-interface.md), [16-working-process.md](./16-working-process.md), [17-quickstart.md](./17-quickstart.md), [12-roadmap.md](./12-roadmap.md), [19-market-indicators.md](./19-market-indicators.md)
@@ -110,6 +110,7 @@ Singleton-строка создаётся при `seed_db` (или демоно�
 |---|---|
 | `GET /admin` | Контекст админки дополняется блоком realtime: `realtime_config`, список `FuturesTemplate`, статус демона |
 | `POST /admin/realtime/save` | Сохранить настройки: `{enabled, interval_quotes_sec, interval_candles_sec, interval_oi_sec, futures_template_id}`; валидация; 303-редирект на `/admin` |
+| `POST /admin/realtime/toggle` | Быстро включить/выключить realtime из `/admin`, `/settings/admin` или шапки; при выключении завершает живой процесс |
 
 Роуты требуют роль `admin` (как прочие `/admin/*`).
 
@@ -170,6 +171,7 @@ init_db() + чтение realtime_config
 ## 11. SSE — клиентская перерисовка (все страницы с ценами)
 
 - **Карточка бумаги** `/securities/{ticker}` (акции/фьючерсы): JS открывает `EventSource('/v1/realtime/stream?tickers=<ticker>')` и обновляет блок Цена/Макс-мин/Объём.
+- **Управление:** в шапке между API и «Внимание» виден switch текущего состояния. Нажать его могут только администраторы; у остальных он disabled. Администратор также видит realtime в компактной `/settings/admin` и кнопку «Остановить» у живого запуска на `/admin`.
 - **Другие страницы с ценами** (портфель `/portfolio`, виртуальный портфель `/paper`, «Лучшие возможности» `/top5`): общий JS-helper `initRealtimeQuotes` в `/static/app.js` (подключается глобально в `base.html`) собирает тикеры страницы из разметки `data-rt-*` и подписывается на **один SSE-стрим** по набору тикеров; при `event: quote` обновляет ячейки цены и **пересчитывает производные** (стоимость, P&L, P&L%, итоги — для портфеля и paper).
 - **OI фьючерсов (live)**: SSE-стрим дополнительно испускает `event: oi` (последний `open_position`, изменение к предыдущему дню, группы клиентов физ/юр — из `market_open_positions`, которую обновляет демон). JS-helper обновляет разметку `[data-rt-oi-value]`/`[data-rt-oi-change]`/`[data-rt-oi-groups]`. Выведено live на карточке фьючерса (`/securities/{ticker}`, блок «Открытый интерес») и на вкладке `/indicators` OI (строка «Текущий OI / ΔOI»). На этих страницах есть замечание: числовые OI/ΔOI обновляются в реальном времени, а SVG-графики OI (линии за период) перерисовываются при перезагрузке.
 - При `event: quote` обновляет значения в DOM (последняя цена и, при наличии, OHLC/объём) без перезагрузки страницы.
@@ -203,7 +205,7 @@ init_db() + чтение realtime_config
 | 4 | Скрипт-демон `realtime_updater.py` + регистрация в `SCRIPTS` админки | **реализовано** (`no_timeout`) |
 | 5 | UI админки: блок «Реальное время» (тумблер, интервалы, шаблон) + роут `/admin/realtime/save` | **реализовано** |
 | 6 | SSE `GET /v1/realtime/stream` + JS-обновление карточки | **реализовано** |
-| 7 | Тесты (unit + e2e), smoke, документация (10/13/14/17/12/README), коммиты | **реализовано** (unit в `tests/test_realtime.py`; e2e — см. реестр в 21) |
+| 7 | Тесты (unit + e2e), smoke, документация (10/13/14/17/12/README), коммиты | **реализовано** (unit в `tests/test_realtime.py`, `tests/test_runner.py`; e2e — см. реестр в 21) |
 
 ## 15. Критерии приёмки
 

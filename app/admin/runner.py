@@ -252,6 +252,8 @@ SCRIPTS: list[dict] = [
 SCRIPTS_BY_KEY = {s["key"]: s for s in SCRIPTS}
 
 _active_run_ids: dict[str, int | None] = {"regular": None, "daemon": None}
+_active_processes: dict[int, asyncio.subprocess.Process] = {}
+_stop_requests: dict[int, int] = {}
 
 
 def _run_slot(script_key: str) -> str:
@@ -368,6 +370,7 @@ async def _execute(run_id: int, script_key: str, param_values: dict | None) -> t
         cwd=str(PROJECT_ROOT),
         env=env,
     )
+    _active_processes[run_id] = proc
     all_parts: list[str] = []
     pending: list[str] = []
     last_flush = time.monotonic()
@@ -404,6 +407,7 @@ async def _execute(run_id: int, script_key: str, param_values: dict | None) -> t
         all_parts.append(note)
         pending.append(note)
     finally:
+        _active_processes.pop(run_id, None)
         if pending:
             await _append_output(run_id, "".join(pending))
     return exit_code, "".join(all_parts)
@@ -434,19 +438,28 @@ async def run_script_task(run_id: int, script_key: str, param_values: dict | Non
             # Страховка: падение процесса с закрытым stdout иногда даёт код 0
             if exit_code == 0 and "Traceback (most recent call last)" in output:
                 exit_code = 1
-            status = "success" if exit_code == 0 else "failed"
+            stopped_by = _stop_requests.get(run_id)
+            status = "stopped" if stopped_by is not None else ("success" if exit_code == 0 else "failed")
+            if stopped_by is not None and exit_code == 0:
+                exit_code = -15
         except Exception as exc:
             exit_code = -1
             status = "failed"
             output = f"{type(exc).__name__}: {exc}\n"
     finally:
+        stopped_by = _stop_requests.pop(run_id, None)
         try:
+            stopped_fields = {}
+            if status == "stopped":
+                stopped_fields = {"stopped_by": stopped_by, "stopped_at": datetime.now(timezone.utc)}
+                output = f"{output}\n[остановлено администратором]".strip()
             await _mark_status(
                 run_id,
                 status=status,
                 exit_code=exit_code,
                 output=output,
                 finished_at=datetime.now(timezone.utc),
+                **stopped_fields,
             )
         except Exception:
             pass
@@ -490,6 +503,24 @@ def is_busy() -> bool:
 
 def is_daemon_busy() -> bool:
     return _active_run_ids["daemon"] is not None
+
+
+def active_run_id(script_key: str) -> int | None:
+    return _active_run_ids[_run_slot(script_key)]
+
+
+async def stop(run_id: int, user_id: int) -> bool:
+    proc = _active_processes.get(run_id)
+    if proc is None or proc.returncode is not None:
+        return False
+    _stop_requests[run_id] = user_id
+    proc.terminate()
+    try:
+        await asyncio.wait_for(proc.wait(), timeout=10)
+    except TimeoutError:
+        proc.kill()
+        await proc.wait()
+    return True
 
 
 async def mark_stale_runs(session) -> int:

@@ -915,6 +915,12 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
   border: 1px solid var(--border, #2b3750); border-radius: 10px; padding: 10px 12px;
   background: var(--panel, #1a2233);
 }
+.header-realtime { display:inline; }
+.realtime-toggle { width:34px; height:18px; padding:0; border:1px solid var(--border); border-radius:999px; background:var(--panel-2); cursor:pointer; position:relative; vertical-align:middle; }
+.realtime-toggle span { position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:50%; background:var(--muted); transition:transform .16s ease, background .16s ease; }
+.realtime-toggle.is-on { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 24%, var(--panel)); }
+.realtime-toggle.is-on span { transform:translateX(16px); background:var(--accent); }
+.realtime-toggle:disabled { cursor:not-allowed; opacity:.7; }
 .attention-head { display: flex; align-items: center; gap: 8px; }
 .attention-head .menu-user { flex: 1; }
 .attention-dismiss-all {

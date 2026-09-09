@@ -1144,10 +1144,11 @@ def test_script_run_timezone_columns():
     from sqlalchemy import DateTime
 
     table = ScriptRun.__table__
-    for name in ("started_at", "finished_at"):
+    for name in ("started_at", "finished_at", "stopped_at"):
         col = table.c[name]
         assert isinstance(col.type, DateTime), f"{name} must be DateTime"
         assert col.type.timezone is True, f"{name} must be timezone-aware"
+    assert table.c["stopped_by"].nullable is True
 
 
 async def test_mark_stale_runs(session):

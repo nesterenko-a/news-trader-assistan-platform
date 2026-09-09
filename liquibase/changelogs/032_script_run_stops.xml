@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+    <changeSet id="0320-script-run-stopped-by" author="newstrader">
+        <preConditions onFail="MARK_RAN"><not><columnExists tableName="script_runs" columnName="stopped_by"/></not></preConditions>
+        <addColumn tableName="script_runs"><column name="stopped_by" type="bigint"><constraints foreignKeyName="fk_script_runs_stopped_by" referencedTableName="users" referencedColumnNames="id"/></column></addColumn>
+    </changeSet>
+    <changeSet id="0321-script-run-stopped-at" author="newstrader">
+        <preConditions onFail="MARK_RAN"><not><columnExists tableName="script_runs" columnName="stopped_at"/></not></preConditions>
+        <addColumn tableName="script_runs"><column name="stopped_at" type="timestamptz"/></addColumn>
+    </changeSet>
+</databaseChangeLog>

@@ -16,6 +16,7 @@
         <a href="/indicators">Индикаторы</a>
         <a href="/map">Карта зависимостей</a>
         <a href="/docs">API</a>
+        {% if is_admin %}<form method="post" action="/admin/realtime/toggle" class="header-realtime"{% if realtime_enabled %} onsubmit="return confirm('Остановить актуализацию? Текущий проход может сохраниться частично.')"{% endif %}><input type="hidden" name="enabled" value="{{ '' if realtime_enabled else 'on' }}"><input type="hidden" name="return_to" value="{{ request.url.path }}"><button type="submit" class="realtime-toggle{% if realtime_enabled %} is-on{% endif %}" aria-label="{{ 'Выключить realtime' if realtime_enabled else 'Включить realtime' }}" title="{{ 'Остановить realtime-актуализацию' if realtime_enabled else 'Запустить realtime-актуализацию' }}"><span aria-hidden="true"></span></button></form>{% else %}<button type="button" class="realtime-toggle{% if realtime_enabled %} is-on{% endif %}" disabled title="Управление актуализацией доступно администратору" aria-label="Realtime-актуализация: {{ 'включена' if realtime_enabled else 'выключена' }}"><span aria-hidden="true"></span></button>{% endif %}
         <div class="menu">
           <a class="attention-toggle" href="#" aria-label="Внимание" aria-expanded="false">
             <span class="attention-icon attention-none" id="attention-icon">!</span>
@@ -48,7 +49,7 @@
             <a href="/news">Новости</a>
             <a href="/history">История</a>
             <a href="/top5">Top-5 сделки</a>
-            {% if is_admin %}<a href="/admin">Админ</a>{% endif %}
+            {% if is_admin %}<a href="/settings/admin">Администрирование</a><a href="/admin">Админ</a>{% endif %}
             <a href="/logout">Выйти</a>
           </div>
         </div>

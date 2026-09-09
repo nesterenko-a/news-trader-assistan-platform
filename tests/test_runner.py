@@ -100,3 +100,28 @@ def test_realtime_daemon_does_not_block_regular_script_launch(monkeypatch):
         assert len(started) == 2
     finally:
         runner._active_run_ids.update({"regular": None, "daemon": None})
+
+
+async def test_stop_terminates_live_process_and_records_initiator():
+    class Process:
+        returncode = None
+
+        def terminate(self):
+            self.returncode = -15
+
+        async def wait(self):
+            return self.returncode
+
+    process = Process()
+    runner._active_processes[501] = process
+    try:
+        assert await runner.stop(501, 17) is True
+        assert process.returncode == -15
+        assert runner._stop_requests[501] == 17
+    finally:
+        runner._active_processes.pop(501, None)
+        runner._stop_requests.pop(501, None)
+
+
+async def test_stop_rejects_completed_or_unknown_process():
+    assert await runner.stop(999, 17) is False

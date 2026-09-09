@@ -33,7 +33,7 @@ from app.auth import (
 )
 from app.bot.linking import consume_link_code, set_user_chat, unlink_telegram
 from app.bot.push import get_bot_username
-from app.admin.runner import SCRIPTS, _pipeline_failed_phase, get_script, is_busy, is_daemon_busy, launch
+from app.admin.runner import SCRIPTS, _pipeline_failed_phase, active_run_id, get_script, is_busy, is_daemon_busy, launch, stop
 from app.api.routes.indicators import _calculate_oi
 from app.feedback.service import (
     get_rating,
@@ -65,6 +65,7 @@ from app.db.models import (
     PaperPosition,
     RealtimeConfig,
     ScriptRun,
+    SystemNotice,
     Security,
     Source,
     Strategy,
@@ -206,10 +207,13 @@ async def _optional_user(
 
 async def _base_context(session: AsyncSession, user: User | None) -> dict:
     unread_alerts = await unread_count(session, user.id) if user is not None else 0
+    realtime = await session.get(RealtimeConfig, 1)
     return {
         "user": user,
         "is_admin": bool(user is not None and user.role == "admin"),
         "unread_alerts": unread_alerts,
+        "realtime_enabled": bool(realtime is not None and realtime.enabled),
+        "realtime_running": active_run_id("realtime_updater") is not None,
     }
 
 
@@ -1851,6 +1855,25 @@ async def settings_page(
     return templates.TemplateResponse(request, "settings.html", context)
 
 
+@router.get("/settings/admin")
+async def settings_admin_page(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
+    running = (await session.scalars(select(ScriptRun).where(ScriptRun.status == "running"))).all()
+    running_by_script = {run.script_name: run for run in running}
+    recent = (await session.scalars(select(ScriptRun).order_by(ScriptRun.id.desc()).limit(5))).all()
+    notices_count = await session.scalar(select(func.count()).select_from(SystemNotice).where(SystemNotice.is_active.is_(True)))
+    context = await _base_context(session, user)
+    context.update({"scripts": SCRIPTS, "running_by_script": running_by_script, "recent_runs": recent, "notices_count": notices_count or 0})
+    return templates.TemplateResponse(request, "settings_admin.html", context)
+
+
 @router.post("/settings/profile")
 async def update_settings_profile(
     request: Request,
@@ -2265,6 +2288,10 @@ async def admin_page(
         .order_by(ScriptRun.id.desc())
         .limit(1)
     )
+    running_by_script = {
+        run.script_name: run
+        for run in (await session.scalars(select(ScriptRun).where(ScriptRun.status == "running"))).all()
+    }
     context = await _base_context(session, user)
     context.update(
         {
@@ -2280,9 +2307,74 @@ async def admin_page(
             "busy_error": request.query_params.get("busy") == "1",
             "realtime": realtime_cfg,
             "realtime_run": rt_run,
+            "running_by_script": running_by_script,
         }
     )
     return templates.TemplateResponse(request, "admin.html", context)
+
+
+@router.post("/admin/realtime/toggle")
+async def admin_realtime_toggle(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
+    form = await request.form()
+    return_to = str(form.get("return_to") or "/admin")
+    if not return_to.startswith("/") or return_to.startswith("//"):
+        return_to = "/admin"
+    config = await realtime_ensure_config(session)
+    enabled = str(form.get("enabled") or "") == "on"
+    config.enabled = enabled
+    config.updated_at = datetime.now(timezone.utc)
+    await session.commit()
+    run_id = active_run_id("realtime_updater")
+    if enabled and run_id is None:
+        run = ScriptRun(script_name="realtime_updater", params={}, user_id=user.id)
+        session.add(run)
+        await session.commit()
+        try:
+            launch(run.id, "realtime_updater", None)
+        except RuntimeError:
+            config.enabled = False
+            await session.commit()
+            raise HTTPException(status_code=409, detail="Демон уже выполняется")
+    elif not enabled and run_id is not None:
+        if not await stop(run_id, user.id):
+            raise HTTPException(status_code=409, detail="Демон уже завершён")
+    return RedirectResponse(url=return_to, status_code=303)
+
+
+@router.post("/admin/scripts/{run_id}/stop")
+async def admin_stop_script(
+    run_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
+    run = await session.get(ScriptRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Запуск не найден")
+    if run.status != "running" or not await stop(run_id, user.id):
+        raise HTTPException(status_code=409, detail="Задача уже завершена")
+    if run.script_name == "realtime_updater":
+        config = await realtime_ensure_config(session)
+        config.enabled = False
+        config.updated_at = datetime.now(timezone.utc)
+        await session.commit()
+    form = await request.form()
+    return_to = str(form.get("return_to") or "/admin")
+    if not return_to.startswith("/") or return_to.startswith("//"):
+        return_to = "/admin"
+    return RedirectResponse(url=return_to, status_code=303)
 
 
 @router.post("/admin/realtime/save")

@@ -55,8 +55,9 @@
           <input type="checkbox" id="oi-all" name="param_all" value="1"> Скачать OI по всем фьючерсам (--all)
         </label>
         {% endif %}
-        <button class="btn" type="submit" {% if (s.get('no_timeout') and daemon_busy) or (not s.get('no_timeout') and busy) %}disabled{% endif %} style="margin-top:8px">Запустить</button>
+        <button class="btn" type="submit" {% if running_by_script.get(s.key) or (s.get('no_timeout') and daemon_busy) or (not s.get('no_timeout') and busy) %}disabled{% endif %} style="margin-top:8px">{{ 'Выполняется' if running_by_script.get(s.key) else 'Запустить' }}</button>
       </form>
+      {% if running_by_script.get(s.key) %}<form method="post" action="/admin/scripts/{{ running_by_script[s.key].id }}/stop" class="btn-form" onsubmit="return confirm('Остановить задачу? Результат может быть частичным.')"><input type="hidden" name="return_to" value="/admin"><button class="btn" type="submit">Остановить</button></form>{% endif %}
     </div>
     {% endif %}
     {% endfor %}
