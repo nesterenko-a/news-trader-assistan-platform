@@ -14,14 +14,14 @@
 
 <section class="card">
   <h2>Скрипты</h2>
-  <div class="grid admin-scripts">
+  <div id="admin-scripts" class="grid admin-scripts">
     {% for s in scripts %}
     {% if not s.get('hidden') %}
     <div class="mini">
-      <form method="post" action="/admin/scripts/run">
+      <span class="label">{{ s.title }}</span>
+      <p class="muted small" style="margin:6px 0 0">{{ s.description }}</p>
+      <form method="post" action="/admin/scripts/run" class="admin-task-form" data-task-form>
         <input type="hidden" name="script" value="{{ s.key }}">
-        <span class="label">{{ s.title }}</span>
-        <p class="muted small" style="margin:6px 0 0">{{ s.description }}</p>
         {% if s.params %}
         {% for p in s.params %}
         <label class="muted small" style="display:block;margin-top:8px">{{ p[1] }}</label>
@@ -57,7 +57,7 @@
         {% endif %}
         {% if not running_by_script.get(s.key) %}<button class="admin-task-toggle is-off" type="submit" {% if (s.get('no_timeout') and daemon_busy) or (not s.get('no_timeout') and busy) %}disabled{% endif %} style="margin-top:8px"><b>OFF</b><span>Запустить</span></button>{% endif %}
       </form>
-      {% if running_by_script.get(s.key) %}<div class="admin-task-actions"><form method="post" action="/admin/scripts/{{ running_by_script[s.key].id }}/stop"><input type="hidden" name="return_to" value="/admin"><button class="admin-task-toggle is-on" type="submit"><b>ON</b><span>Остановить</span></button></form><a class="admin-task-run-link" href="/admin/runs/{{ running_by_script[s.key].id }}">Открыть задачу →</a></div>{% endif %}
+      {% if running_by_script.get(s.key) %}<div class="admin-task-actions"><form method="post" action="/admin/scripts/{{ running_by_script[s.key].id }}/stop" data-task-form><input type="hidden" name="return_to" value="/admin"><button class="admin-task-toggle is-on" type="submit"><b>ON</b><span>Остановить</span></button></form><a class="admin-task-run-link" href="/admin/runs/{{ running_by_script[s.key].id }}">Открыть задачу →</a></div>{% endif %}
     </div>
     {% endif %}
     {% endfor %}
@@ -168,6 +168,40 @@ fetch('/v1/indicators/futures')
   cb.addEventListener('change', syncDisabled);
   if (tpl) { tpl.addEventListener('change', syncDisabled); }
   syncDisabled();
+})();
+</script>
+<script>
+(function () {
+  document.addEventListener('submit', function (event) {
+    var form = event.target.closest ? event.target.closest('form[data-task-form]') : null;
+    if (!form) { return; }
+    event.preventDefault();
+    var button = form.querySelector('button[type="submit"]');
+    if (button && button.disabled) { return; }
+    if (button) { button.disabled = true; }
+    fetch(form.action, {
+      method: 'POST',
+      body: new FormData(form),
+      credentials: 'same-origin'
+    })
+      .then(function (response) {
+        if (!response.ok) { throw new Error('task request failed'); }
+        return fetch('/admin', { credentials: 'same-origin' });
+      })
+      .then(function (response) {
+        if (!response.ok) { throw new Error('task refresh failed'); }
+        return response.text();
+      })
+      .then(function (html) {
+        var next = new DOMParser().parseFromString(html, 'text/html').getElementById('admin-scripts');
+        var current = document.getElementById('admin-scripts');
+        if (!next || !current) { throw new Error('task section missing'); }
+        current.replaceWith(next);
+      })
+      .catch(function () {
+        if (button) { button.disabled = false; }
+      });
+  });
 })();
 </script>
 

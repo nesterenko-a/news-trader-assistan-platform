@@ -101,7 +101,14 @@ test.describe("News manager и админка", () => {
       'form[action="/admin/scripts/run"]:has(input[name="script"][value="seed_db"])'
     );
     await expect(form).toHaveCount(1);
-    await Promise.all([page.waitForURL("**/admin"), form.locator('button.admin-task-toggle').click()]);
+    await page.evaluate(() => {
+      (window as Window & { adminTaskPage?: string }).adminTaskPage = "kept";
+    });
+    await form.locator('button.admin-task-toggle').click();
+    await expect(page).toHaveURL(/\/admin$/);
+    expect(await page.evaluate(() => (
+      window as Window & { adminTaskPage?: string }
+    ).adminTaskPage)).toBe("kept");
     const taskLink = page.locator('a.admin-task-run-link[href^="/admin/runs/"]').first();
     await expect(taskLink).toHaveCount(1);
     await Promise.all([page.waitForURL("**/admin/runs/*"), taskLink.click()]);
