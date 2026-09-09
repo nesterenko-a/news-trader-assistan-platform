@@ -29,7 +29,7 @@
     <a href="#brokers">Брокеры и торговля</a>
     <a href="#security">Безопасность</a>
     <a href="#privacy">Данные и приватность</a>
-    {% if is_admin %}<a href="/settings/admin">Администрирование</a>{% endif %}
+    {% if is_admin %}<a href="#administration">Администрирование</a>{% endif %}
   </aside>
 
   <div class="settings-content">
@@ -88,6 +88,18 @@
     <section class="card" id="brokers"><h2>Брокеры и торговля</h2><p class="muted">Подключение брокеров и выставление заявок с Stop-loss/Take-profit — в разработке. API-ключи пока не вводятся и не хранятся.</p></section>
     <section class="card" id="security"><h2>Безопасность</h2><p class="muted">Двухфакторная аутентификация, активные сессии и история входов — в разработке.</p></section>
     <section class="card" id="privacy"><h2>Данные и приватность</h2><p class="muted">Экспорт данных, удаление аккаунта и управление согласиями — в разработке.</p></section>
+    {% if is_admin %}
+    <section class="card" id="administration">
+      <h2>Администрирование</h2>
+      {% if active_runs %}
+      <div class="settings-cards">
+        {% for run in active_runs %}
+        <div class="settings-pending"><strong>{{ run.title }}</strong><span>Выполняется</span><form method="post" action="/admin/scripts/{{ run.id }}/stop" onsubmit="return confirm('Остановить задачу? Результат может быть частичным.')"><input type="hidden" name="return_to" value="/settings#administration"><button class="realtime-toggle is-on" type="submit" aria-label="Остановить: {{ run.title }}" title="Остановить"><span aria-hidden="true"></span></button></form></div>
+        {% endfor %}
+      </div>
+      {% else %}<p class="muted">Активных задач нет.</p>{% endif %}
+    </section>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

@@ -65,7 +65,6 @@ from app.db.models import (
     PaperPosition,
     RealtimeConfig,
     ScriptRun,
-    SystemNotice,
     Security,
     Source,
     Strategy,
@@ -1840,6 +1839,19 @@ async def settings_page(
         .join(PaperAccount, PaperAccount.id == PaperPosition.account_id)
         .where(PaperAccount.user_id == user.id, PaperPosition.status == "open")
     )
+    active_runs = []
+    if _is_admin_user(user):
+        active_runs = [
+            {
+                "id": run.id,
+                "title": (get_script(run.script_name) or {}).get("title", run.script_name),
+            }
+            for run in (
+                await session.scalars(
+                    select(ScriptRun).where(ScriptRun.status == "running")
+                )
+            ).all()
+        ]
     context = await _base_context(session, user)
     context.update(
         {
@@ -1847,31 +1859,13 @@ async def settings_page(
             "watchlist_count": watchlist_count or 0,
             "portfolio_count": portfolio_count or 0,
             "paper_count": paper_count or 0,
+            "active_runs": active_runs,
             "profile_updated": request.query_params.get("profile") == "updated",
             "profile_error": request.query_params.get("error"),
             "favorites": [{"ticker": security.ticker, "name": security.name, "type": "Фьючерс" if security.security_type == "futures" else "Акция", "sector": security.sector, "market": security.market, "created_at": favorite.created_at} for favorite, security in favorite_rows],
         }
     )
     return templates.TemplateResponse(request, "settings.html", context)
-
-
-@router.get("/settings/admin")
-async def settings_admin_page(
-    request: Request,
-    session: AsyncSession = Depends(get_session),
-):
-    user = await _optional_user(request, session)
-    if user is None:
-        return RedirectResponse(url="/login", status_code=303)
-    if not _is_admin_user(user):
-        raise HTTPException(status_code=403, detail="Требуются права администратора")
-    running = (await session.scalars(select(ScriptRun).where(ScriptRun.status == "running"))).all()
-    running_by_script = {run.script_name: run for run in running}
-    recent = (await session.scalars(select(ScriptRun).order_by(ScriptRun.id.desc()).limit(5))).all()
-    notices_count = await session.scalar(select(func.count()).select_from(SystemNotice).where(SystemNotice.is_active.is_(True)))
-    context = await _base_context(session, user)
-    context.update({"scripts": SCRIPTS, "running_by_script": running_by_script, "recent_runs": recent, "notices_count": notices_count or 0})
-    return templates.TemplateResponse(request, "settings_admin.html", context)
 
 
 @router.post("/settings/profile")

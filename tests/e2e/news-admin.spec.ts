@@ -151,21 +151,20 @@ test.describe("News manager и админка", () => {
     await expect(page.locator("details").first()).toContainText("E2E-доказательство связи");
   });
 
-  test("realtime: переключатель виден всем, а мини-панель доступна админу", async ({ page }) => {
+  test("realtime: переключатель виден всем, а компактный блок есть в настройках админа", async ({ page }) => {
     await login(page, USER.username, USER.password);
     await page.goto("/");
     await expect(page.locator("button.realtime-toggle")).toBeDisabled();
-    const forbidden = await page.goto("/settings/admin");
-    expect(forbidden?.status()).toBe(403);
-
     await login(page, ADMIN.username, ADMIN.password);
     await page.goto("/settings");
-    await expect(page.locator('.settings-nav a[href="/settings/admin"]')).toHaveCount(1);
+    await expect(page.locator('.settings-nav a[href="#administration"]')).toHaveCount(1);
+    await expect(page.locator('#user-menu a[href="/settings/admin"]')).toHaveCount(0);
     await expect(page.locator("form.header-realtime button.realtime-toggle")).toBeEnabled();
-    await page.goto("/settings/admin");
-    await expect(page.locator("body")).toContainText("Администрирование");
-    await expect(page.locator('section.card form[action="/admin/realtime/toggle"]')).toHaveCount(1);
-    await expect(page.locator('form[action="/admin/scripts/run"]')).not.toHaveCount(0);
+    await expect(page.locator("#administration")).toContainText("Выполняется");
+    await expect(page.locator('#administration form[action^="/admin/scripts/"] button.realtime-toggle')).not.toHaveCount(0);
+    await expect(page.locator('#administration form[action="/admin/scripts/run"]')).toHaveCount(0);
+    await expect(page.locator("#administration")).not.toContainText("Последние запуски");
+    await expect(page.locator("#administration")).not.toContainText("Внимание");
   });
 
   test("admin: куратор принимает, отклоняет и откладывает кандидат", async ({ page }) => {
