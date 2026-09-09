@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.collectors.rss import RawArticle
 from app.db.models import Article, ArticleEntity, Entity, Source
 from app.graph.service import resolve_entity_id
+from app.graph.candidates import record_suggestions
 
 
 def within_since(published_at: datetime | None, since: datetime | None) -> bool:
@@ -115,6 +116,8 @@ async def ingest_candidates(
         await session.flush()
 
         linked = 0
+        linked_entities: dict[str, int] = {}
+        max_impact = 0.0
         for ent in analysis.entities:
             entity_id = await resolve_entity_id(session, ent.name)
             if entity_id is None:
@@ -130,7 +133,19 @@ async def ingest_candidates(
                     topic=analysis.topic,
                 )
             )
+            linked_entities[ent.name.lower()] = entity_id
+            max_impact = max(max_impact, ent.impact)
             linked += 1
+        if linked >= 2 and max_impact >= 0.5:
+            try:
+                suggestions = await analyzer.suggest_graph_candidates(
+                    article.title, article.text, list(linked_entities)
+                )
+                await record_suggestions(
+                    session, record.id, suggestions, linked_entities
+                )
+            except Exception:
+                print("  кандидаты графа: извлечение пропущено", flush=True)
         stored += 1
         print(f"  сохранено, сущностей: {linked}", flush=True)
 

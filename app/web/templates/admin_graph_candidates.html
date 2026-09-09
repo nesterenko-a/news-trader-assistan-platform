@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+  <div>
+    <h1 style="margin:0">Кандидаты связей графа</h1>
+    <p class="muted small">Кандидаты не влияют на стратегии, пока куратор не примет их.</p>
+  </div>
+  <a class="btn" href="/admin/graph">← к графу</a>
+</div>
+<section class="card" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+  <a class="btn {% if status == 'pending' %}active{% endif %}" href="/admin/graph/candidates?status=pending">Новые: {{ counts.pending }}</a>
+  <a class="btn {% if status == 'needs_evidence' %}active{% endif %}" href="/admin/graph/candidates?status=needs_evidence">Нужно больше данных: {{ counts.needs_evidence }}</a>
+  <a class="btn {% if status == 'approved' %}active{% endif %}" href="/admin/graph/candidates?status=approved">Принято: {{ counts.approved }}</a>
+  <a class="btn {% if status == 'all' %}active{% endif %}" href="/admin/graph/candidates?status=all">Все</a>
+</section>
+{% if result %}<p class="notice">{{ result }}</p>{% endif %}
+{% for row in candidates %}
+<section class="card">
+  <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start">
+    <div>
+      <h2 style="margin:0">{{ row.from }} → {{ row.to }}</h2>
+      <p class="muted small" style="margin:6px 0 0">{{ row.item.direction }} · {{ row.item.strength }} · {{ row.item.kind }} · уверенность {{ '%.0f'|format(row.item.confidence * 100) }}% · {{ row.item.evidence_count }} источн.</p>
+    </div>
+    <span class="tag">{{ row.item.status }}</span>
+  </div>
+  <p style="margin:12px 0">{{ row.item.rationale }}</p>
+  <details>
+    <summary>Доказательства ({{ row.evidence|length }})</summary>
+    {% for item in row.evidence %}
+    <div style="border-top:1px solid var(--border);padding:10px 0">
+      <a href="{{ item.article.url }}" target="_blank" rel="noopener">{{ item.article.title }}</a>
+      <div class="muted small">{{ item.article.published_at }} · уверенность {{ '%.0f'|format(item.evidence.confidence * 100) }}%</div>
+      {% if item.evidence.quote %}<blockquote style="margin:8px 0">{{ item.evidence.quote }}</blockquote>{% endif %}
+    </div>
+    {% endfor %}
+  </details>
+  {% if row.item.status in ('pending', 'needs_evidence') %}
+  <form method="post" action="/admin/graph/candidates/{{ row.item.id }}/approve" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:14px">
+    <input type="hidden" name="return_to" value="{{ return_to }}">
+    <select name="direction"><option value="positive" {% if row.item.direction == 'positive' %}selected{% endif %}>positive (+)</option><option value="negative" {% if row.item.direction == 'negative' %}selected{% endif %}>negative (−)</option></select>
+    <select name="strength"><option value="weak" {% if row.item.strength == 'weak' %}selected{% endif %}>weak</option><option value="medium" {% if row.item.strength == 'medium' %}selected{% endif %}>medium</option><option value="strong" {% if row.item.strength == 'strong' %}selected{% endif %}>strong</option></select>
+    <select name="kind"><option value="direct" {% if row.item.kind == 'direct' %}selected{% endif %}>direct</option><option value="indirect" {% if row.item.kind == 'indirect' %}selected{% endif %}>indirect</option></select>
+    <input type="number" name="confidence" min="0" max="1" step="0.05" value="{{ row.item.confidence }}" aria-label="Уверенность">
+    <input type="text" name="rationale" value="{{ row.item.rationale }}" aria-label="Обоснование">
+    <input type="text" name="comment" placeholder="Заметка куратора">
+    <button class="btn active" type="submit">Принять</button>
+  </form>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+    <form method="post" action="/admin/graph/candidates/{{ row.item.id }}/need-evidence"><input type="hidden" name="return_to" value="{{ return_to }}"><button class="btn" type="submit">Нужно больше данных</button></form>
+    <form method="post" action="/admin/graph/candidates/{{ row.item.id }}/reject" style="display:flex;gap:8px"><input type="hidden" name="return_to" value="{{ return_to }}"><input type="text" name="comment" placeholder="Причина отклонения"><button class="btn" type="submit">Отклонить</button></form>
+  </div>
+  {% elif row.item.review_comment %}
+  <p class="muted small">Заметка куратора: {{ row.item.review_comment }}</p>
+  {% endif %}
+</section>
+{% else %}
+<section class="card"><p class="muted">Кандидатов в этой категории пока нет.</p></section>
+{% endfor %}
+{% endblock %}

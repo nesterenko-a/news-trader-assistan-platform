@@ -139,6 +139,50 @@ test.describe("News manager и админка", () => {
     await expect(page.locator("#run-live")).toHaveCount(1);
   });
 
+  test("admin: очередь кандидатных связей доступна только администратору", async ({ page }) => {
+    await login(page, USER.username, USER.password);
+    await page.goto("/admin/graph/candidates");
+    await expect(page.locator("body")).toContainText("Требуются права администратора");
+
+    await login(page, ADMIN.username, ADMIN.password);
+    await page.goto("/admin/graph/candidates");
+    await expect(page.locator("body")).toContainText("Кандидаты связей графа");
+    await expect(page.locator('a[href="/admin/graph/candidates?status=pending"]')).toHaveCount(1);
+    await expect(page.locator("details").first()).toContainText("E2E-доказательство связи");
+  });
+
+  test("admin: куратор принимает, отклоняет и откладывает кандидат", async ({ page }) => {
+    await login(page, ADMIN.username, ADMIN.password);
+    await page.goto("/admin/graph/candidates?status=pending");
+
+    const approve = page.locator("section.card", { hasText: "Кандидат для принятия" });
+    await approve.locator('select[name="strength"]').selectOption("strong");
+    await Promise.all([
+      page.waitForURL("**/admin/graph/candidates?status=pending&result=**"),
+      approve.locator('button:has-text("Принять")').click(),
+    ]);
+    await expect(page.locator("body")).toContainText("Кандидат принят");
+
+    await page.goto("/admin/graph/candidates?status=pending");
+    const reject = page.locator("section.card", { hasText: "Кандидат для отклонения" });
+    await reject.locator('input[placeholder="Причина отклонения"]').fill("Не подтверждено");
+    await Promise.all([
+      page.waitForURL("**/admin/graph/candidates?status=pending&result=**"),
+      reject.locator('button:has-text("Отклонить")').click(),
+    ]);
+    await page.goto("/admin/graph/candidates?status=rejected");
+    await expect(page.locator("body")).toContainText("Не подтверждено");
+
+    await page.goto("/admin/graph/candidates?status=pending");
+    const defer = page.locator("section.card", { hasText: "Кандидат для дополнительной проверки" });
+    await Promise.all([
+      page.waitForURL("**/admin/graph/candidates?status=pending"),
+      defer.locator('button:has-text("Нужно больше данных")').click(),
+    ]);
+    await page.goto("/admin/graph/candidates?status=needs_evidence");
+    await expect(page.locator("body")).toContainText("Кандидат для дополнительной проверки");
+  });
+
 
   test("admin: шаблоны инструментов — создание и удаление", async ({ page }) => {
     await login(page, ADMIN.username, ADMIN.password);

@@ -28,6 +28,15 @@ ANALYSIS_SYSTEM_PROMPT = (
     "Если уверенности в анализе мало, ставь confidence ниже 0.5."
 )
 
+GRAPH_CANDIDATES_SYSTEM_PROMPT = (
+    "Ты выделяешь причинно-следственные связи для knowledge graph из финансовой новости. "
+    "Верни строго JSON-массив без markdown. Каждая запись имеет поля "
+    "from_entity, to_entity, direction (positive|negative), strength "
+    "(weak|medium|strong), kind (direct|indirect), confidence (0..1), rationale, quote. "
+    "Используй только сущности из переданного списка. Не выдумывай связь, если она "
+    "не подтверждается текстом. Верни не более трёх записей."
+)
+
 
 @dataclass
 class EntityAnalysis:
@@ -101,3 +110,19 @@ class ArticleAnalyzer:
         user_prompt = f"Заголовок: {title}\n\nТекст:\n{text[:8000]}"
         raw = await self._client.chat(ANALYSIS_SYSTEM_PROMPT, user_prompt)
         return parse_analysis(raw)
+
+    async def suggest_graph_candidates(
+        self, title: str, text: str, entity_names: list[str]
+    ) -> list[dict]:
+        if len(entity_names) < 2:
+            return []
+        user_prompt = (
+            f"Заголовок: {title}\n\nСущности: {', '.join(entity_names)}\n\n"
+            f"Текст:\n{text[:8000]}"
+        )
+        raw = await self._client.chat(GRAPH_CANDIDATES_SYSTEM_PROMPT, user_prompt)
+        try:
+            data = json.loads(_strip_json(raw))
+        except json.JSONDecodeError:
+            return []
+        return [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []

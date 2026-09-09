@@ -35,5 +35,6 @@
     <include file="changelogs/028_tech_analysis_await_confirmation.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/029_user_profiles.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/030_user_favorites.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/031_graph_candidates.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

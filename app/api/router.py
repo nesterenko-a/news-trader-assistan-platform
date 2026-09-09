@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.routes import (
     alerts,
     favorites,
+    graph_candidates,
     auth,
     health,
     indicators,
@@ -29,6 +30,7 @@ api_router.include_router(portfolio.router)
 api_router.include_router(strategies.router)
 api_router.include_router(alerts.router)
 api_router.include_router(favorites.router)
+api_router.include_router(graph_candidates.router)
 api_router.include_router(macro.router)
 api_router.include_router(paper.router)
 api_router.include_router(realtime.router)

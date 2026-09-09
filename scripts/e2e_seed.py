@@ -22,6 +22,8 @@ from app.db.models import (
     ArticleEntity,
     Entity,
     FuturesTemplate,
+    GraphCandidate,
+    GraphCandidateEvidence,
     MacroEvent,
     MarketCandle,
     MarketOpenPosition,
@@ -306,6 +308,47 @@ async def seed(db_url: str) -> None:
                         impact=0.6,
                         snippet="Сбербанк отчитался",
                         entity_role="primary",
+                    )
+                )
+        e2e_entities: dict[str, Entity] = {}
+        for name in ("E2E-фактор", "E2E-сектор", "E2E-компания", "E2E-риск"):
+            entity = await session.scalar(select(Entity).where(Entity.name == name))
+            if entity is None:
+                entity = Entity(name=name, type="event")
+                session.add(entity)
+                await session.flush()
+            e2e_entities[name] = entity
+        candidate_specs = (
+            ("E2E-фактор", "E2E-сектор", "pending", "Кандидат для принятия"),
+            ("E2E-сектор", "E2E-компания", "pending", "Кандидат для отклонения"),
+            ("E2E-риск", "E2E-компания", "pending", "Кандидат для дополнительной проверки"),
+        )
+        for from_name, to_name, status, rationale in candidate_specs:
+            candidate = await session.scalar(
+                select(GraphCandidate).where(GraphCandidate.rationale == rationale)
+            )
+            if candidate is None:
+                candidate = GraphCandidate(
+                    from_entity_id=e2e_entities[from_name].id,
+                    to_entity_id=e2e_entities[to_name].id,
+                    direction="positive",
+                    strength="medium",
+                    kind="direct",
+                    confidence=0.8,
+                    rationale=rationale,
+                    status=status,
+                    evidence_count=1,
+                )
+                session.add(candidate)
+                await session.flush()
+                session.add(
+                    GraphCandidateEvidence(
+                        candidate_id=candidate.id,
+                        article_id=article.id,
+                        quote="E2E-доказательство связи",
+                        rationale=rationale,
+                        confidence=0.8,
+                        strength="medium",
                     )
                 )
         await session.commit()

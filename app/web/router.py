@@ -53,6 +53,9 @@ from app.notices.service import dismiss_all_notices, dismiss_notice, notice_stat
 from app.db.connection import get_session
 from app.db.models import (
     FuturesTemplate,
+    Article,
+    GraphCandidate,
+    GraphCandidateEvidence,
     Influence,
     Entity,
     MarketCandle,
@@ -121,6 +124,7 @@ from app.graph.service import (
     graph_to_jsonl,
     resolve_entity_id,
 )
+from app.graph.candidates import approve_candidate, reject_candidate
 from app.graph.map import build_dependency_map
 from app.graph.map_view import build_map_svg
 
@@ -2578,6 +2582,11 @@ async def admin_graph_page(
         )
     ).all()
     entity_names = {e.id: e.name for e in entities}
+    pending_candidates = (
+        await session.scalar(
+            select(func.count()).select_from(GraphCandidate).where(GraphCandidate.status == "pending")
+        )
+    ) or 0
     context = await _base_context(session, user)
     context.update(
         {
@@ -2601,9 +2610,163 @@ async def admin_graph_page(
             "total": total,
             "result": request.query_params.get("result", ""),
             "result_ok": request.query_params.get("ok") == "1",
+            "pending_candidates": pending_candidates,
         }
     )
     return templates.TemplateResponse(request, "admin_graph.html", context)
+
+
+@router.get("/admin/graph/candidates")
+async def admin_graph_candidates_page(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    status: str = "pending",
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
+    statuses = {"pending", "needs_evidence", "approved", "rejected", "all"}
+    status = status if status in statuses else "pending"
+    query = select(GraphCandidate).order_by(GraphCandidate.updated_at.desc(), GraphCandidate.id.desc())
+    if status != "all":
+        query = query.where(GraphCandidate.status == status)
+    candidates = (await session.scalars(query.limit(100))).all()
+    entity_ids = {candidate.from_entity_id for candidate in candidates} | {
+        candidate.to_entity_id for candidate in candidates
+    }
+    entities = (
+        await session.scalars(select(Entity).where(Entity.id.in_(entity_ids)))
+    ).all() if entity_ids else []
+    names = {entity.id: entity.name for entity in entities}
+    rows = []
+    for candidate in candidates:
+        evidence_rows = (
+            await session.execute(
+                select(GraphCandidateEvidence, Article)
+                .join(Article, Article.id == GraphCandidateEvidence.article_id)
+                .where(GraphCandidateEvidence.candidate_id == candidate.id)
+                .order_by(GraphCandidateEvidence.id.desc())
+            )
+        ).all()
+        rows.append(
+            {
+                "item": candidate,
+                "from": names.get(candidate.from_entity_id, "?"),
+                "to": names.get(candidate.to_entity_id, "?"),
+                "evidence": [
+                    {"article": article, "evidence": evidence}
+                    for evidence, article in evidence_rows
+                ],
+            }
+        )
+    counts = {}
+    for name in ("pending", "needs_evidence", "approved"):
+        counts[name] = (
+            await session.scalar(
+                select(func.count()).select_from(GraphCandidate).where(GraphCandidate.status == name)
+            )
+        ) or 0
+    context = await _base_context(session, user)
+    context.update(
+        {
+            "candidates": rows,
+            "status": status,
+            "counts": counts,
+            "result": request.query_params.get("result", ""),
+            "return_to": f"/admin/graph/candidates?status={status}",
+        }
+    )
+    return templates.TemplateResponse(request, "admin_graph_candidates.html", context)
+
+
+@router.post("/admin/graph/candidates/{candidate_id}/approve")
+async def admin_graph_candidate_approve(
+    candidate_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
+    candidate = await session.get(GraphCandidate, candidate_id)
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="Кандидат не найден")
+    form = await request.form()
+    return_to = str(form.get("return_to") or "/admin/graph/candidates?status=pending")
+    if not return_to.startswith("/admin/graph/candidates?"):
+        return_to = "/admin/graph/candidates?status=pending"
+    try:
+        confidence = float(form.get("confidence") or candidate.confidence)
+    except (TypeError, ValueError):
+        confidence = candidate.confidence
+    values = {
+        "direction": str(form.get("direction") or candidate.direction),
+        "strength": str(form.get("strength") or candidate.strength),
+        "kind": str(form.get("kind") or candidate.kind),
+        "confidence": min(max(confidence, 0.0), 1.0),
+        "rationale": str(form.get("rationale") or candidate.rationale),
+        "comment": str(form.get("comment") or ""),
+    }
+    try:
+        await approve_candidate(session, candidate, user.id, values)
+    except (ValueError, RuntimeError) as exc:
+        return RedirectResponse(
+            url=f"{return_to}&result={str(exc)}", status_code=303
+        )
+    await session.commit()
+    return RedirectResponse(url=f"{return_to}&result=Кандидат принят", status_code=303)
+
+
+@router.post("/admin/graph/candidates/{candidate_id}/reject")
+async def admin_graph_candidate_reject(
+    candidate_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
+    candidate = await session.get(GraphCandidate, candidate_id)
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="Кандидат не найден")
+    form = await request.form()
+    return_to = str(form.get("return_to") or "/admin/graph/candidates?status=pending")
+    if not return_to.startswith("/admin/graph/candidates?"):
+        return_to = "/admin/graph/candidates?status=pending"
+    if candidate.status not in {"approved", "rejected"}:
+        await reject_candidate(candidate, user.id, str(form.get("comment") or ""))
+        await session.commit()
+    return RedirectResponse(url=f"{return_to}&result=Кандидат отклонён", status_code=303)
+
+
+@router.post("/admin/graph/candidates/{candidate_id}/need-evidence")
+async def admin_graph_candidate_need_evidence(
+    candidate_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Требуются права администратора")
+    candidate = await session.get(GraphCandidate, candidate_id)
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="Кандидат не найден")
+    form = await request.form()
+    return_to = str(form.get("return_to") or "/admin/graph/candidates?status=needs_evidence")
+    if not return_to.startswith("/admin/graph/candidates?"):
+        return_to = "/admin/graph/candidates?status=needs_evidence"
+    if candidate.status not in {"approved", "rejected"}:
+        candidate.status = "needs_evidence"
+        await session.commit()
+    return RedirectResponse(url=return_to, status_code=303)
 
 
 @router.post("/admin/graph/add")

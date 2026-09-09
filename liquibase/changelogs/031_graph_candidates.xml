@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+    <changeSet id="0310-graph-candidates" author="newstrader">
+        <preConditions onFail="MARK_RAN"><not><tableExists tableName="graph_candidates"/></not></preConditions>
+        <createTable tableName="graph_candidates">
+            <column name="id" type="bigint" autoIncrement="true"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="from_entity_id" type="bigint"><constraints nullable="false" foreignKeyName="fk_graph_candidates_from_entity" referencedTableName="entities" referencedColumnNames="id"/></column>
+            <column name="to_entity_id" type="bigint"><constraints nullable="false" foreignKeyName="fk_graph_candidates_to_entity" referencedTableName="entities" referencedColumnNames="id"/></column>
+            <column name="direction" type="varchar(10)"><constraints nullable="false"/></column>
+            <column name="strength" type="varchar(10)" defaultValue="medium"><constraints nullable="false"/></column>
+            <column name="kind" type="varchar(10)" defaultValue="direct"><constraints nullable="false"/></column>
+            <column name="confidence" type="double precision" defaultValueNumeric="0"><constraints nullable="false"/></column>
+            <column name="rationale" type="text" defaultValue=""><constraints nullable="false"/></column>
+            <column name="status" type="varchar(20)" defaultValue="needs_evidence"><constraints nullable="false"/></column>
+            <column name="evidence_count" type="int" defaultValueNumeric="0"><constraints nullable="false"/></column>
+            <column name="approved_influence_id" type="bigint"><constraints foreignKeyName="fk_graph_candidates_influence" referencedTableName="influences" referencedColumnNames="id"/></column>
+            <column name="reviewed_by" type="bigint"><constraints foreignKeyName="fk_graph_candidates_reviewer" referencedTableName="users" referencedColumnNames="id"/></column>
+            <column name="reviewed_at" type="timestamptz"/>
+            <column name="review_comment" type="text" defaultValue=""><constraints nullable="false"/></column>
+            <column name="created_at" type="timestamptz" defaultValueComputed="now()"><constraints nullable="false"/></column>
+            <column name="updated_at" type="timestamptz" defaultValueComputed="now()"><constraints nullable="false"/></column>
+        </createTable>
+        <createIndex tableName="graph_candidates" indexName="ix_graph_candidates_status"><column name="status"/></createIndex>
+        <createIndex tableName="graph_candidates" indexName="ix_graph_candidates_pair"><column name="from_entity_id"/><column name="to_entity_id"/></createIndex>
+        <sql dbms="postgresql">CREATE UNIQUE INDEX uq_graph_candidates_active_pair ON graph_candidates (from_entity_id, to_entity_id, direction, kind) WHERE status IN ('needs_evidence', 'pending')</sql>
+        <createTable tableName="graph_candidate_evidence">
+            <column name="id" type="bigint" autoIncrement="true"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="candidate_id" type="bigint"><constraints nullable="false" foreignKeyName="fk_graph_candidate_evidence_candidate" referencedTableName="graph_candidates" referencedColumnNames="id"/></column>
+            <column name="article_id" type="bigint"><constraints nullable="false" foreignKeyName="fk_graph_candidate_evidence_article" referencedTableName="articles" referencedColumnNames="id"/></column>
+            <column name="quote" type="text" defaultValue=""><constraints nullable="false"/></column>
+            <column name="rationale" type="text" defaultValue=""><constraints nullable="false"/></column>
+            <column name="confidence" type="double precision" defaultValueNumeric="0"><constraints nullable="false"/></column>
+            <column name="strength" type="varchar(10)" defaultValue="medium"><constraints nullable="false"/></column>
+            <column name="created_at" type="timestamptz" defaultValueComputed="now()"><constraints nullable="false"/></column>
+        </createTable>
+        <addUniqueConstraint tableName="graph_candidate_evidence" columnNames="candidate_id,article_id" constraintName="uq_graph_candidate_evidence_article"/>
+    </changeSet>
+</databaseChangeLog>

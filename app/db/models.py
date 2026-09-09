@@ -267,6 +267,51 @@ class Influence(Base):
     is_approved: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
+class GraphCandidate(Base):
+    __tablename__ = "graph_candidates"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    from_entity_id: Mapped[int] = mapped_column(ForeignKey("entities.id"), index=True)
+    to_entity_id: Mapped[int] = mapped_column(ForeignKey("entities.id"), index=True)
+    direction: Mapped[str] = mapped_column(String(10))
+    strength: Mapped[str] = mapped_column(String(10), default="medium")
+    kind: Mapped[str] = mapped_column(String(10), default="direct")
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    rationale: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(20), default="needs_evidence", index=True)
+    evidence_count: Mapped[int] = mapped_column(default=0)
+    approved_influence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("influences.id"), nullable=True
+    )
+    reviewed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    review_comment: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class GraphCandidateEvidence(Base):
+    __tablename__ = "graph_candidate_evidence"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    candidate_id: Mapped[int] = mapped_column(
+        ForeignKey("graph_candidates.id"), index=True
+    )
+    article_id: Mapped[int] = mapped_column(ForeignKey("articles.id"), index=True)
+    quote: Mapped[str] = mapped_column(Text, default="")
+    rationale: Mapped[str] = mapped_column(Text, default="")
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    strength: Mapped[str] = mapped_column(String(10), default="medium")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    __table_args__ = (UniqueConstraint("candidate_id", "article_id"),)
+
+
 class ArticleEntity(Base):
     __tablename__ = "article_entities"
 
