@@ -154,14 +154,14 @@ test.describe("News manager и админка", () => {
   test("realtime: переключатель виден всем, а компактный блок есть в настройках админа", async ({ page }) => {
     await login(page, USER.username, USER.password);
     await page.goto("/");
-    await expect(page.locator("button.realtime-toggle")).toBeDisabled();
+    await expect(page.locator(".realtime-status")).toContainText("OFF");
+    await expect(page.locator("button.realtime-status")).toHaveCount(0);
     await login(page, ADMIN.username, ADMIN.password);
     await page.goto("/settings");
     await expect(page.locator('.settings-nav a[href="#administration"]')).toHaveCount(1);
     await expect(page.locator('#user-menu a[href="/settings/admin"]')).toHaveCount(0);
-    await expect(page.locator("form.header-realtime button.realtime-toggle")).toBeEnabled();
-    await expect(page.locator("#administration")).toContainText("Выполняется");
-    await expect(page.locator('#administration form[action^="/admin/scripts/"] button.realtime-toggle')).not.toHaveCount(0);
+    await expect(page.locator("form.header-realtime button.realtime-status")).toContainText("OFF");
+    await expect(page.locator("#administration")).toContainText(/Выполняется|Активных задач нет/);
     await expect(page.locator('#administration form[action="/admin/scripts/run"]')).toHaveCount(0);
     await expect(page.locator("#administration")).not.toContainText("Последние запуски");
     await expect(page.locator("#administration")).not.toContainText("Внимание");

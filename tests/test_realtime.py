@@ -141,6 +141,21 @@ async def test_current_quotes_and_quote_event(session):
 
 # --- Админ-блок «Реальное время» ---
 
+async def test_header_realtime_status_requires_live_daemon(session, monkeypatch):
+    from app.web.router import _base_context
+
+    config = await ensure_config(session)
+    config.enabled = True
+    await session.commit()
+
+    monkeypatch.setattr("app.web.router.active_run_id", lambda _: None)
+    context = await _base_context(session, None)
+    assert context["realtime_enabled"] is False
+
+    monkeypatch.setattr("app.web.router.active_run_id", lambda _: 42)
+    context = await _base_context(session, None)
+    assert context["realtime_enabled"] is True
+
 async def test_admin_page_renders_realtime_block(session, monkeypatch):
     await seed_graph(session)
     await ensure_config(session)
