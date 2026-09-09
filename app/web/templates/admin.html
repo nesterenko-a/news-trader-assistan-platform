@@ -55,9 +55,9 @@
           <input type="checkbox" id="oi-all" name="param_all" value="1"> Скачать OI по всем фьючерсам (--all)
         </label>
         {% endif %}
-        <button class="btn" type="submit" {% if running_by_script.get(s.key) or (s.get('no_timeout') and daemon_busy) or (not s.get('no_timeout') and busy) %}disabled{% endif %} style="margin-top:8px">{{ 'Выполняется' if running_by_script.get(s.key) else 'Запустить' }}</button>
+        {% if not running_by_script.get(s.key) %}<button class="admin-task-toggle is-off" type="submit" {% if (s.get('no_timeout') and daemon_busy) or (not s.get('no_timeout') and busy) %}disabled{% endif %} style="margin-top:8px"><b>OFF</b><span>Запустить</span></button>{% endif %}
       </form>
-      {% if running_by_script.get(s.key) %}<form method="post" action="/admin/scripts/{{ running_by_script[s.key].id }}/stop" class="btn-form" onsubmit="return confirm('Остановить задачу? Результат может быть частичным.')"><input type="hidden" name="return_to" value="/admin"><button class="btn" type="submit">Остановить</button></form>{% endif %}
+      {% if running_by_script.get(s.key) %}<div class="admin-task-actions"><form method="post" action="/admin/scripts/{{ running_by_script[s.key].id }}/stop"><input type="hidden" name="return_to" value="/admin"><button class="admin-task-toggle is-on" type="submit"><b>ON</b><span>Остановить</span></button></form><a class="admin-task-run-link" href="/admin/runs/{{ running_by_script[s.key].id }}">Открыть задачу →</a></div>{% endif %}
     </div>
     {% endif %}
     {% endfor %}

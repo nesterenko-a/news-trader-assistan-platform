@@ -1,6 +1,6 @@
 # 21. E2E-тесты веб-интерфейса (Playwright) — ТЗ и план тестирования
 
-**Статус:** утверждено v1.24
+**Статус:** утверждено v1.25
 **Система:** NewsTrader Assistant  
 **Связанные документы:** [14-web-interface.md](./14-web-interface.md), [16-working-process.md](./16-working-process.md), [13-operations.md](./13-operations.md), [17-quickstart.md](./17-quickstart.md)
 
@@ -88,7 +88,7 @@
 | E2E-015 | P1 | История: обратная связь | В `/history` у стратегии выбирается оценка («сработало»), обновляется статистика качества | `tests/e2e/user-features.spec.ts` |
 | E2E-016 | P1 | Paper: счёт, метрики, сброс | `/paper` показывает счёт, метрики и бенчмарк; кнопка сброса очищает счёт | `tests/e2e/user-features.spec.ts` |
 | E2E-017 | P1 | News manager: CRUD и restore | `/news` показывает таблицу лент; добавление ленты (с проверкой) добавляет строку; toggle «LLM-разбор»/«Обход антибота» сохраняется; удаление убирает строку; «Вернуть стандартные ленты» восстанавливает список | `tests/e2e/news-admin.spec.ts` |
-| E2E-018 | P1 | Admin: запуск скрипта и детали | Admin запускает безопасный скрипт из списка, появляется запись в истории; страница `/admin/runs/{id}` рендерит статус/вывод | `tests/e2e/news-admin.spec.ts` |
+| E2E-018 | P1 | Admin: запуск скрипта и детали | Admin нажимает OFF-switch безопасного скрипта, остаётся на `/admin`, получает ON-switch и ссылку «Открыть задачу →»; страница `/admin/runs/{id}` рендерит статус/вывод | `tests/e2e/news-admin.spec.ts` |
 | E2E-019 | P2 | Мобильное меню | На мобильном viewport (375×667) кнопка `.menu-toggle` открывает `#user-menu`; пункты меню кликабельны; повторный клик закрывает | `tests/e2e/mobile.spec.ts` |
 | E2E-020 | P2 | Рендер ключевых страниц (скриншоты) | `--screenshot only-on-failure` даёт артефакт при падении; ключевые страницы рендерятся без JS-ошибок (console-errors пуст) | `tests/e2e/mobile.spec.ts` |
 | E2E-021 | P2 | (опционально) firefox | Прогон критичных сценариев E2E-001/003/009 в `--browser firefox` | `tests/e2e/public.spec.ts` |

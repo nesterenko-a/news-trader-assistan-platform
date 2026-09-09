@@ -2484,6 +2484,10 @@ async def admin_run_script(
         params=run_params,
         user_id=user.id,
     )
+    if script_key == "realtime_updater":
+        config = await realtime_ensure_config(session)
+        config.enabled = True
+        config.updated_at = datetime.now(timezone.utc)
     session.add(run)
     await session.commit()
     try:
@@ -2492,7 +2496,7 @@ async def admin_run_script(
         return RedirectResponse(url="/admin?busy=1", status_code=303)
     except ValueError:
         return RedirectResponse(url="/admin?error=2", status_code=303)
-    return RedirectResponse(url=f"/admin/runs/{run.id}", status_code=303)
+    return RedirectResponse(url="/admin", status_code=303)
 
 
 @router.post("/admin/templates/add")

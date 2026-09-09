@@ -101,7 +101,10 @@ test.describe("News manager и админка", () => {
       'form[action="/admin/scripts/run"]:has(input[name="script"][value="seed_db"])'
     );
     await expect(form).toHaveCount(1);
-    await Promise.all([page.waitForURL("**/admin/runs/*"), form.locator('button[type="submit"]').click()]);
+    await Promise.all([page.waitForURL("**/admin"), form.locator('button.admin-task-toggle').click()]);
+    const taskLink = page.locator('a.admin-task-run-link[href^="/admin/runs/"]').first();
+    await expect(taskLink).toHaveCount(1);
+    await Promise.all([page.waitForURL("**/admin/runs/*"), taskLink.click()]);
     await expect(page.locator("body")).toContainText("Наполнить справочники");
     await expect(page.locator("#run-live")).toHaveCount(1);
     // скрипт завершается, статус и вывод подтягиваются AJAX (partial)

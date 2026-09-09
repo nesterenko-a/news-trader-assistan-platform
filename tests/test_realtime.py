@@ -221,6 +221,36 @@ async def test_admin_realtime_save_rejects_non_admin(session):
         assert exc.status_code == 403
 
 
+async def test_admin_realtime_script_launch_enables_config(session, monkeypatch):
+    from app.web.router import admin_run_script
+
+    await seed_graph(session)
+    config = await ensure_config(session)
+    config.enabled = False
+    admin = User(username="rtlaunch", password_hash="x", role="admin")
+    session.add(admin)
+    await session.flush()
+    token = await create_session(session, admin)
+    await session.commit()
+
+    started = {}
+    monkeypatch.setattr(
+        "app.web.router.launch",
+        lambda run_id, script_key, params: started.update(
+            {"run_id": run_id, "script_key": script_key, "params": params}
+        ),
+    )
+    request = await _make_request(
+        "POST", token, "/admin/scripts/run", {"script": "realtime_updater"}
+    )
+    response = await admin_run_script(request, session)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/admin"
+    assert started["script_key"] == "realtime_updater"
+    assert (await session.get(RealtimeConfig, 1)).enabled is True
+
+
 # --- Демон: регистрация в SCRIPTS и снятый таймаут (docs/24 §10) ---
 
 async def test_realtime_updater_registered_no_timeout():

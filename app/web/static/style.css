@@ -920,6 +920,13 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .realtime-toggle.is-on { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 24%, var(--panel)); }
 .realtime-toggle.is-on span { transform:translateX(16px); background:var(--accent); }
 .realtime-toggle:disabled { cursor:not-allowed; opacity:.7; }
+.admin-task-actions { display:flex; align-items:center; gap:10px; margin-top:8px; }
+.admin-task-toggle { display:inline-flex; align-items:center; gap:6px; border:1px solid; border-radius:999px; padding:4px 9px; background:transparent; font:inherit; font-size:12px; cursor:pointer; }
+.admin-task-toggle b { font-size:11px; letter-spacing:.04em; }
+.admin-task-toggle.is-on { color:#168343; border-color:#35b96b; background:#eaf9ef; }
+.admin-task-toggle.is-off { color:#78808c; border-color:#b9bec6; background:#f1f2f4; }
+.admin-task-toggle:disabled { cursor:not-allowed; opacity:.55; }
+.admin-task-run-link { font-size:12px; }
 .attention-head { display: flex; align-items: center; gap: 8px; }
 .attention-head .menu-user { flex: 1; }
 .attention-dismiss-all {
