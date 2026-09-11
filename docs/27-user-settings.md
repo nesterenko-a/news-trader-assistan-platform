@@ -1,9 +1,9 @@
 # 27. Настройки пользователя — ТЗ и дизайн
 
-**Статус:** частично реализовано v1.4
+**Статус:** частично реализовано v1.5 (ссылка на ТЗ Избранного — в архиве)
 **Система:** NewsTrader Assistant
 **Приоритет:** P1, этап 2 дорожной карты
-**Связанные документы:** [05-non-functional-requirements.md](./05-non-functional-requirements.md), [07-data-model.md](./07-data-model.md), [10-api-specification.md](./10-api-specification.md), [11-security-compliance.md](./11-security-compliance.md), [12-roadmap.md](./12-roadmap.md), [14-web-interface.md](./14-web-interface.md), [26-favorites.md](./26-favorites.md)
+**Связанные документы:** [05-non-functional-requirements.md](./05-non-functional-requirements.md), [07-data-model.md](./07-data-model.md), [10-api-specification.md](./10-api-specification.md), [11-security-compliance.md](./11-security-compliance.md), [12-roadmap.md](./12-roadmap.md), [14-web-interface.md](./14-web-interface.md), [archive/26-favorites.md](./archive/26-favorites.md)
 
 ## 1. Назначение
 
@@ -20,7 +20,7 @@
 - Все личные данные добровольны: для работы сервиса достаточно имени пользователя и пароля.
 - Данные видит и меняет только их владелец; администратор не получает их в интерфейсе по умолчанию.
 - Для незавершённых возможностей отображается честная заглушка **«В разработке»**, а не активная форма, которая создаёт ложные ожидания.
-- Избранное остаётся независимым от Watchlist и доступно в настройках как личный список (см. [26-favorites.md](./26-favorites.md)).
+- Избранное остаётся независимым от Watchlist и доступно в настройках как личный список (см. [archive/26-favorites.md](./archive/26-favorites.md)).
 - Брокерские секреты и платёжные реквизиты не хранятся до отдельного согласованного безопасного контура.
 
 ## 3. Информационная архитектура и макет

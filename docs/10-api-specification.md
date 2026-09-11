@@ -1,6 +1,6 @@
 # 10. Спецификация API
 
-**Статус:** утверждено v1.33 (компактное управление остановкой перенесено в настройки)
+**Статус:** утверждено v1.34 (добавлено Избранное §3.14; ссылки на архивные ТЗ)
 **Система:** NewsTrader Assistant
 
 Программный интерфейс системы. Спецификация концептуальная; точные схемы запросов/ответов фиксируются на этапе разработки (например, в формате OpenAPI) и должны соответствовать этому документу.
@@ -256,7 +256,7 @@ GET /v1/indicators/oi?ticker=W4V6&from=2026-07-20&to=2026-08-05
 
 ### 3.9. Источники новостей (RSS, сайты компаний)
 
-Управление персональным списком источников новостей пользователя — RSS-лент (`kind: "rss"`) и сайтов компаний (`kind: "website"`, URL страницы-списка новостей в `config.url`) — см. [20-news-sources-manager.md](./20-news-sources-manager.md) и [22-company-sites-source.md](./22-company-sites-source.md). Все эндпоинты требуют авторизации (Bearer или cookie `nt_token`).
+Управление персональным списком источников новостей пользователя — RSS-лент (`kind: "rss"`) и сайтов компаний (`kind: "website"`, URL страницы-списка новостей в `config.url`) — см. [20-news-sources-manager.md](./20-news-sources-manager.md) и [archive/22-company-sites-source.md](./archive/22-company-sites-source.md). Все эндпоинты требуют авторизации (Bearer или cookie `nt_token`).
 
 - `GET /v1/sources[?kind=rss|website][&category=...]` — список источников пользователя (из `user_sources`): `id`, `name`, `kind`, `url`, `category`, `reputation`, `is_active`, `last_status` (`ok`/`error`), `last_error`, `last_checked_at`, `use_llm`, `use_browser`.
 - `POST /v1/sources` — добавить источник в список пользователя (`{name, url, kind: "rss"|"website", category, reputation}`); запись создаётся в каталоге `sources` при необходимости, выполняется проверка работоспособности (для `rss` — `check_feed`, для `website` — `check_website`: HTTP 200 + непустое тело, при `use_llm` — извлечение записей LLM). Ошибки: `400` — невалидный URL/категория/SSRF, `401`.
@@ -283,7 +283,7 @@ GET /v1/indicators/oi?ticker=W4V6&from=2026-07-20&to=2026-08-05
 
 ### 3.11. Top-5: лучшая сделка из шаблона акций (Теханализ группы)
 
-Все эндпоинты требуют аутентификации (Bearer-токен или cookie `nt_token`). Работают с «Шаблонами инструментов» `kind=stock` (см. [25-top5-trades.md](./25-top5-trades.md)).
+Все эндпоинты требуют аутентификации (Bearer-токен или cookie `nt_token`). Работают с «Шаблонами инструментов» `kind=stock` (см. [archive/25-top5-trades.md](./archive/25-top5-trades.md)).
 
 - `GET /v1/top5?template_id=&limit=` — рейтинг Top-5 лучших сделок по акциям шаблона: `{template, total, as_of, items:[{ticker, name, strategy, dir, entry, stop, targets, rr, probability, expected_r, score, price, as_of, scenarios:{a,b,c}, final_assessment:{key_level, main_risk, recommendation}, analysis_id}]}` (`price` — текущая цена бумаги; `as_of` — дата формирования прогноза; `scenarios` — все 3 сценария A/B/C; `final_assessment` — Ключевой уровень/Главный риск/Моя рекомендация из «Итоговой оценки»).
 - `POST /v1/top5/run?template_id=&provider=` — запуск батча Теханализа по акциям шаблона (создаёт `tech_analysis_batches` + по анализу на акцию, переиспользуя актуальные успешные); `409` при активном батче, `404` при неверном шаблоне/отсутствии ключа LLM.
@@ -331,6 +331,14 @@ GET /v1/indicators/oi?ticker=W4V6&from=2026-07-20&to=2026-08-05
 | `POST` | `/api/notices/dismiss-all` | авторизованный | Снять все активные уведомления; ответ `{ "dismissed": N }` |
 
 Снятие меняет `is_active` на `false`, не удаляя диагностическую запись. Если монитор обнаружит новую или сохраняющуюся проблему, он создаст актуальное уведомление повторно.
+
+### 3.14. Избранное (звезда)
+
+Личные «Избранные» бумаги пользователя (акции и фьючерсы); не равно watchlist — см. [14-web-interface.md](./14-web-interface.md), архивное ТЗ [archive/26-favorites.md](./archive/26-favorites.md). Все эндпоинты требуют аутентификации (Bearer или cookie `nt_token`).
+
+- `GET /v1/favorites` — список избранных: `{items: [{ticker, name, security_type, sector, market, created_at}]}` (сортировка по дате добавления, новые сверху).
+- `PUT /v1/favorites/{ticker}` — добавить в избранное (идемпотентно); ответ `{ticker, is_favorite: true}`. Ошибки: `401` — не авторизован, `404` — бумага не найдена, `400` — тип бумаги не поддерживается (только stock/futures).
+- `DELETE /v1/favorites/{ticker}` — убрать из избранного; ответ `{ticker, is_favorite: false}` (те же ошибки).
 
 ## 4. Webhook для алертов (исходящие)
 

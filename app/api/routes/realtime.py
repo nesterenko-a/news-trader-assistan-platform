@@ -1,4 +1,4 @@
-"""REST API «Реальное время» (/v1): SSE-стрим live-котировок (docs/24).
+"""REST API «Реальное время» (/v1): SSE-стрим live-котировок (docs/archive/24).
 
 GET /v1/realtime/stream?tickers=AFLT,SBER — Server-Sent Events:
   event: quote

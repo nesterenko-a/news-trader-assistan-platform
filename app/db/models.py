@@ -608,7 +608,7 @@ class TechAnalysis(Base):
 
 
 class RealtimeConfig(Base):
-    """Настройки реалтайм-актуализации (демон + live-котировки), см. docs/24.
+    """Настройки реалтайм-актуализации (демон + live-котировки), см. docs/archive/24.
 
     Singleton: одна строка, создаётся при сидинге (seed_db) или сервисом при
     первом чтении. Настройки перечитываются демоном каждую итерацию.
@@ -633,7 +633,7 @@ class RealtimeConfig(Base):
 
 
 class RealTimeQuote(Base):
-    """Live-котировка бумаги (одна запись на security_id, upsert), см. docs/24.
+    """Live-котировка бумаги (одна запись на security_id, upsert), см. docs/archive/24.
 
     Поля — LAST/OHLC/объём дня из MOEX ISS. При отсутствии данных MOEX (LAST=None)
     предыдущее значение last не перезаписывается.

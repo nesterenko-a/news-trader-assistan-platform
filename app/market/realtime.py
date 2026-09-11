@@ -1,4 +1,4 @@
-"""Сервис реалтайм-актуализации рыночных данных (docs/24).
+"""Сервис реалтайм-актуализации рыночных данных (docs/archive/24).
 
 Переиспользует существующие примитивы:
   - MOEXClient().fetch_quote  (LAST/OHLC/объём дня) -> RealTimeQuote (upsert);
@@ -21,7 +21,7 @@ settings = get_settings()
 
 
 async def ensure_config(session: AsyncSession) -> RealtimeConfig:
-    """Возвращает singleton-настройку realtime (docs/24 §6.1), создавая при отсутствии."""
+    """Возвращает singleton-настройку realtime (docs/archive/24 §6.1), создавая при отсутствии."""
     config = await session.get(RealtimeConfig, 1)
     if config is None:
         config = RealtimeConfig(id=1)

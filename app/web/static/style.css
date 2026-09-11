@@ -1160,7 +1160,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 .md-body pre.mermaid { text-align: center; background: var(--panel, #1a2233); }
 .md-body .katex-display { margin: 12px 0; overflow-x: auto; overflow-y: hidden; }
 
-/* Top-5 (docs/25): строки сделок и раскрытие сценариев */
+/* Top-5 (docs/archive/25): строки сделок и раскрытие сценариев */
 .top5-row { cursor: pointer; }
 .top5-row td { padding: 12px 8px; }
 .ticker-label { font-weight: 700; font-size: 15px; }
@@ -1169,7 +1169,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 td.long { color: var(--green, #18c964); font-weight: 700; }
 td.short { color: var(--red, #ff4d5a); font-weight: 700; }
 
-/* Top-5 (docs/25): макет template_top5_stock.html */
+/* Top-5 (docs/archive/25): макет template_top5_stock.html */
 .long { color: var(--green, #18c964); font-weight: 700; }
 .short { color: var(--red, #ff4d5a); font-weight: 700; }
 .metric { background: var(--panel-2, #202a40); border: 1px solid var(--border, #2c3750); border-radius: 12px; padding: 12px 14px; }

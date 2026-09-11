@@ -1,6 +1,6 @@
 # 07. Модель данных
 
-**Статус:** утверждено v1.23 (добавлен аудит принудительной остановки фоновой задачи)
+**Статус:** утверждено v1.24 (добавлены UserSource, UserFavorite, TechAnalysis, RealtimeConfig, RealTimeQuote; источники kind=website; kind шаблона)
 **Система:** NewsTrader Assistant
 
 Описание сущностей системы и их взаимосвязей. Модель представлена концептуально, без привязки к конкретной СУБД (см. [06-architecture.md](./06-architecture.md)).
@@ -118,16 +118,27 @@
 |---|---|---|
 | id | PK | Идентификатор |
 | name | string | Название |
-| kind | enum | agency / rss / site / telegram / webhook / official |
+| kind | enum | agency / rss / site / website / telegram / webhook / official; `website` — страница-список новостей сайта компании (парсинг списка → карточки, см. [20-news-sources-manager.md](./20-news-sources-manager.md)) |
 | reputation_score | float | Оценка достоверности 0..1 |
 | is_active | bool | Включён ли сбор |
-| config | json | Параметры подключения (для RSS — `{"url": ...}`) |
+| config | json | Параметры подключения (для RSS и website — `{"url": ...}`) |
 | category | string | Категория из фиксированного списка |
 | last_checked_at | datetime | Время последней проверки |
 | last_status | string | `ok` / `error` |
 | last_error | string | Текст ошибки проверки |
 | use_llm | bool | Включает LLM-разбор ленты при неудаче парсинга |
 | use_browser | bool | Включает обход антибота (Playwright) при неудаче парсинга |
+
+### 2.3.1. UserSource (подписка пользователя на источник)
+
+| Поле | Тип | Описание |
+|---|---|---|
+| id | PK | Идентификатор |
+| user_id | FK | Пользователь |
+| source_id | FK | Источник |
+| created_at | datetime | Время подписки |
+
+Уникально: пара (user_id, source_id). Личные источники пользователя (сайты компаний и RSS), управляются со страницы «Источники» (см. [20-news-sources-manager.md](./20-news-sources-manager.md)).
 
 ### 2.4. Entity (сущность) и Influence (связь влияния)
 
@@ -297,14 +308,15 @@
 
 Записи создаются при запуске скриптов из веб-интерфейса `/admin` (журнал действий администратора). Остановка не откатывает уже сохранённый скриптом результат: журнал получает `stopped`, ненулевой код выхода и отметку в `output`.
 
-### 2.12.2.1. FuturesTemplate (шаблон фьючерсов)
-Именованный список фьючерсов (SECID) для наблюдения за OI и синхронизации свечей фьючерсов в фазе 2 Ежедневного конвейера. Создаётся на странице «Шаблоны фьючерсов» админки (см. [14-web-interface.md](./14-web-interface.md)).
+### 2.12.2.1. FuturesTemplate (шаблон инструментов)
+Именованный список инструментов (SECID фьючерсов или тикеров акций): фьючерсы — для наблюдения за OI и синхронизации свечей в фазе 2 Ежедневного конвейера, акции (kind=stock) — для пакетного теханализа Top-5 (см. [14-web-interface.md](./14-web-interface.md), архивное ТЗ [archive/25-top5-trades.md](./archive/25-top5-trades.md)). Создаётся на странице «Шаблоны фьючерсов» админки.
 
 | Поле | Тип | Описание |
 |---|---|---|
 | id | PK | Идентификатор |
 | name | string | Уникальное имя шаблона |
-| tickers | text | CSV список SECID фьючерсов |
+| tickers | text | CSV список SECID фьючерсов или тикеров акций |
+| kind | string | `futures` (по умолчанию) или `stock`; шаблон однороден, миграция 027 |
 | created_at | datetime | Время создания |
 
 ### 2.12.2.2. UserPipelinePref (настройка Ежедневного конвейера пользователя)
@@ -434,6 +446,17 @@
 
 Адрес в модели пока отсутствует: его хранение начнётся только после утверждения шифрования. Аватары хранятся вне git в `uploads/avatars/` под случайными именами.
 
+### 2.14.2. UserFavorite (избранная бумага)
+
+| Поле | Тип | Описание |
+|---|---|---|
+| id | PK | Идентификатор |
+| user_id | FK | Пользователь |
+| security_id | FK | Бумага |
+| created_at | datetime | Время добавления |
+
+Уникально: пара (user_id, security_id), миграция 030. «Избранное» — личная пометка звездой, не равна watchlist (см. [14-web-interface.md](./14-web-interface.md), архивное ТЗ [archive/26-favorites.md](./archive/26-favorites.md)).
+
 ### 2.15. PortfolioPosition (позиция портфеля)
 
 | Поле | Тип | Описание |
@@ -487,6 +510,66 @@
 
 Связь с бумагами — таблица `macro_event_securities` (event_id, security_id): события, затрагивающие конкретных эмитентов.
 
+### 2.19. TechAnalysis (разбор «Теханализ в LLM»)
+
+Запись отправки набора данных по бумаге во внешний LLM (см. [13-operations.md](./13-operations.md) §3.1, архивное ТЗ [archive/23-tech-analysis-llm.md](./archive/23-tech-analysis-llm.md)).
+
+| Поле | Тип | Описание |
+|---|---|---|
+| id | PK | Идентификатор |
+| user_id | FK, null | Пользователь, запустивший разбор |
+| ticker | string | Тикер бумаги |
+| is_future | bool | Фьючерс (true) или акция |
+| status | enum | running / success / failed |
+| stage | enum | refreshing_data / forming_request / awaiting_llm / done |
+| request_md | text | Сформированный запрос (markdown) |
+| response_md | text, null | Ответ LLM |
+| verdict / entry / tp / sl | text, null | Карточка-результат из Сценария A ответа (buy / sell / wait) |
+| scenario_json | text, null | Полный JSON сценария |
+| await_confirmation | bool | Ожидает подтверждения пользователя |
+| batch_id | FK → tech_analysis_batches, null | Батч Top-5, частью которого является разбор |
+| model / provider | string, null | Модель и провайдер LLM |
+| price_at_analysis | string, null | Цена бумаги на момент анализа |
+| error | text, null | Текст ошибки |
+| created_at / finished_at | datetime | Время запуска и завершения |
+
+### 2.20. TechAnalysisBatch (батч теханализа Top-5)
+
+Ярлык пакетного запуска «Теханализ по группе акций шаблона» (архивное ТЗ [archive/25-top5-trades.md](./archive/25-top5-trades.md)): связывает одиночные разборы (`batch_id`) по одному на акцию шаблона kind=stock.
+
+| Поле | Тип | Описание |
+|---|---|---|
+| id | PK | Идентификатор |
+| user_id | FK, null | Пользователь |
+| template_id | FK → futures_templates, null | Шаблон акций |
+| status | enum | running / success / partial / failed |
+| created_at / finished_at | datetime | Время запуска и завершения |
+
+### 2.21. RealtimeConfig (настройки реального времени)
+
+Singleton-строка настроек реалтайм-актуализации (демон realtime_updater + live-котировки, см. [13-operations.md](./13-operations.md) §3.2, архивное ТЗ [archive/24-market-realtime.md](./archive/24-market-realtime.md)). Создаётся при сидинге или сервисом при первом чтении; демон перечитывает каждую итерацию.
+
+| Поле | Тип | Описание |
+|---|---|---|
+| id | PK | Идентификатор (одна строка) |
+| enabled | bool | Включена ли реалтайм-актуализация |
+| interval_quotes_sec | int | Интервал опроса котировок (по умолчанию 60) |
+| interval_candles_sec | int | Интервал свечей (по умолчанию 300) |
+| interval_oi_sec | int | Интервал OI (по умолчанию 900) |
+| futures_template_id | FK → futures_templates, null | Шаблон фьючерсов для реалтайм-наблюдения; миграция 026 |
+| updated_at | datetime | Время изменения |
+
+### 2.22. RealTimeQuote (live-котировка)
+
+| Поле | Тип | Описание |
+|---|---|---|
+| security_id | PK, FK | Бумага (одна запись на бумагу, upsert) |
+| last / open / high / low | float, null | LAST и OHLC дня из MOEX ISS |
+| volume | int | Объём дня |
+| updated_at | datetime | Время обновления |
+
+При отсутствии данных MOEX (LAST=None) предыдущее значение last не перезаписывается.
+
 ## 3. Ключевые связи
 
 | Связь | Смысл |
@@ -498,6 +581,10 @@
 | Strategy → EvidenceItem | Каждый элемент обоснования привязан к стратегии |
 | Strategy → UserFeedback | Вердикты оцениваются пользователями |
 | User → WatchlistItem → Security | Пользователь отслеживает бумаги |
+| User → UserFavorite → Security | Избранные бумаги пользователя (звезда) |
+| User → UserSource → Source | Личные источники пользователя |
+| TechAnalysisBatch → TechAnalysis | Батч Top-5 объединяет разборы акций шаблона |
+| RealTimeQuote → Security | Live-котировка бумаги (1:1) |
 | User → PortfolioPosition → Security | Позиции пользователя по бумагам |
 | User → Alert → Security/Article | Алерты по значимым новостям отслеживаемых бумаг |
 | User → Session | Сессии авторизации пользователя |
@@ -513,6 +600,9 @@
 - ArticleEntity не дублируется для пары (article_id, entity_id).
 - MarketCandle уникальна для пары (security_id, trading_date).
 - WatchlistItem уникальна для пары (user_id, security_id).
+- UserFavorite уникальна для пары (user_id, security_id).
+- UserSource уникальна для пары (user_id, source_id).
+- RealTimeQuote — одна запись на security_id (PK).
 - PortfolioPosition уникальна для пары (user_id, security_id).
 - Alert уникальна для тройки (user_id, article_id, security_id).
 - MacroEvent ↔ Security не дублируются (составной PK event_id, security_id).
