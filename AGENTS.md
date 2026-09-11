@@ -2,7 +2,7 @@
 
 Файл для AI-агентов, работающих с проектом **NewsTrader Assistant** — ассистент для торговли ценными бумагами на основе новостного фона и цепочек рыночных связей (knowledge graph).
 
-Полная спецификация проекта — в `docs/` (начните с `docs/README.md`; 30 нумерованных документов и вспомогательный `promt_tech_analize.md`, текущая версия комплекта v1.175). Правила работы — в `docs/16-working-process.md` — **обязательны к выполнению**.
+Полная спецификация проекта — в `docs/`: перечень, назначение и актуальная версия комплекта — в `docs/README.md` (единственный источник этих данных — не копировать их сюда). Архитектура документации и карта «кто за что отвечает» — в `docs/32-docs-architecture.md`. Правила работы — в `docs/16-working-process.md` — **обязательны к выполнению**.
 
 ## Стек
 
@@ -12,31 +12,18 @@ Python 3.13+ (в `.venv` — 3.13.7) · FastAPI · SQLAlchemy 2 (async) · Postg
 
 Все команды — из корня проекта, интерпретатор `.venv\Scripts\python.exe` (Windows). Быстрые лаунчеры — `.bat`-файлы в `scripts/`.
 
+Минимальный цикл разработчика:
+
 | Действие | Команда |
 |---|---|
 | Тесты | `.venv\Scripts\python.exe -m pytest -q` (unit; e2e исключены маркером) |
 | E2E-тесты веб-интерфейса | `npx playwright test` (Playwright Test Runner, TS; UI-режим `--ui`; см. `docs/21-web-e2e-tests.md`) |
-| Быстрый запуск e2e | `scripts\run_e2e.bat` (лаунчер, аргументы пробрасываются) |
 | Проверка компиляции | `.venv\Scripts\python.exe -m compileall -q app scripts` |
 | Смоук API и веба | `.venv\Scripts\python.exe -m scripts.smoke` |
 | Запуск (веб + Telegram-бот) | `.venv\Scripts\python.exe -m scripts.run_app` |
-| Только веб | `.venv\Scripts\python.exe -m uvicorn app.main:app` |
-| Только бот | `.venv\Scripts\python.exe -m scripts.run_bot` |
-| Поднять БД | `docker compose -f docker/docker-compose.yml up -d db` |
-| Миграции | `docker compose -f docker/docker-compose.yml up --build migrations` |
-| Наполнить справочники | `.venv\Scripts\python.exe -m scripts.seed_db` |
-| Наполнить макро-справочник | `.venv\Scripts\python.exe -m scripts.seed_macro` |
-| Собрать новости | `.venv\Scripts\python.exe -m scripts.collect_news` |
-| Ежедневный конвейер | `.venv\Scripts\python.exe -m scripts.daily_pipeline` |
-| Обработать алерты | `.venv\Scripts\python.exe -m scripts.process_alerts` |
-| Обновить цены | `.venv\Scripts\python.exe -m scripts.update_prices --days N` (или `--from YYYY-MM-DD`) |
-| Обновить OI фьючерсов | `.venv\Scripts\python.exe -m scripts.update_oi --ticker SECID --days N` (или `--all`, `--from YYYY-MM-DD`) |
-| Калибровка порогов | `.venv\Scripts\python.exe -m scripts.calibrate` |
-| Калибровка весов факторов | `.venv\Scripts\python.exe -m scripts.calibrate_weights` |
-| Бэктест | `.venv\Scripts\python.exe -m scripts.backtest` |
-| Бэктест «на момент T» | `.venv\Scripts\python.exe -m scripts.backtest_asof` (опции `--tickers --start --end --horizon --step`) |
-| Создать пользователя | `.venv\Scripts\python.exe -m scripts.create_user` |
-| Telegram-вход (session) | `.venv\Scripts\python.exe -m scripts.telegram_login` |
+| Поднять БД / миграции | `docker compose -f docker/docker-compose.yml up -d db` / `up --build migrations` |
+
+Полный перечень скриптов, их параметры, конфигурация `.env` и регламент запуска — только в `docs/13-operations.md` (единственный источник; сюда не копировать).
 
 ## Структура
 
@@ -78,7 +65,7 @@ Python 3.13+ (в `.venv` — 3.13.7) · FastAPI · SQLAlchemy 2 (async) · Postg
 
 ## Notes
 
-- Документация: комплект **v1.175**. Актуальные версии и статус каждого документа находятся в его шапке; перечень и назначение — в `docs/README.md`. Не копируйте номера версий в другие документы без необходимости.
-- Roadmap (12): этап 0 завершён; этап 1 реализован, кроме полной английской локализации и глубокого бэкфилла новостей. Этап 2 активно развивается. Реализованы paper trading, контраргументы/риски, веса факторов, научные источники в evidence-цепочках, импорт/экспорт и карта knowledge graph, OI и клиентские группы, Volume Profile, поддержка/сопротивление, EMA/MACD, Bollinger Bands, ATR, ADX/DI, RSI, базис фьючерс–спот, E2E веб-интерфейса, **Теханализ в LLM**, **реальное время**, **Top-5 сделок** и **очередь автоматических кандидатных связей графа с кураторским подтверждением** (`docs/30-graph-candidate-review.md`). Открытые задачи: актуализация уже утверждённых связей и кандидаты на новые сущности; низкоприоритетный TODO Top-5 — рабочий интерактивный фильтр качества сделки.
+- Документация: актуальные версия комплекта, перечень и назначение документов — в `docs/README.md`; версия каждого документа — в его шапке. По правилу SSOT (`docs/16-working-process.md` §2.1) номера версий и состав комплекта сюда не копируются.
+- Статус этапов и список реализованного — в `docs/12-roadmap.md` (единственный источник; сюда не копировать).
 - `/indicators` строится из реестра `app/market/indicators/registry.py`: новый индикатор в реестре автоматически получает вкладку.
 - E2E-тесты (`tests/e2e/`, Playwright Test Runner, TypeScript) запускаются отдельным прогоном `npx playwright test` (UI-режим `--ui`); в `pytest -q` не входят; расхождения, найденные e2e, фиксируются в реестре док. 21 (§6).
