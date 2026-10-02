@@ -1,0 +1,89 @@
+minimum_pre_commit_version: '4.6.2'
+default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [pre-commit]
+fail_fast: true
+
+repos:
+  - repo: local
+    hooks:
+      - id: forbidden-artifacts
+        name: Запрет секретных файлов и артефактов
+        entry: python tools/git_checks.py artifacts
+        language: python
+      - id: check-yaml
+        name: Синтаксис YAML
+        entry: check-yaml
+        language: python
+        additional_dependencies: [pre-commit-hooks==6.0.0]
+        types: [yaml]
+      - id: check-json
+        name: Синтаксис JSON
+        entry: check-json
+        language: python
+        additional_dependencies: [pre-commit-hooks==6.0.0]
+        types: [json]
+        exclude: ^\.vscode/
+      - id: check-xml
+        name: Синтаксис XML
+        entry: check-xml
+        language: python
+        additional_dependencies: [pre-commit-hooks==6.0.0]
+        types: [xml]
+      - id: check-merge-conflict
+        name: Маркеры merge-конфликтов
+        entry: check-merge-conflict --assume-in-merge
+        language: python
+        additional_dependencies: [pre-commit-hooks==6.0.0]
+        types: [text]
+      - id: detect-private-key
+        name: Приватные ключи
+        entry: detect-private-key
+        language: python
+        additional_dependencies: [pre-commit-hooks==6.0.0]
+        types: [text]
+      - id: detect-secrets
+        name: Токены и пароли
+        entry: detect-secrets-hook
+        args: [--baseline, .secrets.baseline, --no-verify]
+        language: python
+        additional_dependencies: [detect-secrets==1.5.0]
+        types: [text]
+        exclude: ^package-lock\.json$
+      - id: ruff
+        name: Ошибки корректности Python (Ruff)
+        entry: ruff check
+        language: python
+        additional_dependencies: [ruff==0.16.10]
+        types: [python]
+      - id: markdown-links
+        name: Локальные ссылки Markdown
+        entry: python tools/markdown_links.py
+        language: python
+        files: '\.md$'
+      - id: openapi-contract
+        name: Синхронизация OpenAPI-контракта
+        entry: python tools/git_checks.py openapi
+        language: python
+        pass_filenames: false
+        require_serial: true
+        files: '(^app/api/|^app/(config|main)\.py$|^openapi/openapi\.json$|^tools/export_openapi\.py$)'
+      - id: redocly
+        name: OpenAPI validation (Redocly)
+        entry: npx --no-install redocly lint
+        language: system
+        pass_filenames: false
+        require_serial: true
+        files: '^openapi/openapi\.json$'
+        args: [openapi/openapi.json]
+      - id: python-checks
+        name: compileall и pytest
+        entry: python tools/git_checks.py python
+        language: python
+        pass_filenames: false
+        require_serial: true
+        files: '(^app/|^scripts/|^tests/|^tools/|^openapi/|^requirements.*\.txt$|^pytest\.ini$|^ruff\.toml$|^\.pre-commit-config\.yaml$|^\.github/workflows/|^liquibase/|^docker/|^playwright\.config\.ts$|^package(-lock)?\.json$)'
+      - id: commit-message
+        name: Формат сообщения коммита
+        entry: python tools/git_checks.py commit-msg
+        language: python
+        stages: [commit-msg]

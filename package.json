@@ -5,9 +5,13 @@
   "scripts": {
     "test": "playwright test",
     "test:ui": "playwright test --ui",
-    "test:headed": "playwright test --headed"
+    "test:headed": "playwright test --headed",
+    "lint:openapi": "redocly lint openapi/openapi.json",
+    "export:openapi": ".venv\\Scripts\\python.exe tools/export_openapi.py",
+    "check:openapi": ".venv\\Scripts\\python.exe tools/export_openapi.py --check"
   },
   "devDependencies": {
-    "@playwright/test": "^1.62.0"
+    "@playwright/test": "^1.62.0",
+    "@redocly/cli": "2.45.0"
   }
 }

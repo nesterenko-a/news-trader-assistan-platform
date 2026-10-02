@@ -16,8 +16,9 @@ Python 3.13+ (в `.venv` — 3.13.7) · FastAPI · SQLAlchemy 2 (async) · Postg
 
 | Действие | Команда |
 |---|---|
-| Тесты | `.venv\Scripts\python.exe -m pytest -q` (unit; e2e исключены маркером) |
+| Тесты | `.venv\Scripts\python.exe -m pytest -q` (Python unit/интеграционные; e2e запускаются отдельно) |
 | E2E-тесты веб-интерфейса | `npx playwright test` (Playwright Test Runner, TS; UI-режим `--ui`; см. `docs/21-web-e2e-tests.md`) |
+| OpenAPI | `npm run check:openapi` / `npm run lint:openapi` |
 | Проверка компиляции | `.venv\Scripts\python.exe -m compileall -q app scripts` |
 | Смоук API и веба | `.venv\Scripts\python.exe -m scripts.smoke` |
 | Запуск (веб + Telegram-бот) | `.venv\Scripts\python.exe -m scripts.run_app` |
