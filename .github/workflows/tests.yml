@@ -4,11 +4,74 @@ on:
   push:
     branches: [master]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  quality:
+    name: Quality checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements-dev.txt
+          npm ci
+      - name: Validate hook configuration
+        run: python -m pre_commit validate-config
+      - name: Repository checks
+        env:
+          SKIP: python-checks
+        run: python -m pre_commit run --all-files --show-diff-on-failure
+
+  api-breaking:
+    name: OpenAPI breaking changes
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Fetch base branch
+        run: git fetch --depth=1 origin "${{ github.base_ref }}"
+      - id: base-contract
+        name: Check base OpenAPI contract
+        shell: bash
+        run: |
+          if git cat-file -e "origin/${{ github.base_ref }}:openapi/openapi.json" 2>/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "OpenAPI-contract is not present in the base branch; comparison will start after it is merged." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Detect breaking changes
+        if: steps.base-contract.outputs.exists == 'true'
+        uses: oasdiff/oasdiff-action/breaking@v0
+        with:
+          base: "origin/${{ github.base_ref }}:openapi/openapi.json"
+          revision: "HEAD:openapi/openapi.json"
+          fail-on: ERR
+
   unit:
     name: Unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -18,13 +81,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
       - name: Compile check
-        run: python -m compileall -q app scripts tests
+        run: python -m compileall -q app scripts tools tests
       - name: Unit tests
         run: python -m pytest -q
 
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
