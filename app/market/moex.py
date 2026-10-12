@@ -126,9 +126,11 @@ class MOEXClient:
             "juridical_long": _int(totals.get("JuridicalLong")),
             "juridical_short": _int(totals.get("JuridicalShort")),
             "summary": _int(totals.get("Summary")),
-            "physical_participants": _int(participants.get("PhysicalLong")) or 0,
-            "juridical_participants": _int(participants.get("JuridicalLong")) or 0,
-            "participants_summary": _int(participants.get("Summary")) or 0,
+            "physical_participants": _int(participants.get("PhysicalLong")),
+            "juridical_participants": _int(participants.get("JuridicalLong")),
+            "physical_participants_short": _int(participants.get("PhysicalShort")),
+            "juridical_participants_short": _int(participants.get("JuridicalShort")),
+            "participants_summary": _int(participants.get("Summary")),
         }
 
     async def fetch_open_positions(

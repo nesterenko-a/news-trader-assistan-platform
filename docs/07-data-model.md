@@ -1,6 +1,6 @@
 # 07. Модель данных
 
-**Статус:** утверждено v1.25 (модель подключения брокера)
+**Статус:** утверждено v1.26 (участники OI по направлениям)
 **Система:** NewsTrader Assistant
 
 Описание сущностей системы и их взаимосвязей. Модель представлена концептуально, без привязки к конкретной СУБД (см. [06-architecture.md](./06-architecture.md)).
@@ -213,6 +213,22 @@
 | source | varchar(20) | Источник (iss) |
 
 Уникальность: пара (security_id, trading_date).
+
+### 2.6.2. MarketOpenPositionClientGroup (позиции групп клиентов)
+
+Таблица `market_open_positions_client_groups` хранит агрегированные по базовому активу позиции физлиц и юрлиц на торговую дату. Уникальность: `(security_id, trading_date, client_group)`.
+
+| Поле | Тип | Описание |
+|---|---|---|
+| security_id | FK | Фьючерс, через который загружены данные базового актива |
+| trading_date | date | Торговая дата |
+| client_group | varchar | `physical` или `juridical` |
+| long_pos / short_pos / net_pos | bigint | Число контрактов в лонге, шорте и их разность |
+| participants_long / participants_short | integer, NULL | Число лиц в лонге и шорте из блока участников MOEX; NULL означает, что значение неизвестно, 0 — подтверждённый ноль |
+| participants | integer | Прежнее поле числа лиц в лонге, оставлено для совместимости |
+| summary | bigint | Сумма позиций базового актива по данным MOEX |
+
+Миграция `034_oi_client_group_participants.xml` переносит только положительные прежние значения `participants` в `participants_long`; старые нули и все старые `participants_short` остаются NULL до повторной синхронизации.
 
 ### 2.7. Indicator
 

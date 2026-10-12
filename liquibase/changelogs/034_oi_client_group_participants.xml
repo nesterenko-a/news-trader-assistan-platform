@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+    <changeSet id="0340-oi-participants-long" author="newstrader">
+        <preConditions onFail="MARK_RAN"><not><columnExists tableName="market_open_positions_client_groups" columnName="participants_long"/></not></preConditions>
+        <addColumn tableName="market_open_positions_client_groups"><column name="participants_long" type="int"/></addColumn>
+        <sql>UPDATE market_open_positions_client_groups SET participants_long = participants WHERE participants &gt; 0</sql>
+    </changeSet>
+    <changeSet id="0341-oi-participants-short" author="newstrader">
+        <preConditions onFail="MARK_RAN"><not><columnExists tableName="market_open_positions_client_groups" columnName="participants_short"/></not></preConditions>
+        <addColumn tableName="market_open_positions_client_groups"><column name="participants_short" type="int"/></addColumn>
+    </changeSet>
+</databaseChangeLog>

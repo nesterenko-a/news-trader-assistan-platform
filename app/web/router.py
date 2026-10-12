@@ -12,6 +12,7 @@ import httpx
 from app.config import get_settings as get_cfg
 from app.brokers import t_invest
 from app.brokers import certificates as broker_certificates
+from app.market.oi_chart import build_net_chart, prepare_group_chart
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
@@ -854,6 +855,8 @@ async def indicators_page(
     from_: str | None = Query(None, alias="from"),
     to: str | None = Query(None, alias="to"),
     oi_change_threshold_pct: float | None = Query(None, gt=0),
+    cg_group: str = "physical",
+    cg_period: str = "1y",
     vp_period: int | None = Query(None, ge=5, le=3650),
     fast: int | None = Query(None, ge=2, le=500),
     slow: int | None = Query(None, ge=3, le=500),
@@ -1243,6 +1246,8 @@ async def indicators_page(
     chart_volume = None
     client_groups: list[dict] = []
     chart_groups_net = None
+    chart_group_positions = None
+    group_positions = None
     totals: dict = {}
     signals: list[dict] = []
     params_used = None
@@ -1317,6 +1322,14 @@ async def indicators_page(
                 client_groups = await client_groups_series(
                     session, security.id, from_, to
                 )
+                group_positions = prepare_group_chart(
+                    await client_groups_series(session, security.id),
+                    group=cg_group,
+                    period=cg_period,
+                    from_date=from_,
+                    till_date=to,
+                )
+                chart_group_positions = build_net_chart(group_positions["points"])
                 chart_groups_net = _build_net_bars(
                     [
                         (
@@ -1329,7 +1342,7 @@ async def indicators_page(
                     [(g["date"], close_by_date.get(g["date"])) for g in client_groups],
                 )
                 totals = {}
-                if client_groups:
+                if client_groups and all(g["physical"] is not None and g["juridical"] is not None for g in client_groups):
                     def _sum(side: str, key: str) -> int:
                         return sum(
                             (g.get(side) or {}).get(key, 0) for g in client_groups
@@ -1388,6 +1401,8 @@ async def indicators_page(
             "chart_volume": chart_volume,
             "client_groups": client_groups,
             "chart_groups_net": chart_groups_net,
+            "chart_group_positions": chart_group_positions,
+            "group_positions": group_positions,
             "client_groups_totals": totals,
             "signals": signals,
             "params_used": params_used,

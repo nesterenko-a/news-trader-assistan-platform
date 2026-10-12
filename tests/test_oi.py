@@ -200,6 +200,7 @@ async def test_sync_oi_client_groups(oi_session, monkeypatch):
         "juridical_long": 828, "juridical_short": 11604,
         "summary": 58476,
         "physical_participants": 1072, "juridical_participants": 5,
+        "physical_participants_short": 120, "juridical_participants_short": 7,
         "participants_summary": 1244,
     }
 
@@ -226,6 +227,43 @@ async def test_sync_oi_client_groups(oi_session, monkeypatch):
     assert ph.long_pos == 28410 and ph.short_pos == 17634 and ph.net_pos == 10776
     assert ju.long_pos == 828 and ju.short_pos == 11604 and ju.net_pos == -10776
     assert ph.participants == 1072 and ju.participants == 5
+    assert ph.participants_long == 1072 and ph.participants_short == 120
+    assert ju.participants_long == 5 and ju.participants_short == 7
+
+    groups["physical_long"] = 0
+    groups["physical_short"] = 10
+    groups["physical_participants"] = 0
+    groups["physical_participants_short"] = 2
+    await oi_data.sync_security_oi(
+        oi_session, "W4V6", days=5,
+        futures_meta={"W4V6": {"assetcode": "WHEAT", "lastdeldate": None}},
+    )
+    await oi_session.refresh(ph)
+    assert ph.long_pos == 0 and ph.short_pos == 10 and ph.net_pos == -10
+    assert ph.participants_long == 0 and ph.participants_short == 2
+
+
+async def test_moex_client_group_counts_are_separate(monkeypatch):
+    import httpx
+    from app.market.moex import MOEXClient
+
+    payload = [
+        {"PhysicalLong": "10", "PhysicalShort": "20", "JuridicalLong": "30", "JuridicalShort": "40", "Summary": "50"},
+        {},
+        {},
+        {"PhysicalLong": "0", "PhysicalShort": "7", "JuridicalLong": "3", "JuridicalShort": None},
+    ]
+    original_client = httpx.AsyncClient
+
+    def fake_client(*args, **kwargs):
+        return original_client(transport=httpx.MockTransport(lambda request: httpx.Response(200, json=payload)))
+
+    monkeypatch.setattr(httpx, "AsyncClient", fake_client)
+    result = await MOEXClient().fetch_open_positions_client_groups("WHEAT", date(2026, 10, 10))
+    assert result["physical_participants"] == 0
+    assert result["physical_participants_short"] == 7
+    assert result["juridical_participants"] == 3
+    assert result["juridical_participants_short"] is None
 
 
 def test_delta_level():
@@ -276,6 +314,24 @@ async def test_client_groups_series_delta(oi_session):
     assert series[1]["delta"]["physical"]["long"]["arrows"] == "↑↑"
     assert series[1]["delta"]["physical"]["short"]["arrows"] == "−"
     assert series[1]["delta"]["juridical"]["total"]["arrows"] == "−"  # 50→50
+
+
+async def test_client_groups_series_keeps_absent_group_unknown(oi_session):
+    from app.db.models import Security, MarketOpenPositionClientGroup
+    from app.market.oi_data import client_groups_series
+
+    sec = Security(ticker="MISSING", name="Неполные данные", security_type="futures", assetcode="MISS")
+    oi_session.add(sec)
+    await oi_session.flush()
+    oi_session.add(MarketOpenPositionClientGroup(
+        security_id=sec.id, trading_date=date(2026, 10, 10), client_group="physical",
+        long_pos=10, short_pos=5, net_pos=5, participants=0, summary=15,
+    ))
+    await oi_session.commit()
+    series = await client_groups_series(oi_session, sec.id)
+    assert series[0]["juridical"] is None
+    assert series[0]["net_spread"] is None
+    assert series[0]["physical_share_pct"] is not None
 
 
 async def test_futures_template_crud(oi_session):

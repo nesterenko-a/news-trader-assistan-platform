@@ -123,8 +123,12 @@ async def sync_security_oi(
                         MarketOpenPositionClientGroup.client_group == group,
                     )
                 )
-                long_pos = data.get(f"{group}_long") or 0
-                short_pos = data.get(f"{group}_short") or 0
+                long_pos = data.get(f"{group}_long")
+                short_pos = data.get(f"{group}_short")
+                if long_pos is None or short_pos is None:
+                    continue
+                participants_long = data.get(f"{group}_participants")
+                participants_short = data.get(f"{group}_participants_short")
                 if existing is None:
                     session.add(
                         MarketOpenPositionClientGroup(
@@ -134,10 +138,20 @@ async def sync_security_oi(
                             long_pos=long_pos,
                             short_pos=short_pos,
                             net_pos=long_pos - short_pos,
-                            participants=data.get(f"{group}_participants") or 0,
+                            participants=participants_long if participants_long is not None else 0,
+                            participants_long=participants_long,
+                            participants_short=participants_short,
                             summary=data.get("summary") or 0,
                         )
                     )
+                else:
+                    existing.long_pos = long_pos
+                    existing.short_pos = short_pos
+                    existing.net_pos = long_pos - short_pos
+                    existing.participants = participants_long if participants_long is not None else 0
+                    existing.participants_long = participants_long
+                    existing.participants_short = participants_short
+                    existing.summary = data.get("summary") or 0
 
     inserted = 0
     for row in rows:
@@ -235,16 +249,19 @@ async def client_groups_series(
             "short": r.short_pos,
             "net": r.net_pos,
             "participants": r.participants,
+            "participants_long": r.participants_long,
+            "participants_short": r.participants_short,
         }
         d["summary"] = r.summary
 
     out = []
-    prev: dict | None = None
+    prev_ph: dict | None = None
+    prev_ju: dict | None = None
     for d, groups in sorted(by_date.items()):
-        ph = groups.get("physical") or {"long": 0, "short": 0, "net": 0}
-        ju = groups.get("juridical") or {"long": 0, "short": 0, "net": 0}
+        ph = groups.get("physical")
+        ju = groups.get("juridical")
         summary = groups.get("summary") or 0
-        share = round(ph["long"] * 100.0 / summary, 1) if summary else None
+        share = round(ph["long"] * 100.0 / summary, 1) if ph is not None and summary else None
 
         # Δ OI день-к-дню (см. docs/19 §8.14.1)
         def _delta(cur: dict, prev_cur: dict | None, metric: str) -> dict:
@@ -262,14 +279,11 @@ async def client_groups_series(
             level, arrows, cls = _delta_level(pct)
             return {"pct": round(pct, 1), "level": level, "arrows": arrows, "cls": cls}
 
-        prev_ph = prev.get("physical") if prev else None
-        prev_ju = prev.get("juridical") if prev else None
-
-        def _group_deltas(cur: dict, prev_cur: dict | None) -> dict:
+        def _group_deltas(cur: dict | None, prev_cur: dict | None) -> dict:
             return {
-                "total": _delta(cur, prev_cur, "total"),
-                "long": _delta(cur, prev_cur, "long"),
-                "short": _delta(cur, prev_cur, "short"),
+                "total": _delta(cur, prev_cur, "total") if cur else _delta({}, None, "total"),
+                "long": _delta(cur, prev_cur, "long") if cur else _delta({}, None, "long"),
+                "short": _delta(cur, prev_cur, "short") if cur else _delta({}, None, "short"),
             }
 
         delta_ph = _group_deltas(ph, prev_ph)
@@ -282,11 +296,14 @@ async def client_groups_series(
                 "juridical": ju,
                 "summary": summary,
                 "physical_share_pct": share,
-                "net_spread": ju["net"] - ph["net"],
+                "net_spread": ju["net"] - ph["net"] if ph is not None and ju is not None else None,
                 "delta": {"physical": delta_ph, "juridical": delta_ju},
             }
         )
-        prev = {"physical": ph, "juridical": ju}
+        if ph is not None:
+            prev_ph = ph
+        if ju is not None:
+            prev_ju = ju
     return out
 
 

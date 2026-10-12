@@ -493,6 +493,8 @@ class MarketOpenPositionClientGroup(Base):
     short_pos: Mapped[int] = mapped_column(BigInteger, default=0)
     net_pos: Mapped[int] = mapped_column(BigInteger, default=0)
     participants: Mapped[int] = mapped_column(Integer, default=0)
+    participants_long: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    participants_short: Mapped[int | None] = mapped_column(Integer, nullable=True)
     summary: Mapped[int] = mapped_column(BigInteger, default=0)
 
 

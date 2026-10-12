@@ -130,6 +130,61 @@
 
 <p class="muted small">Замечание: значения OI (числовые) обновляются в реальном времени по SSE, а сами SVG-графики OI (линии за период) перерисовываются при перезагрузке страницы.</p>
 
+{% if group_positions %}
+<section class="card chart-card oi-position-chart" id="oi-position-chart">
+  <div class="chart-head"><div><h2>Нетто-позиция группы клиентов</h2><p class="muted small">Данные по базовому активу; выше нуля — перевес лонгов, ниже — перевес шортов.</p></div></div>
+  <nav class="oi-position-controls" aria-label="Группа клиентов">
+    {% for key, label in [('physical', 'Физические лица'), ('juridical', 'Юридические лица')] %}
+      <a class="btn {{ 'active' if group_positions.group == key else '' }}" href="/indicators?name=oi&amp;ticker={{ ticker|urlencode }}&amp;cg_group={{ key }}&amp;cg_period={{ group_positions.period }}{% if from %}&amp;from={{ from }}{% endif %}{% if to %}&amp;to={{ to }}{% endif %}&amp;oi_change_threshold_pct={{ oi_threshold }}">{{ label }}</a>
+    {% endfor %}
+  </nav>
+  <nav class="oi-position-controls" aria-label="Период графика позиций">
+    {% for key, label in group_positions.periods.items() %}
+      <a class="btn {{ 'active' if group_positions.period == key else '' }}" href="/indicators?name=oi&amp;ticker={{ ticker|urlencode }}&amp;cg_group={{ group_positions.group }}&amp;cg_period={{ key }}{% if from %}&amp;from={{ from }}{% endif %}{% if to %}&amp;to={{ to }}{% endif %}&amp;oi_change_threshold_pct={{ oi_threshold }}">{{ label }}</a>
+    {% endfor %}
+  </nav>
+  {% if group_positions.latest %}
+  {% set latest = group_positions.latest['values'] %}
+  <div class="oi-position-metrics">
+    <div><span>Шорт</span><strong>{{ '{:,}'.format(latest.short).replace(',', ' ') }}</strong><small>{{ '%+d'|format(group_positions.changes.short) if group_positions.changes.short is not none else '—' }} к пред. дате</small></div>
+    <div><span>Лонг</span><strong>{{ '{:,}'.format(latest.long).replace(',', ' ') }}</strong><small>{{ '%+d'|format(group_positions.changes.long) if group_positions.changes.long is not none else '—' }} к пред. дате</small></div>
+    <div><span>Нетто</span><strong class="{{ 'pos' if latest.net >= 0 else 'neg' }}">{{ '%+d'|format(latest.net) }}</strong><small>{{ '%+d'|format(group_positions.changes.net) if group_positions.changes.net is not none else '—' }} к пред. дате</small></div>
+    <div><span>Доля шорта</span><strong>{{ '%.1f'|format(group_positions.latest.short_share) ~ '%' if group_positions.latest.short_share is not none else 'Нет данных' }}</strong><small>Медиана 12 мес.: {{ '%.1f'|format(group_positions.median_share) ~ '%' if group_positions.median_share is not none else '—' }}</small></div>
+    <div><span>Лиц в лонге</span><strong>{{ latest.participants_long if latest.participants_long is not none else '—' }}</strong><small>{{ '%+d'|format(group_positions.changes.participants_long) if group_positions.changes.participants_long is not none else '—' }} к пред. дате</small></div>
+    <div><span>Лиц в шорте</span><strong>{{ latest.participants_short if latest.participants_short is not none else '—' }}</strong><small>{{ '%+d'|format(group_positions.changes.participants_short) if group_positions.changes.participants_short is not none else '—' }} к пред. дате</small></div>
+    <div><span>Перцентиль доли шорта</span><strong>{{ '%.1f'|format(group_positions.percentile) ~ '%' if group_positions.percentile is not none else 'Недостаточно данных' }}</strong><small title="Доля наблюдений за последние 12 календарных месяцев, у которых доля шорта не выше текущей">{{ group_positions.percentile_count }} наблюдений за 12 мес.</small></div>
+  </div>
+  {% endif %}
+  {% if chart_group_positions %}
+  <svg class="oi-position-svg" viewBox="0 0 {{ chart_group_positions.width }} {{ chart_group_positions.height }}" role="img" aria-label="График нетто-позиций: {{ 'физические' if group_positions.group == 'physical' else 'юридические' }} лица">
+    {% for y, label in chart_group_positions.ticks %}<line x1="42" y1="{{ y }}" x2="{{ chart_group_positions.width - 22 }}" y2="{{ y }}" class="chart-grid"/><text x="37" y="{{ y + 3 }}" class="chart-axis" text-anchor="end">{{ label }}</text>{% endfor %}
+    {% for area in chart_group_positions.area_paths %}<path d="{{ area.path }}" class="oi-net-area {{ area.side }}"/>{% endfor %}
+    {% for segment in chart_group_positions.average_segments %}<polyline points="{{ segment }}" class="oi-net-average"/>{% endfor %}
+    {% for segment in chart_group_positions.line_segments %}<polyline points="{{ segment }}" class="oi-net-line"/>{% endfor %}
+    <line x1="42" y1="{{ chart_group_positions.zero_y }}" x2="{{ chart_group_positions.width - 22 }}" y2="{{ chart_group_positions.zero_y }}" class="net-zero"/>
+    {% for point in chart_group_positions.hit_points %}<circle cx="{{ point.x }}" cy="{{ point.y }}" r="{{ 5 if point.last else 3 }}" class="oi-net-hit {{ 'latest' if point.last else '' }}" tabindex="0" aria-label="{{ point.details }}" data-details="{{ point.details }}"><title>{{ point.details }}</title></circle>{% endfor %}
+    {% for x, label in chart_group_positions.date_ticks %}<text x="{{ x }}" y="{{ chart_group_positions.height - 5 }}" class="chart-axis" text-anchor="middle">{{ label }}</text>{% endfor %}
+  </svg>
+  <div class="chart-legend"><span class="legend-item"><i class="legend-dot" style="background:#8b5cf6"></i> Нетто</span><span class="legend-item"><i class="legend-dot" style="background:#b99355"></i> Средняя, 30 наблюдений</span></div>
+  <p class="muted small" id="oi-position-details" aria-live="polite">Выберите точку графика для значений по дате.</p>
+  {% else %}<p class="muted">За выбранный период нет позиций этой группы.</p>{% endif %}
+  <p class="muted small">{{ 'Выше нуля — физлица в лонге, ниже нуля — физлица в шорте.' if group_positions.group == 'physical' else 'Выше нуля — юрлица в лонге, ниже нуля — юрлица в шорте.' }} На нуле длинные и короткие позиции равны. Это нетто группы, а не направление каждого участника.</p>
+  <p class="muted small">Последние данные: {{ group_positions.latest.date.strftime('%d.%m.%Y') if group_positions.latest else '—' }} · {{ group_positions.observation_count }} наблюдений · {{ group_positions.first_date.strftime('%d.%m.%Y') if group_positions.first_date else '—' }} — {{ group_positions.last_date.strftime('%d.%m.%Y') if group_positions.last_date else '—' }}. «Всё» означает сохранённую историю, без автоматической загрузки архива.</p>
+</section>
+<script>
+(function () {
+  var chart = document.getElementById('oi-position-chart');
+  var details = document.getElementById('oi-position-details');
+  if (!chart || !details) return;
+  chart.querySelectorAll('.oi-net-hit').forEach(function (point) {
+    ['pointerenter', 'focus', 'click'].forEach(function (eventName) {
+      point.addEventListener(eventName, function () { details.textContent = point.dataset.details; });
+    });
+  });
+})();
+</script>
+{% endif %}
+
 {% if chart_groups_net %}
 <section class="card chart-card">
   <div class="chart-head"><h2>Нетто-позиции по группам клиентов (long − short)</h2></div>
@@ -170,11 +225,12 @@
   </div>
   <div class="client-groups-list" id="cg-list">
     {% for g in client_groups|reverse %}
-    <article class="client-group-row {{ 'opposite' if (g.physical.net > 0) != (g.juridical.net > 0) }}" data-date="{{ g.date.isoformat() }}" data-ph-net="{{ g.physical.net }}" data-ju-net="{{ g.juridical.net }}">
-      <div class="client-group-date"><b>{{ g.date.strftime("%d.%m.%Y") }}</b>{% if loop.first %}<span>Последние данные</span>{% endif %}{% if (g.physical.net > 0) != (g.juridical.net > 0) %}<em>Противоположные ставки</em>{% endif %}</div>
-      <section class="client-group-party physical"><div class="client-group-party-head"><span>Физические лица</span><b class="{{ 'pos' if g.physical.net >= 0 else 'neg' }}">{{ '%+d'|format(g.physical.net) }}</b></div><div class="client-group-numbers"><span>Long <b>{{ g.physical.long }}</b></span><span>Short <b>{{ g.physical.short }}</b></span></div></section>
-      <section class="client-group-party juridical"><div class="client-group-party-head"><span>Юридические лица</span><b class="{{ 'pos' if g.juridical.net >= 0 else 'neg' }}">{{ '%+d'|format(g.juridical.net) }}</b></div><div class="client-group-numbers"><span>Long <b>{{ g.juridical.long }}</b></span><span>Short <b>{{ g.juridical.short }}</b></span></div></section>
-      <section class="client-group-summary"><div><span>Сумма OI</span><b>{{ g.summary }}</b></div><div><span>Доля физиков</span><b>{{ g.physical_share_pct if g.physical_share_pct is not none else '—' }}{% if g.physical_share_pct is not none %}%{% endif %}</b></div><div><span>Спред юр−физ</span><b class="{{ 'pos' if g.net_spread >= 0 else 'neg' }}">{{ '%+d'|format(g.net_spread) }}</b></div><div class="client-group-delta"><span>Δ OI <span class="tooltip" tabindex="0" aria-label="Справка: Δ OI"><span class="tooltip-icon">?</span><span class="tooltip-text">Динамика открытых позиций группы к предыдущему дню. Показаны: общий (long+short), отдельно длинные (L) и короткие (S). Стрелки: ↑↑↑ ≥ +10%, ↑↑ +5…+10%, ↑ +2…+5%, − до ±2%, ↓ −5…−2%, ↓↓ −10…−5%, ↓↓↓ ≤ −10%. Точные проценты — при наведении на строку.</span></span></span><b class="{{ 'delta ' + g.delta.physical.total.cls }}" title="Физики: общ {{ '%+.1f'|format(g.delta.physical.total.pct) if g.delta.physical.total.pct is not none else '—' }}% · long {{ '%+.1f'|format(g.delta.physical.long.pct) if g.delta.physical.long.pct is not none else '—' }}% · short {{ '%+.1f'|format(g.delta.physical.short.pct) if g.delta.physical.short.pct is not none else '—' }}% к пред. дню">Физ {{ g.delta.physical.total.arrows }} · L {{ g.delta.physical.long.arrows }} · S {{ g.delta.physical.short.arrows }}</b><b class="{{ 'delta ' + g.delta.juridical.total.cls }}" title="Юрики: общ {{ '%+.1f'|format(g.delta.juridical.total.pct) if g.delta.juridical.total.pct is not none else '—' }}% · long {{ '%+.1f'|format(g.delta.juridical.long.pct) if g.delta.juridical.long.pct is not none else '—' }}% к пред. дню">Юр {{ g.delta.juridical.total.arrows }} · L {{ g.delta.juridical.long.arrows }} · S {{ g.delta.juridical.short.arrows }}</b></div>
+    {% set opposite = g.physical is not none and g.juridical is not none and (g.physical.net > 0) != (g.juridical.net > 0) %}
+    <article class="client-group-row {{ 'opposite' if opposite }}" data-date="{{ g.date.isoformat() }}" data-ph-net="{{ g.physical.net if g.physical is not none else '' }}" data-ju-net="{{ g.juridical.net if g.juridical is not none else '' }}">
+      <div class="client-group-date"><b>{{ g.date.strftime("%d.%m.%Y") }}</b>{% if loop.first %}<span>Последние данные</span>{% endif %}{% if opposite %}<em>Противоположные ставки</em>{% endif %}</div>
+      <section class="client-group-party physical"><div class="client-group-party-head"><span>Физические лица</span>{% if g.physical is not none %}<b class="{{ 'pos' if g.physical.net >= 0 else 'neg' }}">{{ '%+d'|format(g.physical.net) }}</b>{% else %}<b>—</b>{% endif %}</div><div class="client-group-numbers"><span>Long <b>{{ g.physical.long if g.physical is not none else '—' }}</b></span><span>Short <b>{{ g.physical.short if g.physical is not none else '—' }}</b></span></div></section>
+      <section class="client-group-party juridical"><div class="client-group-party-head"><span>Юридические лица</span>{% if g.juridical is not none %}<b class="{{ 'pos' if g.juridical.net >= 0 else 'neg' }}">{{ '%+d'|format(g.juridical.net) }}</b>{% else %}<b>—</b>{% endif %}</div><div class="client-group-numbers"><span>Long <b>{{ g.juridical.long if g.juridical is not none else '—' }}</b></span><span>Short <b>{{ g.juridical.short if g.juridical is not none else '—' }}</b></span></div></section>
+      <section class="client-group-summary"><div><span>Сумма OI</span><b>{{ g.summary }}</b></div><div><span>Доля физиков</span><b>{{ g.physical_share_pct if g.physical_share_pct is not none else '—' }}{% if g.physical_share_pct is not none %}%{% endif %}</b></div><div><span>Спред юр−физ</span><b class="{{ 'pos' if g.net_spread is not none and g.net_spread >= 0 else 'neg' if g.net_spread is not none else '' }}">{{ '%+d'|format(g.net_spread) if g.net_spread is not none else '—' }}</b></div><div class="client-group-delta"><span>Δ OI <span class="tooltip" tabindex="0" aria-label="Справка: Δ OI"><span class="tooltip-icon">?</span><span class="tooltip-text">Динамика открытых позиций группы к предыдущему дню. Показаны: общий (long+short), отдельно длинные (L) и короткие (S). Стрелки: ↑↑↑ ≥ +10%, ↑↑ +5…+10%, ↑ +2…+5%, − до ±2%, ↓ −5…−2%, ↓↓ −10…−5%, ↓↓↓ ≤ −10%. Точные проценты — при наведении на строку.</span></span></span><b class="{{ 'delta ' + g.delta.physical.total.cls }}" title="Физики: общ {{ '%+.1f'|format(g.delta.physical.total.pct) if g.delta.physical.total.pct is not none else '—' }}% · long {{ '%+.1f'|format(g.delta.physical.long.pct) if g.delta.physical.long.pct is not none else '—' }}% · short {{ '%+.1f'|format(g.delta.physical.short.pct) if g.delta.physical.short.pct is not none else '—' }}% к пред. дню">Физ {{ g.delta.physical.total.arrows }} · L {{ g.delta.physical.long.arrows }} · S {{ g.delta.physical.short.arrows }}</b><b class="{{ 'delta ' + g.delta.juridical.total.cls }}" title="Юрики: общ {{ '%+.1f'|format(g.delta.juridical.total.pct) if g.delta.juridical.total.pct is not none else '—' }}% · long {{ '%+.1f'|format(g.delta.juridical.long.pct) if g.delta.juridical.long.pct is not none else '—' }}% к пред. дню">Юр {{ g.delta.juridical.total.arrows }} · L {{ g.delta.juridical.long.arrows }} · S {{ g.delta.juridical.short.arrows }}</b></div>
       </section>
     </article>
     {% endfor %}
@@ -195,7 +251,7 @@
       Array.prototype.slice.call(list.querySelectorAll('.client-group-row')).sort(function (a, b) {
         var attribute = 'data-' + key.replace('_', '-');
         var av = a.getAttribute(attribute), bv = b.getAttribute(attribute);
-        var compare = key === 'date' ? (av < bv ? -1 : av > bv ? 1 : 0) : parseFloat(av) - parseFloat(bv);
+        var compare = key === 'date' ? (av < bv ? -1 : av > bv ? 1 : 0) : av === '' ? 1 : bv === '' ? -1 : parseFloat(av) - parseFloat(bv);
         return compare * direction;
       }).forEach(function (row) { list.appendChild(row); });
     });

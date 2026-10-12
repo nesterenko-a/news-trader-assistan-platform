@@ -1,6 +1,6 @@
 # 10. Спецификация API
 
-**Статус:** утверждено v1.36 (API портфеля Т-Инвестиций)
+**Статус:** утверждено v1.37 (число участников в ответе OI)
 **Система:** NewsTrader Assistant
 
 Программный интерфейс системы. Фактический машиночитаемый контракт — [openapi/openapi.json](../openapi/openapi.json): он генерируется из API-маршрутов FastAPI, версионируется вместе с кодом и проверяется автоматически. Этот документ описывает назначение и правила API; изменения реализации и OpenAPI должны соответствовать ему.
@@ -225,6 +225,8 @@
 - `GET /v1/indicators` — список доступных индикаторов (имя, описание, параметры по умолчанию, сложность).
 - `GET /v1/indicators/futures[?q=...]` — все фьючерсы срочного рынка MOEX (поля: `secid`, `shortname`, `secname`, `assetcode`, `lastdeldate`, `prevopenposition`, `lotvolume`, `initialmargin`, `minstep`, `stepprice`, `prevsettleprice`, **`sector`** — отрасль: сектор базового актива из справочника для фьючерсов на акции, иначе категория (Индексы/Валюты/Товары/Проценты/Крипто/Прочее)); `q` — фильтр по коду/названию/базовому активу. Ответ кэшируется на 1 час (источник — ISS `engines/futures/markets/forts/securities.json`).
 - `GET /v1/indicators/{name}?ticker=...` — расчёт индикатора. Параметры: `ticker` (обязательный; для OI — код фьючерса SECID, например W4V6), `from`/`to` (диапазон дат), `limit` (ограничение числа свечей), параметры индикатора (для OI: `oi_change_threshold_pct`, `price_change_threshold_pct`; для Volume Profile: `period` — число дней (по умолчанию 60), `bins` — число ценовых баров, `value_area_pct` — % объёма Value Area, `hvn_factor`/`lvn_factor` — пороги узлов высокого/низкого объёма; для EMA: `fast`/`slow` (по умолчанию 12/26); для MACD: `fast`/`slow`/`signal` (по умолчанию 12/26/9); для Поддержка/сопротивление: `window` — окно поиска экстремумов (по умолчанию 20), `fractal_k` (по умолчанию 2), `min_touches` (по умолчанию 2), `cluster_tolerance_atr` (по умолчанию 0.25); для Боллинджера: `period` (по умолчанию 20), `k` — множитель σ (по умолчанию 2); для ATR: `period` (по умолчанию 14); для ADX: `period` (по умолчанию 14)). Для OI дополнительно `client_groups=1` — в `meta.client_groups` возвращаются ряды открытых позиций **по группам клиентов** (физ/юр): по датам `physical`/`juridical` (long/short/net/participants), `summary`, `physical_share_pct` (доля физиков %), `net_spread` (спред нетто «юр − физ») — см. [19-market-indicators.md](./19-market-indicators.md) §8.14.
+
+Для `client_groups=1` объекты `physical`/`juridical` дополнительно содержат `participants_long` и `participants_short` (`integer | null`). NULL означает, что источник не подтвердил число лиц; достоверный ноль передаётся числом 0. Прежнее поле `participants` сохранено. Если группа за дату отсутствует, её значение равно `null`; `net_spread` равен `null`, когда отсутствует хотя бы одна группа, а `physical_share_pct` — когда отсутствуют физлица или общий объём равен нулю.
 
 Пример — OI для фьючерса W4V6:
 

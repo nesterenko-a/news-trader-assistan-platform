@@ -242,6 +242,8 @@ async def seed(db_url: str) -> None:
                             short_pos=short_pos,
                             net_pos=long_pos - short_pos,
                             participants=100 if group == "physical" else 10,
+                            participants_long=100 + i if group == "physical" else 10 + i,
+                            participants_short=80 + i if group == "physical" else 8 + i,
                             summary=summary,
                         )
                     )

@@ -410,6 +410,22 @@ main { padding: 24px 16px 40px; }
 .client-groups-total-grid b { color: var(--text); }
 .client-groups-total-grid b.pos { color: var(--green); }
 .client-groups-total-grid b.neg { color: var(--red); }
+.oi-position-controls { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.oi-position-controls .btn { padding: 6px 10px; font-size: 12px; }
+.oi-position-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 8px; margin: 14px 0; }
+.oi-position-metrics > div { display: grid; gap: 4px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); }
+.oi-position-metrics span, .oi-position-metrics small { color: var(--muted); font-size: 11px; }
+.oi-position-metrics strong { font-size: 17px; }
+.oi-position-metrics strong.pos { color: var(--green); }
+.oi-position-metrics strong.neg { color: var(--red); }
+.oi-position-svg { display: block; width: 100%; height: auto; min-height: 220px; overflow: visible; }
+.oi-position-svg .oi-net-area.positive { fill: color-mix(in srgb, var(--green) 18%, transparent); }
+.oi-position-svg .oi-net-area.negative { fill: color-mix(in srgb, var(--red) 18%, transparent); }
+.oi-position-svg .oi-net-line { fill: none; stroke: #8b5cf6; stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+.oi-position-svg .oi-net-average { fill: none; stroke: #b99355; stroke-width: 1.6; stroke-dasharray: 5 4; }
+.oi-position-svg .oi-net-hit { fill: transparent; stroke: transparent; cursor: pointer; }
+.oi-position-svg .oi-net-hit:hover, .oi-position-svg .oi-net-hit:focus, .oi-position-svg .oi-net-hit.latest { fill: #8b5cf6; stroke: var(--panel); stroke-width: 2; outline: none; }
+.oi-position-svg .chart-axis { font-size: 10px; }
 .delta-up { color: var(--green, #2f7d32); }
 .delta-down { color: var(--red, #c0392b); }
 .delta-flat { color: var(--muted, #8b97ad); }

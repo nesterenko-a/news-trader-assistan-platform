@@ -38,5 +38,6 @@
     <include file="changelogs/031_graph_candidates.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/032_script_run_stops.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/033_broker_connections.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/034_oi_client_group_participants.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>
