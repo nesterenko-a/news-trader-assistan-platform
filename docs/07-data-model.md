@@ -1,6 +1,6 @@
 # 07. Модель данных
 
-**Статус:** утверждено v1.24 (добавлены UserSource, UserFavorite, TechAnalysis, RealtimeConfig, RealTimeQuote; источники kind=website; kind шаблона)
+**Статус:** утверждено v1.25 (модель подключения брокера)
 **Система:** NewsTrader Assistant
 
 Описание сущностей системы и их взаимосвязей. Модель представлена концептуально, без привязки к конкретной СУБД (см. [06-architecture.md](./06-architecture.md)).
@@ -619,3 +619,7 @@ Singleton-строка настроек реалтайм-актуализаци�
 | MarketCandle, Indicator | временные ряды / таблицы | дневные свечи, агрегации, бэктест |
 | Strategy, Evidence, Feedback | реляционное | связность и отчёты |
 | Частые ответы | кэш | производительность |
+
+## Подключение брокера Т-Инвестиции
+
+`broker_connections` хранит привязку `(user_id, provider)`, зашифрованный токен (`token_ciphertext`, `token_nonce`, `token_key_id`), выбранный счёт, статус и время обновления. Ключ шифрования хранится вне БД. `broker_accounts` содержит доступные счета, `broker_portfolio_snapshots` — последний нормализованный снимок счёта в JSON и время его получения, `broker_connection_events` — аудит подключений, обновлений и отключений без секретов. Существующие `portfolio_positions` остаются ручным портфелем. Миграция — `033_broker_connections.xml`.

@@ -138,6 +138,60 @@ class PortfolioPosition(Base):
     )
 
 
+class BrokerConnection(Base):
+    __tablename__ = "broker_connections"
+    __table_args__ = (UniqueConstraint("user_id", "provider", name="uq_broker_connection_user_provider"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    provider: Mapped[str] = mapped_column(String(30))
+    token_ciphertext: Mapped[str] = mapped_column(Text)
+    token_nonce: Mapped[str] = mapped_column(String(40))
+    token_key_id: Mapped[str] = mapped_column(String(40))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    selected_account_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="connected")
+    last_error: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    last_refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class BrokerAccount(Base):
+    __tablename__ = "broker_accounts"
+    __table_args__ = (UniqueConstraint("connection_id", "external_id", name="uq_broker_account_connection_external"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    connection_id: Mapped[int] = mapped_column(ForeignKey("broker_connections.id", ondelete="CASCADE"), index=True)
+    external_id: Mapped[str] = mapped_column(String(100))
+    name: Mapped[str] = mapped_column(String(200), default="")
+    account_type: Mapped[str] = mapped_column(String(60), default="")
+    status: Mapped[str] = mapped_column(String(60), default="")
+    access_level: Mapped[str] = mapped_column(String(60), default="")
+
+
+class BrokerPortfolioSnapshot(Base):
+    __tablename__ = "broker_portfolio_snapshots"
+    __table_args__ = (UniqueConstraint("account_id", name="uq_broker_snapshot_account"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("broker_accounts.id", ondelete="CASCADE"))
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    data: Mapped[dict] = mapped_column(JSON)
+
+
+class BrokerConnectionEvent(Base):
+    __tablename__ = "broker_connection_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    connection_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    action: Mapped[str] = mapped_column(String(40))
+    result: Mapped[str] = mapped_column(String(30))
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Alert(Base):
     __tablename__ = "alerts"
 

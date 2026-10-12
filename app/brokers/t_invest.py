@@ -1,0 +1,309 @@
+import asyncio
+import base64
+import os
+from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
+
+import httpx
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from fastapi import HTTPException
+from sqlalchemy import delete, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import get_settings
+from app.db.models import (
+    BrokerAccount,
+    BrokerConnection,
+    BrokerConnectionEvent,
+    BrokerPortfolioSnapshot,
+    Security,
+)
+
+BASE = "https://invest-public-api.tbank.ru/rest/tinkoff.public.invest.api.contract.v1"
+READ_ONLY = "ACCOUNT_ACCESS_LEVEL_READ_ONLY"
+
+
+def _keys() -> dict[str, bytes]:
+    raw = get_settings().broker_token_keys
+    result = {}
+    for item in raw.split(","):
+        if not item.strip():
+            continue
+        try:
+            key_id, encoded = item.strip().split(":", 1)
+            key = base64.b64decode(encoded, validate=True)
+        except (ValueError, UnicodeError) as exc:
+            raise HTTPException(503, "Неверная настройка ключей шифрования") from exc
+        if len(key) != 32 or not key_id or key_id in result:
+            raise HTTPException(503, "Неверная настройка ключей шифрования")
+        result[key_id] = key
+    return result
+
+
+def encryption_ready() -> bool:
+    try:
+        return get_settings().broker_token_key_id in _keys()
+    except HTTPException:
+        return False
+
+
+def encrypt_token(token: str, user_id: int) -> tuple[str, str, str]:
+    key_id = get_settings().broker_token_key_id
+    key = _keys().get(key_id)
+    if key is None:
+        raise HTTPException(503, "Шифрование токена не настроено")
+    nonce = os.urandom(12)
+    aad = f"t_invest:{user_id}:1".encode()
+    ciphertext = AESGCM(key).encrypt(nonce, token.encode(), aad)
+    return base64.b64encode(ciphertext).decode(), base64.b64encode(nonce).decode(), key_id
+
+
+def decrypt_token(connection: BrokerConnection) -> str:
+    key = _keys().get(connection.token_key_id)
+    if key is None:
+        raise HTTPException(503, "Ключ подключения недоступен")
+    try:
+        nonce = base64.b64decode(connection.token_nonce, validate=True)
+        ciphertext = base64.b64decode(connection.token_ciphertext, validate=True)
+        aad = f"t_invest:{connection.user_id}:1".encode()
+        return AESGCM(key).decrypt(nonce, ciphertext, aad).decode()
+    except Exception as exc:
+        raise HTTPException(503, "Не удалось прочитать токен подключения") from exc
+
+
+def decimal_value(value: dict | None) -> str | None:
+    if not isinstance(value, dict):
+        return None
+    try:
+        number = Decimal(str(value.get("units", "0"))) + Decimal(str(value.get("nano", 0))) / Decimal(10**9)
+        return format(number, "f")
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+
+def money(value: dict | None) -> dict | None:
+    amount = decimal_value(value)
+    return {"amount": amount, "currency": value.get("currency", "")} if amount is not None else None
+
+
+class TInvestClient:
+    def __init__(self, token: str, transport: httpx.AsyncBaseTransport | None = None):
+        self.token = token
+        self.transport = transport
+
+    async def _call(self, service: str, method: str, payload: dict) -> dict:
+        url = f"{BASE}.{service}/{method}"
+        headers = {"Authorization": f"Bearer {self.token}"}
+        async with httpx.AsyncClient(timeout=15.0, transport=self.transport) as client:
+            for attempt in range(3):
+                try:
+                    response = await client.post(url, json=payload, headers=headers)
+                except httpx.HTTPError as exc:
+                    if attempt == 2:
+                        raise HTTPException(502, "Т-Инвестиции временно недоступны") from exc
+                    await asyncio.sleep(0.2 * (attempt + 1))
+                    continue
+                if response.status_code in (401, 403):
+                    raise HTTPException(422, "Токен Т-Инвестиций недействителен или доступ закрыт")
+                if response.status_code == 429 or response.status_code >= 500:
+                    if attempt == 2:
+                        raise HTTPException(503, "Т-Инвестиции временно недоступны")
+                    await asyncio.sleep(0.2 * (attempt + 1))
+                    continue
+                if response.is_error:
+                    raise HTTPException(502, "Т-Инвестиции отклонили запрос")
+                try:
+                    data = response.json()
+                except ValueError as exc:
+                    raise HTTPException(502, "Некорректный ответ Т-Инвестиций") from exc
+                if not isinstance(data, dict):
+                    raise HTTPException(502, "Некорректный ответ Т-Инвестиций")
+                return data
+        raise HTTPException(503, "Т-Инвестиции временно недоступны")
+
+    async def accounts(self) -> list[dict]:
+        data = await self._call("UsersService", "GetAccounts", {"status": "ACCOUNT_STATUS_OPEN"})
+        rows = data.get("accounts")
+        if not isinstance(rows, list):
+            raise HTTPException(502, "Нет списка счетов в ответе брокера")
+        if any(row.get("accessLevel") != READ_ONLY for row in rows):
+            raise HTTPException(422, "Нужен токен только для чтения для всех доступных счетов")
+        return [row for row in rows if row.get("id") and row.get("type") != "ACCOUNT_TYPE_INVEST_BOX"]
+
+    async def portfolio(self, account_id: str) -> tuple[dict, dict]:
+        portfolio, positions = await asyncio.gather(
+            self._call("OperationsService", "GetPortfolio", {"accountId": account_id}),
+            self._call("OperationsService", "GetPositions", {"accountId": account_id}),
+        )
+        if not isinstance(portfolio.get("positions"), list) or not isinstance(positions.get("securities", []), list):
+            raise HTTPException(502, "Неполный ответ брокера")
+        return portfolio, positions
+
+    async def instrument(self, uid: str) -> dict | None:
+        try:
+            data = await self._call("InstrumentsService", "GetInstrumentBy", {"idType": "INSTRUMENT_ID_TYPE_UID", "id": uid})
+        except HTTPException:
+            return None
+        return data.get("instrument") if isinstance(data.get("instrument"), dict) else None
+
+
+async def connection_for(session: AsyncSession, user_id: int) -> BrokerConnection | None:
+    return await session.scalar(select(BrokerConnection).where(BrokerConnection.user_id == user_id, BrokerConnection.provider == "t_invest"))
+
+
+def _event(session: AsyncSession, user_id: int, connection_id: int | None, action: str, result: str, code: str | None = None) -> None:
+    session.add(BrokerConnectionEvent(user_id=user_id, connection_id=connection_id, action=action, result=result, error_code=code))
+
+
+async def connect(session: AsyncSession, user_id: int, token: str, client: TInvestClient | None = None) -> BrokerConnection:
+    token = token.strip()
+    if not token or len(token) > 4096:
+        raise HTTPException(422, "Укажите токен Т-Инвестиций")
+    ciphertext, nonce, key_id = encrypt_token(token, user_id)
+    rows = await (client or TInvestClient(token)).accounts()
+    if not rows:
+        raise HTTPException(422, "Нет доступных брокерских счетов")
+    connection = await connection_for(session, user_id)
+    if connection is None:
+        connection = BrokerConnection(user_id=user_id, provider="t_invest", token_ciphertext=ciphertext, token_nonce=nonce, token_key_id=key_id)
+        session.add(connection)
+        await session.flush()
+    else:
+        connection.token_ciphertext = ciphertext
+        connection.token_nonce = nonce
+        connection.token_key_id = key_id
+        connection.version += 1
+        connection.status = "connected"
+        connection.last_error = None
+    existing = {a.external_id: a for a in (await session.scalars(select(BrokerAccount).where(BrokerAccount.connection_id == connection.id))).all()}
+    for row in rows:
+        account = existing.pop(row["id"], None)
+        if account is None:
+            account = BrokerAccount(connection_id=connection.id, external_id=row["id"])
+            session.add(account)
+        account.name = row.get("name") or "Счёт Т-Инвестиций"
+        account.account_type = row.get("type") or ""
+        account.status = row.get("status") or ""
+        account.access_level = row.get("accessLevel") or ""
+    for account in existing.values():
+        if connection.selected_account_id == account.external_id:
+            connection.selected_account_id = None
+        await session.execute(delete(BrokerPortfolioSnapshot).where(BrokerPortfolioSnapshot.account_id == account.id))
+        await session.delete(account)
+    _event(session, user_id, connection.id, "connect", "ok")
+    await session.commit()
+    return connection
+
+
+async def _snapshot(session: AsyncSession, client: TInvestClient, account: BrokerAccount) -> dict:
+    portfolio, positions = await client.portfolio(account.external_id)
+    blocked_by_uid = {item.get("instrumentUid") or item.get("figi"): item for item in positions.get("securities", [])}
+    items = []
+    for row in portfolio["positions"]:
+        uid = row.get("instrumentUid") or row.get("figi") or ""
+        instrument = await client.instrument(uid) if uid else None
+        ticker = instrument.get("ticker") if instrument else None
+        class_code = instrument.get("classCode") if instrument else None
+        local_ticker = None
+        if ticker and class_code == "TQBR" and row.get("instrumentType") == "share":
+            matches = (await session.scalars(select(Security).where(Security.ticker == ticker, Security.security_type == "stock", Security.market == "MOEX"))).all()
+            if len(matches) == 1:
+                local_ticker = ticker
+        blocked = blocked_by_uid.get(uid) or {}
+        items.append({
+            "uid": uid,
+            "name": instrument.get("name") if instrument else uid,
+            "ticker": ticker,
+            "local_ticker": local_ticker,
+            "type": row.get("instrumentType"),
+            "quantity": decimal_value(row.get("quantity")),
+            "quantity_lots": decimal_value(row.get("quantityLots")),
+            "average_price": money(row.get("averagePositionPrice")),
+            "current_price": money(row.get("currentPrice")),
+            "expected_yield": decimal_value(row.get("expectedYield")),
+            "blocked": row.get("blocked") or blocked.get("blocked", False),
+        })
+    cash = [money(item) for item in positions.get("money", []) if money(item) is not None]
+    return {
+        "total": money(portfolio.get("totalAmountPortfolio")),
+        "expected_yield": decimal_value(portfolio.get("expectedYield")),
+        "cash": cash,
+        "positions": items,
+    }
+
+
+async def refresh(session: AsyncSession, user_id: int, account_id: str | None = None, client: TInvestClient | None = None) -> dict:
+    connection = await connection_for(session, user_id)
+    if connection is None:
+        raise HTTPException(404, "Подключение не найдено")
+    if connection.status == "refreshing":
+        raise HTTPException(409, "Обновление уже выполняется")
+    target = account_id or connection.selected_account_id
+    account = await session.scalar(select(BrokerAccount).where(BrokerAccount.connection_id == connection.id, BrokerAccount.external_id == target))
+    if account is None:
+        raise HTTPException(404, "Счёт недоступен")
+    broker = client or TInvestClient(decrypt_token(connection))
+    version = connection.version
+    started = await session.execute(update(BrokerConnection).where(BrokerConnection.id == connection.id, BrokerConnection.version == version, BrokerConnection.status != "refreshing").values(status="refreshing"))
+    if not started.rowcount:
+        await session.rollback()
+        raise HTTPException(409, "Обновление уже выполняется")
+    await session.commit()
+    try:
+        rows = await broker.accounts()
+        if not any(row.get("id") == target for row in rows):
+            raise HTTPException(422, "Счёт больше недоступен")
+        data = await _snapshot(session, broker, account)
+    except HTTPException as exc:
+        await session.rollback()
+        changed = await session.execute(update(BrokerConnection).where(BrokerConnection.id == connection.id, BrokerConnection.version == version, BrokerConnection.status == "refreshing").values(status="error", last_error="broker_unavailable"))
+        if changed.rowcount:
+            _event(session, user_id, connection.id, "refresh", "error", "broker_unavailable")
+            await session.commit()
+        raise exc
+    changed = await session.execute(update(BrokerConnection).where(BrokerConnection.id == connection.id, BrokerConnection.version == version, BrokerConnection.status == "refreshing").values(status="connected", selected_account_id=target, last_error=None, last_refreshed_at=datetime.now(timezone.utc), version=version + 1))
+    if not changed.rowcount:
+        await session.rollback()
+        raise HTTPException(409, "Подключение изменилось во время обновления")
+    snapshot = await session.scalar(select(BrokerPortfolioSnapshot).where(BrokerPortfolioSnapshot.account_id == account.id))
+    if snapshot is None:
+        snapshot = BrokerPortfolioSnapshot(account_id=account.id, fetched_at=datetime.now(timezone.utc), data=data)
+        session.add(snapshot)
+    else:
+        snapshot.fetched_at = datetime.now(timezone.utc)
+        snapshot.data = data
+    _event(session, user_id, connection.id, "refresh", "ok")
+    await session.commit()
+    return data
+
+
+async def disconnect(session: AsyncSession, user_id: int) -> None:
+    connection = await connection_for(session, user_id)
+    if connection is None:
+        raise HTTPException(404, "Подключение не найдено")
+    connection_id = connection.id
+    accounts = (await session.scalars(select(BrokerAccount).where(BrokerAccount.connection_id == connection_id))).all()
+    for account in accounts:
+        await session.execute(delete(BrokerPortfolioSnapshot).where(BrokerPortfolioSnapshot.account_id == account.id))
+        await session.delete(account)
+    await session.delete(connection)
+    _event(session, user_id, connection_id, "disconnect", "ok")
+    await session.commit()
+
+
+async def view(session: AsyncSession, user_id: int) -> dict:
+    connection = await connection_for(session, user_id)
+    if connection is None:
+        return {"connected": False, "accounts": [], "selected_account_id": None, "snapshot": None}
+    accounts = (await session.scalars(select(BrokerAccount).where(BrokerAccount.connection_id == connection.id).order_by(BrokerAccount.id))).all()
+    account = next((row for row in accounts if row.external_id == connection.selected_account_id), None)
+    snapshot = await session.scalar(select(BrokerPortfolioSnapshot).where(BrokerPortfolioSnapshot.account_id == account.id)) if account else None
+    return {
+        "connected": True,
+        "status": connection.status,
+        "last_error": connection.last_error,
+        "last_refreshed_at": connection.last_refreshed_at,
+        "selected_account_id": connection.selected_account_id,
+        "accounts": [{"id": a.external_id, "masked_id": "••••" + a.external_id[-4:], "name": a.name, "type": a.account_type, "status": a.status} for a in accounts],
+        "snapshot": {"fetched_at": snapshot.fetched_at, **snapshot.data} if snapshot else None,
+    }

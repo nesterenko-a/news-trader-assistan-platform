@@ -91,7 +91,7 @@ test.describe("Приватные функции", () => {
     expect(page.url()).toContain("/paper");
   });
 
-  test("настройки: профиль, инвестиционные ссылки и заглушки", async ({ page }) => {
+  test("настройки: профиль, инвестиционные ссылки и подключение брокера", async ({ page }) => {
     await newUser(page);
     await page.goto("/");
     await page.locator(".menu-toggle").click();
@@ -110,7 +110,8 @@ test.describe("Приватные функции", () => {
     await expect(form.locator('input[name="full_name"]')).toHaveValue("Иванов Иван Иванович");
     await expect(page.locator('a[href="/watchlist"]')).toContainText("Watchlist");
     await expect(page.getByRole("heading", { name: "Брокеры и торговля" })).toBeVisible();
-    await expect(page.getByText("API-ключи пока не вводятся и не хранятся.")).toBeVisible();
+    await expect(page.locator('#brokers')).toContainText("Т‑Инвестиции");
+    await expect(page.locator('#brokers')).toContainText("только для чтения");
   });
 
   test("избранное: добавить и убрать без перезагрузки", async ({ page }) => {

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+    <changeSet id="0330-broker-connections" author="newstrader">
+        <preConditions onFail="MARK_RAN"><not><tableExists tableName="broker_connections"/></not></preConditions>
+        <createTable tableName="broker_connections">
+            <column name="id" type="bigint" autoIncrement="true"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="user_id" type="bigint"><constraints nullable="false" foreignKeyName="fk_broker_connection_user" referencedTableName="users" referencedColumnNames="id"/></column>
+            <column name="provider" type="varchar(30)"><constraints nullable="false"/></column>
+            <column name="token_ciphertext" type="text"><constraints nullable="false"/></column>
+            <column name="token_nonce" type="varchar(40)"><constraints nullable="false"/></column>
+            <column name="token_key_id" type="varchar(40)"><constraints nullable="false"/></column>
+            <column name="version" type="int" defaultValueNumeric="1"><constraints nullable="false"/></column>
+            <column name="selected_account_id" type="varchar(100)"/>
+            <column name="status" type="varchar(30)" defaultValue="connected"><constraints nullable="false"/></column>
+            <column name="last_error" type="varchar(100)"/>
+            <column name="last_refreshed_at" type="timestamptz"/>
+            <column name="created_at" type="timestamptz" defaultValueComputed="now()"><constraints nullable="false"/></column>
+            <column name="updated_at" type="timestamptz" defaultValueComputed="now()"><constraints nullable="false"/></column>
+        </createTable>
+        <addUniqueConstraint tableName="broker_connections" columnNames="user_id,provider" constraintName="uq_broker_connection_user_provider"/>
+    </changeSet>
+    <changeSet id="0331-broker-accounts" author="newstrader">
+        <preConditions onFail="MARK_RAN"><not><tableExists tableName="broker_accounts"/></not></preConditions>
+        <createTable tableName="broker_accounts">
+            <column name="id" type="bigint" autoIncrement="true"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="connection_id" type="bigint"><constraints nullable="false" foreignKeyName="fk_broker_account_connection" referencedTableName="broker_connections" referencedColumnNames="id" deleteCascade="true"/></column>
+            <column name="external_id" type="varchar(100)"><constraints nullable="false"/></column>
+            <column name="name" type="varchar(200)" defaultValue=""><constraints nullable="false"/></column>
+            <column name="account_type" type="varchar(60)" defaultValue=""><constraints nullable="false"/></column>
+            <column name="status" type="varchar(60)" defaultValue=""><constraints nullable="false"/></column>
+            <column name="access_level" type="varchar(60)" defaultValue=""><constraints nullable="false"/></column>
+        </createTable>
+        <addUniqueConstraint tableName="broker_accounts" columnNames="connection_id,external_id" constraintName="uq_broker_account_connection_external"/>
+    </changeSet>
+    <changeSet id="0332-broker-snapshots" author="newstrader">
+        <preConditions onFail="MARK_RAN"><not><tableExists tableName="broker_portfolio_snapshots"/></not></preConditions>
+        <createTable tableName="broker_portfolio_snapshots">
+            <column name="id" type="bigint" autoIncrement="true"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="account_id" type="bigint"><constraints nullable="false" foreignKeyName="fk_broker_snapshot_account" referencedTableName="broker_accounts" referencedColumnNames="id" deleteCascade="true"/></column>
+            <column name="fetched_at" type="timestamptz"><constraints nullable="false"/></column>
+            <column name="data" type="jsonb"><constraints nullable="false"/></column>
+        </createTable>
+        <addUniqueConstraint tableName="broker_portfolio_snapshots" columnNames="account_id" constraintName="uq_broker_snapshot_account"/>
+    </changeSet>
+    <changeSet id="0333-broker-events" author="newstrader">
+        <preConditions onFail="MARK_RAN"><not><tableExists tableName="broker_connection_events"/></not></preConditions>
+        <createTable tableName="broker_connection_events">
+            <column name="id" type="bigint" autoIncrement="true"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="user_id" type="bigint"><constraints nullable="false" foreignKeyName="fk_broker_event_user" referencedTableName="users" referencedColumnNames="id"/></column>
+            <column name="connection_id" type="bigint"/>
+            <column name="action" type="varchar(40)"><constraints nullable="false"/></column>
+            <column name="result" type="varchar(30)"><constraints nullable="false"/></column>
+            <column name="error_code" type="varchar(80)"/>
+            <column name="created_at" type="timestamptz" defaultValueComputed="now()"><constraints nullable="false"/></column>
+        </createTable>
+    </changeSet>
+</databaseChangeLog>

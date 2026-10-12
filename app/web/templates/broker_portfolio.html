@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Портфель Т‑Инвестиций — NewsTrader Assistant{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Портфель Т‑Инвестиций</h1>
+  <p class="muted">Данные брокера только для чтения. <a href="/settings#brokers">Настройки подключения</a></p>
+  {% if not broker.connected %}
+    <p>Счёт ещё не подключён. <a class="btn" href="/settings#brokers">Подключить</a></p>
+  {% else %}
+    {% if broker_error or broker.last_error %}<p role="alert">Не удалось обновить данные брокера. Показан последний успешный снимок.</p>{% endif %}
+    {% if broker.accounts %}
+      <form method="post" action="/broker/t-invest/select">
+        <label>Счёт <select name="account_id">
+          {% for account in broker.accounts %}<option value="{{ account.id }}" {% if account.id == broker.selected_account_id %}selected{% endif %}>{{ account.name }} · {{ account.masked_id }}</option>{% endfor %}
+        </select></label>
+        <button class="btn" type="submit">Выбрать и загрузить</button>
+      </form>
+    {% endif %}
+    {% if broker.selected_account_id %}<form method="post" action="/broker/t-invest/refresh"><button class="btn" type="submit">Обновить</button></form>{% endif %}
+    {% if broker.snapshot %}
+      <p>Получено: {{ broker.snapshot.fetched_at.strftime('%d.%m.%Y %H:%M') }} UTC</p>
+      {% if broker.snapshot.total %}<p>Стоимость портфеля: <strong>{{ broker.snapshot.total.amount }} {{ broker.snapshot.total.currency }}</strong></p>{% endif %}
+      {% if broker.snapshot.expected_yield %}<p>Ожидаемая доходность (показатель брокера): {{ broker.snapshot.expected_yield }}</p>{% endif %}
+      <h2>Деньги</h2>
+      {% if broker.snapshot.cash %}<ul>{% for cash in broker.snapshot.cash %}<li>{{ cash.amount }} {{ cash.currency }}</li>{% endfor %}</ul>{% else %}<p class="muted">Нет денежных позиций.</p>{% endif %}
+      <h2>Инструменты</h2>
+      {% if broker.snapshot.positions %}
+        <div class="client-groups-list">
+          {% for position in broker.snapshot.positions %}
+            <article class="card">
+              <h3>{% if position.local_ticker %}<a href="/securities/{{ position.local_ticker }}">{{ position.name }}</a>{% else %}{{ position.name }}{% endif %}</h3>
+              <p class="muted">{{ position.ticker or position.uid }} · {{ position.type or 'Тип не указан' }}</p>
+              <p>Количество: {{ position.quantity or '—' }}{% if position.quantity_lots %} · Лотов: {{ position.quantity_lots }}{% endif %}</p>
+              <p>Средняя цена: {% if position.average_price %}{{ position.average_price.amount }} {{ position.average_price.currency }}{% else %}—{% endif %}</p>
+              <p>Текущая цена: {% if position.current_price %}{{ position.current_price.amount }} {{ position.current_price.currency }}{% else %}—{% endif %}</p>
+              <p>Ожидаемая доходность: {{ position.expected_yield or '—' }}</p>
+              {% if position.blocked %}<p>Заблокировано</p>{% endif %}
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}<p class="muted">На счёте пока нет позиций.</p>{% endif %}
+    {% else %}<p class="muted">Выберите счёт, чтобы получить первый снимок портфеля.</p>{% endif %}
+  {% endif %}
+</section>
+{% endblock %}

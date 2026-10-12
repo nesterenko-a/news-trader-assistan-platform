@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     app_url: str = "http://localhost:8000"
     mvp_tickers: str = "AFLT,LKOH,GAZP,SBER"
     auto_create_schema: bool = True
+    broker_token_key_id: str = "v1"
+    broker_token_keys: str = ""
 
     @property
     def ticker_list(self) -> list[str]:

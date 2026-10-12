@@ -9,6 +9,7 @@ import json
 import httpx
 
 from app.config import get_settings as get_cfg
+from app.brokers import t_invest
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
@@ -1852,6 +1853,8 @@ async def settings_page(
     context = await _base_context(session, user)
     context.update(
         {
+            "broker": await t_invest.view(session, user.id),
+            "broker_ready": t_invest.encryption_ready(),
             "profile": profile,
             "watchlist_count": watchlist_count or 0,
             "portfolio_count": portfolio_count or 0,
@@ -1862,7 +1865,83 @@ async def settings_page(
             "favorites": [{"ticker": security.ticker, "name": security.name, "type": "Фьючерс" if security.security_type == "futures" else "Акция", "sector": security.sector, "market": security.market, "created_at": favorite.created_at} for favorite, security in favorite_rows],
         }
     )
-    return templates.TemplateResponse(request, "settings.html", context)
+    response = templates.TemplateResponse(request, "settings.html", context)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+def _broker_form_origin(request: Request) -> bool:
+    origin = request.headers.get("origin", "")
+    host = request.headers.get("host", "")
+    return bool(origin and host and origin.removeprefix("https://").removeprefix("http://") == host)
+
+
+@router.post("/broker/t-invest/connect")
+async def broker_connect(request: Request, session: AsyncSession = Depends(get_session)):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _broker_form_origin(request):
+        raise HTTPException(403, "Недопустимый источник запроса")
+    form = await request.form()
+    try:
+        await t_invest.connect(session, user.id, str(form.get("token") or ""))
+    except HTTPException as exc:
+        return RedirectResponse(url=f"/settings?broker_error={exc.status_code}#brokers", status_code=303)
+    return RedirectResponse(url="/settings?broker=connected#brokers", status_code=303)
+
+
+@router.post("/broker/t-invest/select")
+async def broker_select(request: Request, session: AsyncSession = Depends(get_session)):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _broker_form_origin(request):
+        raise HTTPException(403, "Недопустимый источник запроса")
+    form = await request.form()
+    try:
+        await t_invest.refresh(session, user.id, str(form.get("account_id") or ""))
+    except HTTPException as exc:
+        return RedirectResponse(url=f"/portfolio/brokers/t-invest?error={exc.status_code}", status_code=303)
+    return RedirectResponse(url="/portfolio/brokers/t-invest", status_code=303)
+
+
+@router.post("/broker/t-invest/refresh")
+async def broker_refresh(request: Request, session: AsyncSession = Depends(get_session)):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _broker_form_origin(request):
+        raise HTTPException(403, "Недопустимый источник запроса")
+    try:
+        await t_invest.refresh(session, user.id)
+    except HTTPException as exc:
+        return RedirectResponse(url=f"/portfolio/brokers/t-invest?error={exc.status_code}", status_code=303)
+    return RedirectResponse(url="/portfolio/brokers/t-invest", status_code=303)
+
+
+@router.post("/broker/t-invest/disconnect")
+async def broker_disconnect(request: Request, session: AsyncSession = Depends(get_session)):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _broker_form_origin(request):
+        raise HTTPException(403, "Недопустимый источник запроса")
+    await t_invest.disconnect(session, user.id)
+    return RedirectResponse(url="/settings?broker=disconnected#brokers", status_code=303)
+
+
+@router.get("/portfolio/brokers/t-invest")
+async def broker_portfolio_page(request: Request, session: AsyncSession = Depends(get_session)):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    context = await _base_context(session, user)
+    context["broker"] = await t_invest.view(session, user.id)
+    context["broker_error"] = request.query_params.get("error")
+    response = templates.TemplateResponse(request, "broker_portfolio.html", context)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @router.post("/settings/profile")

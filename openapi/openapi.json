@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "NewsTrader Assistant",
-    "version": "0.24.0"
+    "version": "0.25.0"
   },
   "paths": {
     "/v1/health": {
@@ -22,6 +22,158 @@
                   "type": "object",
                   "title": "Response Health V1 Health Get"
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brokers/t-invest": {
+      "get": {
+        "tags": [
+          "brokers"
+        ],
+        "summary": "Status",
+        "operationId": "status_v1_brokers_t_invest_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "brokers"
+        ],
+        "summary": "Disconnect",
+        "operationId": "disconnect_v1_brokers_t_invest_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brokers/t-invest/connect": {
+      "post": {
+        "tags": [
+          "brokers"
+        ],
+        "summary": "Connect",
+        "operationId": "connect_v1_brokers_t_invest_connect_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brokers/t-invest/select-account": {
+      "post": {
+        "tags": [
+          "brokers"
+        ],
+        "summary": "Select Account",
+        "operationId": "select_account_v1_brokers_t_invest_select_account_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SelectAccountIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brokers/t-invest/refresh": {
+      "post": {
+        "tags": [
+          "brokers"
+        ],
+        "summary": "Refresh",
+        "operationId": "refresh_v1_brokers_t_invest_refresh_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brokers/t-invest/portfolio": {
+      "get": {
+        "tags": [
+          "brokers"
+        ],
+        "summary": "Portfolio",
+        "operationId": "portfolio_v1_brokers_t_invest_portfolio_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           }
@@ -3222,6 +3374,22 @@
         ],
         "title": "AuthOut"
       },
+      "ConnectIn": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Token",
+            "writeOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "ConnectIn"
+      },
       "FeedCandidateOut": {
         "properties": {
           "name": {
@@ -4028,6 +4196,21 @@
           "currency"
         ],
         "title": "SecuritySummary"
+      },
+      "SelectAccountIn": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Account Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id"
+        ],
+        "title": "SelectAccountIn"
       },
       "SignalOut": {
         "properties": {

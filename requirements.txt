@@ -17,3 +17,4 @@ pypdf==6.16.1
 Pillow==11.3.0
 markdown-it-py==4.2.0
 nh3==0.3.7
+cryptography>=44,<47

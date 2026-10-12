@@ -85,7 +85,21 @@
       <a class="btn" href="/pricing">Тарифы — в разработке</a>
     </section>
 
-    <section class="card" id="brokers"><h2>Брокеры и торговля</h2><p class="muted">Подключение брокеров и выставление заявок с Stop-loss/Take-profit — в разработке. API-ключи пока не вводятся и не хранятся.</p></section>
+    <section class="card" id="brokers">
+      <h2>Брокеры и торговля</h2>
+      <h3>Т‑Инвестиции</h3>
+      <p class="muted">Портфель только для чтения. <a href="https://developer.tbank.ru/invest/intro/intro/token" target="_blank" rel="noopener noreferrer">Как выпустить токен</a>. Выставление заявок пока недоступно.</p>
+      {% if request.query_params.get('broker_error') %}<p role="alert">Не удалось подключить токен. Проверьте его права и доступность брокера. Код: {{ request.query_params.get('broker_error') }}</p>{% endif %}
+      {% if broker.connected %}
+        <p>Подключено. <a class="btn" href="/portfolio/brokers/t-invest">Открыть портфель Т‑Инвестиций</a></p>
+        <form method="post" action="/broker/t-invest/connect"><label>Заменить токен только для чтения <input type="password" name="token" autocomplete="off" required></label><button class="btn" type="submit">Заменить токен</button></form>
+        <form method="post" action="/broker/t-invest/disconnect" onsubmit="return confirm('Отключить Т‑Инвестиции и удалить снимки портфеля?')"><button class="btn" type="submit">Отключить</button></form>
+      {% elif broker_ready %}
+        <form method="post" action="/broker/t-invest/connect"><label>Токен только для чтения <input type="password" name="token" autocomplete="off" required></label><button class="btn" type="submit">Подключить</button></form>
+      {% else %}
+        <p class="muted">Подключение недоступно: ключ шифрования не настроен на сервере.</p>
+      {% endif %}
+    </section>
     <section class="card" id="security"><h2>Безопасность</h2><p class="muted">Двухфакторная аутентификация, активные сессии и история входов — в разработке.</p></section>
     <section class="card" id="privacy"><h2>Данные и приватность</h2><p class="muted">Экспорт данных, удаление аккаунта и управление согласиями — в разработке.</p></section>
     {% if is_admin %}
