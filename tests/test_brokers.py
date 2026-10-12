@@ -1,5 +1,6 @@
 import base64
 import os
+import ssl
 
 import pytest
 from fastapi import HTTPException
@@ -10,6 +11,17 @@ from app.brokers import t_invest
 from app.config import Settings
 from app.db.connection import Base
 from app.db.models import BrokerConnection, BrokerPortfolioSnapshot, User
+
+
+def test_t_invest_tls_context_trusts_ministry_root():
+    context = t_invest._tls_context()
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert context.check_hostname
+    assert any(
+        subject_part == (("commonName", "Russian Trusted Root CA"),)
+        for certificate in context.get_ca_certs()
+        for subject_part in certificate["subject"]
+    )
 
 
 class FakeBroker:

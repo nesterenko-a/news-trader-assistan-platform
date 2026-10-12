@@ -1,8 +1,10 @@
 import asyncio
 import base64
 import os
+import ssl
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 
 import httpx
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -21,6 +23,13 @@ from app.db.models import (
 
 BASE = "https://invest-public-api.tbank.ru/rest/tinkoff.public.invest.api.contract.v1"
 READ_ONLY = "ACCOUNT_ACCESS_LEVEL_READ_ONLY"
+ROOT_CA = Path(__file__).parent / "certs" / "russian_trusted_root_ca.pem"
+
+
+def _tls_context() -> ssl.SSLContext:
+    context = ssl.create_default_context()
+    context.load_verify_locations(cafile=ROOT_CA)
+    return context
 
 
 def _keys() -> dict[str, bytes]:
@@ -94,7 +103,7 @@ class TInvestClient:
     async def _call(self, service: str, method: str, payload: dict) -> dict:
         url = f"{BASE}.{service}/{method}"
         headers = {"Authorization": f"Bearer {self.token}"}
-        async with httpx.AsyncClient(timeout=15.0, transport=self.transport) as client:
+        async with httpx.AsyncClient(timeout=15.0, transport=self.transport, verify=_tls_context()) as client:
             for attempt in range(3):
                 try:
                     response = await client.post(url, json=payload, headers=headers)
