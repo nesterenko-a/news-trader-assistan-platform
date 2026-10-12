@@ -1,4 +1,5 @@
 from pathlib import Path
+import asyncio
 from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
 import os
@@ -10,6 +11,7 @@ import httpx
 
 from app.config import get_settings as get_cfg
 from app.brokers import t_invest
+from app.brokers import certificates as broker_certificates
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
@@ -1874,6 +1876,20 @@ def _broker_form_origin(request: Request) -> bool:
     origin = request.headers.get("origin", "")
     host = request.headers.get("host", "")
     return bool(origin and host and origin.removeprefix("https://").removeprefix("http://") == host)
+
+
+@router.post("/broker/t-invest/repair-certificate")
+async def broker_repair_certificate(request: Request, session: AsyncSession = Depends(get_session)):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _broker_form_origin(request):
+        raise HTTPException(403, "Недопустимый источник запроса")
+    try:
+        await asyncio.to_thread(broker_certificates.repair_and_check, t_invest.BASE)
+    except (OSError, ValueError, httpx.HTTPError):
+        return RedirectResponse(url="/settings?broker_error=502&certificate=failed#brokers", status_code=303)
+    return RedirectResponse(url="/settings?broker_error=502&certificate=ok#brokers", status_code=303)
 
 
 @router.post("/broker/t-invest/connect")

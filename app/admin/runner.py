@@ -20,6 +20,18 @@ LOG_FLUSH_LINES = 25
 
 SCRIPTS: list[dict] = [
     {
+        "key": "repair_t_invest_certificate",
+        "module": "scripts.repair_t_invest_certificate",
+        "title": "Проверить сертификат Т-Инвестиций",
+        "description": (
+            "По требованию при ошибке подключения 502/503: скачать корневой сертификат "
+            "Минцифры с Госуслуг, проверить его отпечаток, добавить только для "
+            "этого приложения и проверить TLS-соединение с API без токена. "
+            "Периодический запуск не требуется."
+        ),
+        "param": None,
+    },
+    {
         "key": "daily_pipeline",
         "module": "scripts.daily_pipeline",
         "title": "Ежедневный конвейер",

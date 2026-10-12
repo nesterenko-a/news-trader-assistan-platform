@@ -39,3 +39,4 @@ playwright-report/
 .reasonix/
 reasonix.toml
 uploads/
+.runtime/

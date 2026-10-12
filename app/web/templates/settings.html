@@ -90,6 +90,12 @@
       <h3>Т‑Инвестиции</h3>
       <p class="muted">Портфель только для чтения. <a href="https://developer.tbank.ru/invest/intro/intro/token" target="_blank" rel="noopener noreferrer">Как выпустить токен</a>. Выставление заявок пока недоступно.</p>
       {% if request.query_params.get('broker_error') %}<p role="alert">Не удалось подключить токен. Проверьте его права и доступность брокера. Код: {{ request.query_params.get('broker_error') }}</p>{% endif %}
+      {% if request.query_params.get('broker_error') in ('502', '503') %}
+        <p class="muted">Проверьте сертификат соединения с Т‑Инвестициями. Проверка не использует ваш токен.</p>
+        <form method="post" action="/broker/t-invest/repair-certificate"><button class="btn" type="submit">Проверить и восстановить сертификат</button></form>
+        {% if request.query_params.get('certificate') == 'ok' %}<p role="status">Сертификат проверен, соединение с API работает. Повторите подключение токена.</p>{% endif %}
+        {% if request.query_params.get('certificate') == 'failed' %}<p role="alert">Не удалось восстановить соединение. Обратитесь к администратору приложения.</p>{% endif %}
+      {% endif %}
       {% if broker.connected %}
         <p>Подключено. <a class="btn" href="/portfolio/brokers/t-invest">Открыть портфель Т‑Инвестиций</a></p>
         <form method="post" action="/broker/t-invest/connect"><label>Заменить токен только для чтения <input type="password" name="token" autocomplete="off" required></label><button class="btn" type="submit">Заменить токен</button></form>

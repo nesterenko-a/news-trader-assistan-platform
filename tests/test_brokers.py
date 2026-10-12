@@ -1,20 +1,24 @@
 import base64
+import io
 import os
 import ssl
+from importlib import import_module
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
+from starlette.requests import Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.brokers import t_invest
+from app.brokers import certificates, t_invest
 from app.config import Settings
 from app.db.connection import Base
 from app.db.models import BrokerConnection, BrokerPortfolioSnapshot, User
 
 
 def test_t_invest_tls_context_trusts_ministry_root():
-    context = t_invest._tls_context()
+    context = certificates.tls_context()
     assert context.verify_mode == ssl.CERT_REQUIRED
     assert context.check_hostname
     assert any(
@@ -22,6 +26,35 @@ def test_t_invest_tls_context_trusts_ministry_root():
         for certificate in context.get_ca_certs()
         for subject_part in certificate["subject"]
     )
+
+
+def test_install_t_invest_certificate_is_scoped_and_pinned(monkeypatch, tmp_path):
+    local_ca = tmp_path / "certs" / "root.pem"
+    monkeypatch.setattr(certificates, "LOCAL_CA", local_ca)
+    original = certificates.ROOT_CA.read_bytes()
+    monkeypatch.setattr(certificates.urllib.request, "urlopen", lambda *args, **kwargs: io.BytesIO(original))
+    assert certificates.install_certificate() == local_ca
+    assert local_ca.read_bytes() == original
+    assert certificates.tls_context().check_hostname
+    monkeypatch.setattr(certificates.urllib.request, "urlopen", lambda *args, **kwargs: io.BytesIO(b"invalid"))
+    with pytest.raises(ValueError):
+        certificates.install_certificate()
+    assert local_ca.read_bytes() == original
+
+
+@pytest.mark.asyncio
+async def test_broker_certificate_repair_available_to_regular_user(monkeypatch):
+    web_router = import_module("app.web.router")
+
+    async def regular_user(*args):
+        return SimpleNamespace(id=1, role="user")
+
+    monkeypatch.setattr(web_router, "_optional_user", regular_user)
+    monkeypatch.setattr(web_router.broker_certificates, "repair_and_check", lambda base: certificates.LOCAL_CA)
+    request = Request({"type": "http", "method": "POST", "path": "/broker/t-invest/repair-certificate", "headers": [(b"host", b"localhost"), (b"origin", b"http://localhost")]})
+    response = await web_router.broker_repair_certificate(request, None)
+    assert response.status_code == 303
+    assert "certificate=ok" in response.headers["location"]
 
 
 class FakeBroker:
