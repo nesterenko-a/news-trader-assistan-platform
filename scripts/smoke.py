@@ -102,7 +102,7 @@ try:
         )
 
         register = client.post(
-            "/v1/auth/register", json={"username": "smoke", "password": "secret123"}
+            "/v1/auth/register", json={"username": "smoke", "password": "secret123"}  # pragma: allowlist secret
         )
         print("auth register:", register.status_code)
         token = register.json().get("token", "")
@@ -208,7 +208,7 @@ try:
         )
 
         admin_login = client.post(
-            "/v1/auth/login", json={"username": "admin", "password": "admin123"}
+            "/v1/auth/login", json={"username": "admin", "password": "admin123"}  # pragma: allowlist secret
         )
         admin_headers = {
             "Authorization": f"Bearer {admin_login.json().get('token', '')}"

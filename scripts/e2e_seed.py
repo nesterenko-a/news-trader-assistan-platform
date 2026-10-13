@@ -42,9 +42,9 @@ from app.graph.service import seed_graph
 from app.config import get_settings
 
 ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "admin123"
+ADMIN_PASSWORD = "admin123"  # pragma: allowlist secret
 USER_USERNAME = "user"
-USER_PASSWORD = "user123"
+USER_PASSWORD = "user123"  # pragma: allowlist secret
 
 
 async def seed(db_url: str) -> None:

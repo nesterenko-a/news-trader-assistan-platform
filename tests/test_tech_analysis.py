@@ -157,7 +157,7 @@ def _patch_settings(monkeypatch, fake):
 
 
 def test_resolve_llm_prefers_chatgpt(monkeypatch):
-    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="fake-chatgpt", llm_key="fake-deepseek"))
+    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="fake-chatgpt", llm_key="fake-deepseek"))  # pragma: allowlist secret
     r = resolve_llm()
     assert r.api_key == "fake-chatgpt"
     assert r.model == "gpt-4o"
@@ -166,7 +166,7 @@ def test_resolve_llm_prefers_chatgpt(monkeypatch):
 
 def test_resolve_llm_fallback_deepseek(monkeypatch):
     # CHATGPT_API_KEY пуст — берём LLM_API_KEY (DeepSeek)
-    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="", llm_key="fake-deepseek"))
+    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="", llm_key="fake-deepseek"))  # pragma: allowlist secret
     r = resolve_llm()
     assert r.api_key == "fake-deepseek"
     assert r.model == "deepseek-reasoner"
@@ -182,25 +182,25 @@ def test_resolve_llm_no_keys(monkeypatch):
 
 def test_chatgpt_client_from_settings_fallback(monkeypatch):
     # без CHATGPT_API_KEY from_settings должен идти на DeepSeek
-    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="", llm_key="fake-deepseek"))
+    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="", llm_key="fake-deepseek"))  # pragma: allowlist secret
     client = ChatGPTClient.from_settings()
     assert client.provider == "deepseek"
 
 
 def test_resolve_llm_force_chatgpt(monkeypatch):
     # явный choice=chatgpt, даже если есть только DeepSeek -> пусто (ключей ChatGPT нет)
-    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="", llm_key="fake-deepseek"))
+    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="", llm_key="fake-deepseek"))  # pragma: allowlist secret
     r = resolve_llm("chatgpt")
     assert r.api_key == ""
     # с обоими ключами force-deepseek отдаёт именно DeepSeek
-    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="fake-chatgpt", llm_key="fake-deepseek"))
+    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="fake-chatgpt", llm_key="fake-deepseek"))  # pragma: allowlist secret
     r = resolve_llm("deepseek")
     assert r.api_key == "fake-deepseek"
     assert r.model == "deepseek-reasoner"
 
 
 def test_resolve_llm_force_deepseek_ignores_chatgpt(monkeypatch):
-    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="fake-chatgpt", llm_key="fake-deepseek"))
+    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="fake-chatgpt", llm_key="fake-deepseek"))  # pragma: allowlist secret
     r = resolve_llm("deepseek")
     assert r.api_key == "fake-deepseek"
     r2 = resolve_llm("chatgpt")
