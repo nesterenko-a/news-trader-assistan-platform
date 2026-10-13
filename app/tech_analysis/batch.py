@@ -1,6 +1,6 @@
-"""Сервис «Top-5: Теханализ группы акций из шаблона инструментов (kind=stock)».
+"""Сервис «Top-5: Теханализ группы акций или фьючерсов из шаблона».
 
-Запускает по одному обычному анализу на каждую акцию шаблона (переиспользуя
+Запускает по одному обычному анализу на каждый инструмент шаблона (переиспользуя
 актуальные успешные анализы), ведёт лёгкий ярлык-батч (tech_analysis_batches),
 и формирует рейтинг Top-5 лучших сделок по Expected R.
 
@@ -11,14 +11,15 @@ Expected R каждого сценария = prob × rr − (1 − prob) × 1 (�
 
 import asyncio
 import json as _json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
 from app.config import get_settings
 from app.db.models import FuturesTemplate, MarketCandle, RealTimeQuote, TechAnalysis, TechAnalysisBatch
+from app.tech_analysis.confirmation import plans_from_json
 from app.tech_analysis.parser import expected_r, parse_final_assessment
-from app.tech_analysis.service import start_analysis
+from app.tech_analysis.service import restart_batch_analysis
 
 # Порог свежести анализа на акцию (если анализ успешен и не старше — переиспользуем)
 FRESH_HOURS = get_settings().top5_fresh_hours
@@ -32,9 +33,9 @@ def _ticker_list(template: FuturesTemplate) -> list[str]:
     ]
 
 
-async def get_stock_template(session, template_id: int) -> FuturesTemplate | None:
+async def get_instrument_template(session, template_id: int) -> FuturesTemplate | None:
     template = await session.get(FuturesTemplate, template_id)
-    if template is None or template.kind != "stock":
+    if template is None or template.kind not in ("stock", "futures"):
         return None
     return template
 
@@ -55,117 +56,114 @@ async def fresh_analysis(session, ticker: str) -> TechAnalysis | None:
     return row
 
 
-async def create_batch(session, template_id: int, user_id: int | None) -> TechAnalysisBatch:
-    batch = TechAnalysisBatch(user_id=user_id, template_id=template_id, status="running")
-    session.add(batch)
-    await session.commit()
-    await session.refresh(batch)
-    return batch
-
-
 async def start_batch(
     session,
     template_id: int,
     user_id: int | None = None,
     provider: str | None = None,
     force: bool = False,
-) -> TechAnalysisBatch:
-    """Запускает батч Теханализа по всем акциям шаблона kind=stock (async, фоном).
+) -> list[TechAnalysisBatch]:
+    """Разбивает шаблон инструментов на группы и запускает их последовательно в фоне.
 
     force=True — игнорировать свежесть (TOP5_FRESH_HOURS) и перезапускать
     Теханализ по всем акциям шаблона (без переиспользования актуальных анализов).
     """
-    template = await get_stock_template(session, template_id)
+    template = await get_instrument_template(session, template_id)
     if template is None:
-        raise ValueError("Шаблон не найден или не является шаблоном акций (kind != stock)")
+        raise ValueError("Шаблон акций или фьючерсов не найден")
 
-    tickers = _ticker_list(template)[: get_settings().top5_max_instruments]
+    tickers = _ticker_list(template)
     if not tickers:
         raise ValueError("Шаблон пуст")
-
-    # Единовременный активный батч на шаблон
     active = await session.scalar(
         select(TechAnalysisBatch).where(
             TechAnalysisBatch.template_id == template_id,
-            TechAnalysisBatch.status == "running",
+            TechAnalysisBatch.status.in_(("queued", "running")),
         )
     )
     if active is not None:
         raise RuntimeError("По этому шаблону уже выполняется батч Теханализа")
+    size = max(1, get_settings().top5_batch_size)
+    batches = []
+    for offset in range(0, len(tickers), size):
+        batch = TechAnalysisBatch(user_id=user_id, template_id=template_id, status="queued")
+        session.add(batch)
+        await session.flush()
+        for ticker in tickers[offset:offset + size]:
+            session.add(TechAnalysis(
+                user_id=user_id, ticker=ticker, status="queued", stage="queued",
+                provider=provider, batch_id=batch.id,
+            ))
+        batches.append(batch)
+    await session.commit()
+    asyncio.create_task(_run_batches([batch.id for batch in batches], force))
+    return batches
 
-    batch = await create_batch(session, template_id, user_id)
-    asyncio.create_task(_run_batch(batch.id, tickers, user_id, provider, force))
-    return batch
 
-
-async def _run_batch(
-    batch_id: int, tickers: list[str], user_id: int | None, provider: str | None,
-    force: bool = False,
-) -> None:
-    """Фоновое выполнение батча: запускаем/переиспользуем анализ по каждой акции."""
+async def _run_batches(batch_ids: list[int], force: bool) -> None:
     from app.db.connection import SessionLocal
 
-    total = len(tickers)
-    done = 0
-    failed = 0
-    try:
+    for batch_id in batch_ids:
         async with SessionLocal() as session:
-            for ticker in tickers:
-                if not force:
-                    existing = await fresh_analysis(session, ticker)
-                    if existing is not None:
-                        # Переиспользуем актуальный успешный анализ (не гоняем LLM).
-                        existing.batch_id = batch_id
-                        done += 1
-                        await session.commit()
-                        continue
+            batch = await session.get(TechAnalysisBatch, batch_id)
+            if batch is None:
+                continue
+            batch.status = "running"
+            await session.commit()
+            rows = (await session.scalars(
+                select(TechAnalysis).where(TechAnalysis.batch_id == batch_id).order_by(TechAnalysis.id)
+            )).all()
+            for row in rows:
                 try:
-                    await start_analysis(
-                        session, ticker, user_id=user_id, provider=provider, batch_id=batch_id
-                    )
-                    done += 1
+                    existing = await fresh_analysis(session, row.ticker) if not force else None
+                    if existing is not None:
+                        for field in (
+                            "is_future", "stage", "request_md", "response_md", "verdict", "entry",
+                            "tp", "sl", "scenario_json", "await_confirmation", "model", "provider",
+                            "price_at_analysis", "finished_at",
+                        ):
+                            setattr(row, field, getattr(existing, field))
+                        row.status = "success"
+                        row.error = None
+                        await session.commit()
+                    else:
+                        await restart_batch_analysis(session, row.id)
                 except Exception as exc:  # noqa: BLE001
-                    failed += 1
-                    print(f"[top5] {ticker}: не удалось запустить ({type(exc).__name__}: {exc})")
-            # Статус батча считаем мгновенно: если все запущены/переиспользованы — success,
-            # иначе partial (при сбоях запуска). Реальное завершение LLM пересчитывается
-            # при просмотре Top-5 (batch_progress).
-            await _finalize_batch(session, batch_id, total, done, failed)
-    except Exception as exc:  # noqa: BLE001
-        try:
-            async with SessionLocal() as session:
-                await _finalize_batch(session, batch_id, total, done, failed, error=str(exc))
-        except Exception:
-            pass
-
-
-async def _finalize_batch(session, batch_id: int, total: int, done: int, failed: int, error: str | None = None) -> None:
-    batch = await session.get(TechAnalysisBatch, batch_id)
-    if batch is None:
-        return
-    if failed == total:
-        batch.status = "failed"
-    elif failed > 0:
-        batch.status = "partial"
-    else:
-        batch.status = "success"
-    batch.finished_at = datetime.utcnow()
-    if error:
-        # при серьёзном сбое не теряем прогресс
-        batch.status = "partial"
-    await session.commit()
+                    row.status = "failed"
+                    row.stage = "done"
+                    row.error = str(exc)[:1000]
+                    row.finished_at = datetime.utcnow()
+                    await session.commit()
+            while True:
+                session.expire_all()
+                rows = (await session.scalars(select(TechAnalysis).where(TechAnalysis.batch_id == batch_id))).all()
+                if all(row.status in ("success", "failed") for row in rows):
+                    break
+                await session.rollback()
+                await asyncio.sleep(1)
+            batch = await session.get(TechAnalysisBatch, batch_id)
+            failed = sum(row.status == "failed" for row in rows)
+            batch.status = "failed" if failed == len(rows) else "partial" if failed else "success"
+            batch.finished_at = datetime.utcnow()
+            await session.commit()
 
 
 async def batch_progress(session, batch_id: int) -> dict:
     """Текущий прогресс батча по анализам (для поллинга /top5)."""
+    batch = await session.get(TechAnalysisBatch, batch_id)
+    if batch is None:
+        raise KeyError("Батч не найден")
     rows = await session.scalars(select(TechAnalysis).where(TechAnalysis.batch_id == batch_id))
     items = [r for r in rows.all()]
     total = len(items)
     success = sum(1 for r in items if r.status == "success")
     running = sum(1 for r in items if r.status == "running")
     failed = sum(1 for r in items if r.status == "failed")
+    queued = sum(1 for r in items if r.status == "queued")
     # Живой статус по анализам: пока есть running — идёт выполнение; иначе успех/частичный/сбой.
-    if running > 0:
+    if batch.status == "queued":
+        status = "queued"
+    elif running > 0 or queued > 0:
         status = "running"
     elif success == total and total > 0:
         status = "success"
@@ -173,6 +171,10 @@ async def batch_progress(session, batch_id: int) -> dict:
         status = "failed" if success == 0 else "partial"
     else:
         status = "running"
+    if status in ("success", "partial", "failed") and batch.status != status:
+        batch.status = status
+        batch.finished_at = datetime.utcnow()
+        await session.commit()
     return {
         "batch_id": batch_id,
         "status": status,
@@ -181,7 +183,13 @@ async def batch_progress(session, batch_id: int) -> dict:
         "success": success,
         "running": running,
         "failed": failed,
-        "stage": "running" if running else ("success" if status == "success" else "has-failed"),
+        "queued": queued,
+        "stage": "running" if running or queued else ("success" if status == "success" else "has-failed"),
+        "items": [
+            {"id": row.id, "ticker": row.ticker, "status": row.status, "stage": row.stage,
+             "verdict": row.verdict, "error": row.error}
+            for row in items
+        ],
     }
 
 
@@ -221,6 +229,7 @@ async def list_batches(session, template_id: int, limit: int = 10) -> list[dict]
         ]
         batch_tickers = [i["ticker"] for i in items]
         prices = await _current_prices(session, batch_tickers)
+        liquidity = await _liquidity_by_ticker(session, batch_tickers)
         # Собственный Top-5 батча: по его успешным анализам (сценарии + вердикт)
         top_rows = _rank_best_rows(
             [
@@ -232,6 +241,7 @@ async def list_batches(session, template_id: int, limit: int = 10) -> list[dict]
                     "scenario_json": a["scenario_json"],
                     "await_confirmation": a.get("await_confirmation"),
                     "price": prices.get(a["ticker"]),
+                    "liquidity_rub_day": liquidity.get(a["ticker"]),
                     "as_of": a.get("finished_at"),
                     "response_md": a.get("response_md"),
                 }
@@ -249,7 +259,10 @@ async def list_batches(session, template_id: int, limit: int = 10) -> list[dict]
         success = sum(1 for a in analyses if a.status == "success")
         running = sum(1 for a in analyses if a.status == "running")
         failed_n = sum(1 for a in analyses if a.status == "failed")
-        if running > 0:
+        queued = sum(1 for a in analyses if a.status == "queued")
+        if b.status == "queued":
+            live_status = "queued"
+        elif running > 0 or queued > 0:
             live_status = "running"
         elif success == len(items) and items:
             live_status = "success"
@@ -268,6 +281,7 @@ async def list_batches(session, template_id: int, limit: int = 10) -> list[dict]
                 "success": success,
                 "running": running,
                 "failed": failed_n,
+                "queued": queued,
                 "items": items,
                 "top5": top_rows,
             }
@@ -317,6 +331,15 @@ def _entry_mid(text: str) -> float | None:
 def _first_target(text: str) -> float | None:
     """Первая цель из списка '110/115' → 110."""
     return _first_num(text)
+
+
+def _target_levels(text: str) -> list[str]:
+    if not text:
+        return []
+    import re as _re
+
+    values = _re.findall(r"\d+(?:[.,]\d+)?", str(text))
+    return [value.replace(",", ".") for value in values] or [str(text)]
 
 
 def compute_rr(sc: dict, fallback: bool = True) -> float | None:
@@ -411,6 +434,8 @@ def _all_scenarios(ana: dict) -> dict:
         data = _json.loads(ana["scenario_json"])
     except (ValueError, TypeError):
         return out
+    if not isinstance(data, dict):
+        return out
     for letter, key in (("a", "scenario_a"), ("b", "scenario_b"), ("c", "scenario_c")):
         sc = data.get(key) or {}
         out[letter] = _scenario_metrics(sc) if isinstance(sc, dict) else {}
@@ -454,6 +479,40 @@ async def _current_prices(session, tickers: list[str]) -> dict:
     return prices
 
 
+async def _liquidity_by_ticker(session, tickers: list[str]) -> dict[str, int]:
+    from app.db.models import Security
+
+    if not tickers:
+        return {}
+    securities = (
+        await session.scalars(select(Security).where(Security.ticker.in_(tickers)))
+    ).all()
+    id_to_ticker = {security.id: security.ticker for security in securities}
+    if not id_to_ticker:
+        return {}
+    today = datetime.now(timezone.utc).date()
+    cutoff = today - timedelta(days=45)
+    candles = (
+        await session.scalars(
+            select(MarketCandle)
+            .where(
+                MarketCandle.security_id.in_(id_to_ticker),
+                MarketCandle.trading_date >= cutoff,
+                MarketCandle.trading_date <= today,
+            )
+            .order_by(MarketCandle.trading_date.desc())
+        )
+    ).all()
+    values: dict[str, list[float]] = {ticker: [] for ticker in id_to_ticker.values()}
+    for candle in candles:
+        ticker = id_to_ticker[candle.security_id]
+        if len(values[ticker]) < 20 and candle.close is not None and candle.close > 0 and candle.volume is not None and candle.volume > 0:
+            values[ticker].append(float(candle.close) * candle.volume)
+    return {
+        ticker: round(sum(turnovers) / len(turnovers))
+        for ticker, turnovers in values.items()
+        if len(turnovers) >= 10
+    }
 
 
 def best_strategy(tickers_analyses: list[dict]) -> dict | None:
@@ -472,15 +531,29 @@ def best_strategy(tickers_analyses: list[dict]) -> dict | None:
             data = _json.loads(ana["scenario_json"])
         except (ValueError, TypeError):
             continue
+        if not isinstance(data, dict):
+            continue
         cur_verdict = (ana.get("verdict") or "").upper()
         if cur_verdict not in ("BUY", "SELL", "WAIT"):
             continue
+        confirmation_plans = plans_from_json(ana["scenario_json"])
         for key in ("scenario_a", "scenario_b", "scenario_c"):
             sc = data.get(key) or {}
+            if not isinstance(sc, dict):
+                continue
             er = expected_r(sc.get("probability"), compute_rr(sc))
             if er is None:
                 continue
             dir_label = {"BUY": "LONG", "SELL": "SHORT", "WAIT": "WAIT"}.get(cur_verdict, "WAIT")
+            confirmation_plan = confirmation_plans.get(key[-1], {})
+            has_confirmation_plan = (
+                cur_verdict in ("BUY", "SELL")
+                and confirmation_plan.get("direction") == cur_verdict.lower()
+            )
+            entry_step = next(
+                (step for step in confirmation_plan.get("steps", []) if step["kind"] == "entry"),
+                None,
+            ) if has_confirmation_plan else None
             candidate = {
                 "ticker": ana.get("ticker"),
                 "name": ana.get("name") or ana.get("ticker"),
@@ -489,6 +562,9 @@ def best_strategy(tickers_analyses: list[dict]) -> dict | None:
                 "verdict": cur_verdict,
                 "await_confirmation": bool(ana.get("await_confirmation")),
                 "entry": sc.get("entry") or "",
+                "entry_reference": _entry_mid(sc.get("entry")),
+                "first_target": _first_target(sc.get("targets")),
+                "target_levels": _target_levels(sc.get("targets")),
                 "stop": sc.get("stop") or "",
                 "targets": sc.get("targets") or "",
                 "rr": compute_rr(sc),
@@ -501,6 +577,10 @@ def best_strategy(tickers_analyses: list[dict]) -> dict | None:
                 # Все три сценария для раскрытия строки (идентично «Полному разбору»)
                 "scenarios": _all_scenarios(ana),
                 "price": ana.get("price"),
+                "liquidity_rub_day": ana.get("liquidity_rub_day"),
+                "has_confirmation_plan": has_confirmation_plan,
+                "confirmation_entry_detail": entry_step["detail"] if entry_step else "",
+                "confirmation_signal": confirmation_plan.get("confirmations", [""])[0] if has_confirmation_plan and confirmation_plan.get("confirmations") else "",
                 "as_of": ana.get("as_of"),
                 # Ключевой уровень / Главный риск / Моя рекомендация (из «Итоговой оценки»)
                 "final_assessment": parse_final_assessment(ana.get("response_md") or ""),
@@ -514,7 +594,7 @@ def _rank_best_rows(rows: list[dict]) -> list[dict]:
     """Сворачивает список анализов (группируя по тикеру) в ранжированный Top-N.
 
     rows — список словарей {ticker, name, id, verdict, scenario_json}.
-    Возвращает список «лучших стратегий» по акциям, отсортированный по Expected R.
+    Возвращает список «лучших стратегий» по инструментам, отсортированный по Expected R.
     """
     by_ticker: dict[str, list[dict]] = {}
     for r in rows:
@@ -529,10 +609,10 @@ def _rank_best_rows(rows: list[dict]) -> list[dict]:
 
 
 async def top5(session, template_id: int, limit: int = 5) -> dict:
-    """Рейтинг Top-5 лучших сделок по акциям шаблона (по Expected R; включает WAIT)."""
-    template = await get_stock_template(session, template_id)
+    """Рейтинг Top-5 лучших сделок по инструментам шаблона (по Expected R; включает WAIT)."""
+    template = await get_instrument_template(session, template_id)
     if template is None:
-        raise ValueError("Шаблон не найден или не является шаблоном акций")
+        raise ValueError("Шаблон акций или фьючерсов не найден")
     tickers = _ticker_list(template)
     from app.db.models import Security
 
@@ -543,6 +623,7 @@ async def top5(session, template_id: int, limit: int = 5) -> dict:
         )
         names = {s.ticker: s.name for s in secs.all()}
     prices = await _current_prices(session, tickers)
+    liquidity = await _liquidity_by_ticker(session, tickers)
     rows = []
     for ticker in tickers:
         ana = await _latest_analysis(session, ticker)
@@ -557,6 +638,7 @@ async def top5(session, template_id: int, limit: int = 5) -> dict:
                 "scenario_json": ana.scenario_json,
                 "await_confirmation": ana.await_confirmation,
                 "price": prices.get(ana.ticker),
+                "liquidity_rub_day": liquidity.get(ana.ticker),
                 "as_of": ana.finished_at,
                 "response_md": ana.response_md,
             }
@@ -587,15 +669,17 @@ async def top5(session, template_id: int, limit: int = 5) -> dict:
 
 def _deal_qualified(r: dict) -> bool:
     """Фильтр качества сделки (как в макете): R/R ≥ 1.5, риск ≤ 4%, уверенность ≥ 40%."""
+    if r.get("dir") == "WAIT":
+        return False
     rr = r.get("rr")
     risk = r.get("risk")
     prob = r.get("probability")
-    if rr is None or risk is None:
+    if rr is None or risk is None or prob is None:
         return False
     if rr < 1.5:
         return False
     if risk > 4.0:
         return False
-    if prob is not None and prob < 0.40:
+    if prob < 0.40:
         return False
     return True

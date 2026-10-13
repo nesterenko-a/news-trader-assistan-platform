@@ -4,6 +4,7 @@ import json
 
 from app.tech_analysis.llm import ChatGPTClient, resolve_llm
 from app.tech_analysis.parser import extract_json_block, parse_response
+from app.tech_analysis.confirmation import build_confirmation_chart, closed_candles_label, normalize_confirmation_plans, plans_from_json
 
 
 def test_extract_json_block():
@@ -75,6 +76,67 @@ def test_parse_response_no_block():
     assert data["scenario_c"] == {"expected_r": None}
 
 
+def _confirmation_plan(direction="buy"):
+    return {
+        "direction": direction,
+        "timeframe": "1ч",
+        "level_label": "зона 100–102",
+        "steps": [
+            {"kind": "approach", "label": "Подход", "detail": "Цена подходит"},
+            {"kind": "close", "label": "Закрытие", "detail": "Свеча закрывается"},
+            {"kind": "entry", "label": "Вход", "detail": "После закрытия"},
+        ],
+        "closed_candles": 1,
+        "wait_minutes": None,
+        "confirmations": ["объём растёт"],
+        "cancellations": ["закрытие ниже зоны"],
+    }
+
+
+def test_confirmation_plan_is_saved_and_reloaded():
+    payload = {"verdict": "BUY", "confirmation_plans": {"a": _confirmation_plan()}}
+    parsed = parse_response("```json\n" + json.dumps(payload, ensure_ascii=False) + "\n```")
+    plans = plans_from_json(parsed["scenario_json"])
+    assert plans["a"]["closed_candles"] == 1
+    assert plans["a"]["wait_minutes"] is None
+    assert plans["a"]["confirmations"] == ["объём растёт"]
+
+
+def test_confirmation_plan_rejects_invalid_steps_and_keeps_old_records():
+    assert plans_from_json('{"scenario_a": {}}') == {}
+    assert plans_from_json("broken") == {}
+    source = _confirmation_plan()
+    source["steps"][1]["kind"] = "script"
+    assert normalize_confirmation_plans({"a": source}) == {}
+    source = _confirmation_plan()
+    source["closed_candles"] = "3"
+    source["wait_minutes"] = 0
+    plans = normalize_confirmation_plans({"a": source})
+    assert plans["a"]["closed_candles"] is None
+    assert plans["a"]["wait_minutes"] is None
+
+
+def test_confirmation_chart_mirrors_sell_and_limits_wait_entry():
+    buy = normalize_confirmation_plans({"a": _confirmation_plan("buy")})["a"]
+    sell = normalize_confirmation_plans({"a": _confirmation_plan("sell")})["a"]
+    buy_chart = build_confirmation_chart(buy)
+    sell_chart = build_confirmation_chart(sell)
+    assert buy_chart["candles"][2]["body_top"] < buy_chart["level_y"]
+    assert sell_chart["candles"][2]["body_top"] >= sell_chart["level_y"]
+    wait = _confirmation_plan("wait")
+    wait["steps"] = wait["steps"][:2]
+    assert normalize_confirmation_plans({"a": wait})["a"]["direction"] == "wait"
+    assert normalize_confirmation_plans({"a": _confirmation_plan("wait")}) == {}
+
+
+def test_confirmation_candle_count_label():
+    assert closed_candles_label(1) == "1 закрытая свеча"
+    assert closed_candles_label(2) == "2 закрытые свечи"
+    assert closed_candles_label(5) == "5 закрытых свечей"
+    assert closed_candles_label(11) == "11 закрытых свечей"
+    assert closed_candles_label(None) == "не указано"
+
+
 # --- resolve_llm: выбор провайдера (ChatGPT первично, DeepSeek fallback) ---
 
 class _FakeSettings:
@@ -95,18 +157,18 @@ def _patch_settings(monkeypatch, fake):
 
 
 def test_resolve_llm_prefers_chatgpt(monkeypatch):
-    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="ck", llm_key="dk"))
+    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="fake-chatgpt", llm_key="fake-deepseek"))  # pragma: allowlist secret
     r = resolve_llm()
-    assert r.api_key == "ck"
+    assert r.api_key == "fake-chatgpt"
     assert r.model == "gpt-4o"
     assert "openai.com" in r.base_url
 
 
 def test_resolve_llm_fallback_deepseek(monkeypatch):
     # CHATGPT_API_KEY пуст — берём LLM_API_KEY (DeepSeek)
-    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="", llm_key="dk"))
+    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="", llm_key="fake-deepseek"))  # pragma: allowlist secret
     r = resolve_llm()
-    assert r.api_key == "dk"
+    assert r.api_key == "fake-deepseek"
     assert r.model == "deepseek-reasoner"
     assert "deepseek.com" in r.base_url
 
@@ -120,27 +182,27 @@ def test_resolve_llm_no_keys(monkeypatch):
 
 def test_chatgpt_client_from_settings_fallback(monkeypatch):
     # без CHATGPT_API_KEY from_settings должен идти на DeepSeek
-    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="", llm_key="dk"))
+    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="", llm_key="fake-deepseek"))  # pragma: allowlist secret
     client = ChatGPTClient.from_settings()
     assert client.provider == "deepseek"
 
 
 def test_resolve_llm_force_chatgpt(monkeypatch):
     # явный choice=chatgpt, даже если есть только DeepSeek -> пусто (ключей ChatGPT нет)
-    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="", llm_key="dk"))
+    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="", llm_key="fake-deepseek"))  # pragma: allowlist secret
     r = resolve_llm("chatgpt")
     assert r.api_key == ""
     # с обоими ключами force-deepseek отдаёт именно DeepSeek
-    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="ck", llm_key="dk"))
+    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="fake-chatgpt", llm_key="fake-deepseek"))  # pragma: allowlist secret
     r = resolve_llm("deepseek")
-    assert r.api_key == "dk"
+    assert r.api_key == "fake-deepseek"
     assert r.model == "deepseek-reasoner"
 
 
 def test_resolve_llm_force_deepseek_ignores_chatgpt(monkeypatch):
-    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="ck", llm_key="dk"))
+    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="fake-chatgpt", llm_key="fake-deepseek"))  # pragma: allowlist secret
     r = resolve_llm("deepseek")
-    assert r.api_key == "dk"
+    assert r.api_key == "fake-deepseek"
     r2 = resolve_llm("chatgpt")
-    assert r2.api_key == "ck"
+    assert r2.api_key == "fake-chatgpt"
 

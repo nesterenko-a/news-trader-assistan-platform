@@ -1,6 +1,6 @@
 # 10. Спецификация API
 
-**Статус:** утверждено v1.37 (число участников в ответе OI)
+**Статус:** утверждено v1.41 (группы и повтор Top-5)
 **Система:** NewsTrader Assistant
 
 Программный интерфейс системы. Фактический машиночитаемый контракт — [openapi/openapi.json](../openapi/openapi.json): он генерируется из API-маршрутов FastAPI, версионируется вместе с кодом и проверяется автоматически. Этот документ описывает назначение и правила API; изменения реализации и OpenAPI должны соответствовать ему.
@@ -281,21 +281,22 @@ GET /v1/indicators/oi?ticker=W4V6&from=2026-07-20&to=2026-08-05
 
 Веб-страницы:
 - `GET /securities/{ticker}` — на карточке акций/фьючерсов кнопка «Теханализ в LLM» + панель этапов + блок карточек результатов (≤4/стр. + пагинация `?ta_page=N`).
-- `GET /tech_analysis/{id}` — полный ответ (карточки сценариев A/B/C в шапке из раздела «Моя стратегия», рендер Markdown, кнопки «Скачать запрос/ответ (MD)», «Повторить»).
+- `GET /tech_analysis/{id}` — полный ответ (карточки сценариев A/B/C в шапке, свечная схема условий главы 10 при наличии структурированного плана, оглавление, рендер Markdown, кнопки «Скачать запрос/ответ (MD)», «Повторить»). Формат API `/status` и скачиваемого `/response.md` не изменился; план остаётся внутренней частью `scenario_json` (см. [07-data-model.md](./07-data-model.md) §2.19).
 
-### 3.11. Top-5: лучшая сделка из шаблона акций (Теханализ группы)
+### 3.11. Top-5: лучшая сделка из шаблона инструментов (Теханализ группы)
 
-Все эндпоинты требуют аутентификации (Bearer-токен или cookie `nt_token`). Работают с «Шаблонами инструментов» `kind=stock` (см. [archive/25-top5-trades.md](./archive/25-top5-trades.md)).
+Все эндпоинты требуют аутентификации (Bearer-токен или cookie `nt_token`). Работают с «Шаблонами инструментов» `kind=stock` и `kind=futures` (первоначальный дизайн — [archive/25-top5-trades.md](./archive/25-top5-trades.md)).
 
-- `GET /v1/top5?template_id=&limit=` — рейтинг Top-5 лучших сделок по акциям шаблона: `{template, total, as_of, items:[{ticker, name, strategy, dir, entry, stop, targets, rr, probability, expected_r, score, price, as_of, scenarios:{a,b,c}, final_assessment:{key_level, main_risk, recommendation}, analysis_id}]}` (`price` — текущая цена бумаги; `as_of` — дата формирования прогноза; `scenarios` — все 3 сценария A/B/C; `final_assessment` — Ключевой уровень/Главный риск/Моя рекомендация из «Итоговой оценки»).
-- `POST /v1/top5/run?template_id=&provider=` — запуск батча Теханализа по акциям шаблона (создаёт `tech_analysis_batches` + по анализу на акцию, переиспользуя актуальные успешные); `409` при активном батче, `404` при неверном шаблоне/отсутствии ключа LLM.
-- `GET /v1/top5/{batch_id}/status` — прогресс батча: `{batch_id, status, total, done, success, running, failed, stage}`.
-- `GET /v1/top5/{batch_id}` — детали: анализы по акциям шаблона (ticker, status, analysis_id, verdict).
+- `GET /v1/top5?template_id=&limit=` — рейтинг Top-5 лучших сделок по инструментам шаблона: `{template, total, qualified, as_of, items:[{ticker, name, strategy, dir, entry, stop, targets, rr, probability, expected_r, score, price, as_of, liquidity_rub_day, has_confirmation_plan, scenarios:{a,b,c}, final_assessment:{key_level, main_risk, recommendation}, analysis_id}]}`. По умолчанию `limit=5`; `qualified` — число по фиксированным порогам R/R ≥ 1,5, риск ≤ 4%, уверенность ≥ 40%, без WAIT. `liquidity_rub_day` — средний дневной оборот (₽) за 10–20 валидных свечей последних 45 дней или `null`; `has_confirmation_plan` — валидный план входа для выбранного сценария, не факт исполнения. `price` — текущая цена; `as_of` — дата прогноза; `scenarios` — A/B/C; `final_assessment` — поля «Итоговой оценки». Настраиваемый фильтр веб-страницы работает в браузере над полным набором кандидатов и не меняет контракт этого запроса.
+- `POST /v1/top5/run?template_id=&provider=&force=` — создаёт последовательные группы по `TOP5_BATCH_SIZE` акций и возвращает `{batch_id, batch_ids, template_id, status, force}`. Для 30 акций при стандартном размере 10 создаются три батча, каждый с десятью записями анализа. Свежие успешные результаты копируются в новый батч при `force=false`; `409` при уже активных группах, `404` при неверном шаблоне.
+- `GET /v1/top5/{batch_id}/status` — прогресс группы: `{batch_id, status, total, done, success, running, failed, queued, stage, items:[{id,ticker,status,stage,verdict,error}]}`. Статусы групп: `queued/running/success/partial/failed`; `404` для неизвестной группы.
+- `POST /v1/top5/{batch_id}/items/{analysis_id}/retry` — полный повтор ошибочного анализа в той же записи; `404`, если запись не принадлежит группе, `409`, если статус не `failed` или повтор нельзя запустить. Прогресс этой строки читается через `/status` без перезагрузки страницы.
+- `GET /v1/top5/{batch_id}` — детали: анализы по инструментам шаблона (ticker, status, analysis_id, verdict).
 
-Конфигурация `.env`: `TOP5_FRESH_HOURS` (актуальность анализ для переиспользования, по умолчанию 6), `TOP5_MAX_INSTRUMENTS` (лимит акций в батче, 20).
+Конфигурация `.env`: `TOP5_FRESH_HOURS` (актуальность анализа для переиспользования, по умолчанию 6), `TOP5_BATCH_SIZE` (размер последовательной группы, по умолчанию 10; заполнение — [13-operations.md](./13-operations.md)). Старый `TOP5_MAX_INSTRUMENTS` игнорируется.
 
 Веб-страницы:
-- `GET /top5` — выбор шаблона (kind=stock), кнопка «Отправить на Теханализ в LLM», таблица Top-5 с раскрытием сценариев A/B/C.
+- `GET /top5` — выбор шаблона акций или фьючерсов, кнопка «Теханализ в LLM», таблица Top-5 с раскрытием сценариев A/B/C.
 - `GET /admin/futures-templates` — «Шаблоны инструментов» (kind stock/futures; для акций — список из `/v1/indicators/stocks`).
 
 ### 3.12. Реальное время (live-котировки, SSE)

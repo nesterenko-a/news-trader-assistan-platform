@@ -9,6 +9,7 @@
 """
 
 import asyncio
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -41,9 +42,9 @@ from app.graph.service import seed_graph
 from app.config import get_settings
 
 ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "admin123"
+ADMIN_PASSWORD = "admin123"  # pragma: allowlist secret
 USER_USERNAME = "user"
-USER_PASSWORD = "user123"
+USER_PASSWORD = "user123"  # pragma: allowlist secret
 
 
 async def seed(db_url: str) -> None:
@@ -104,6 +105,24 @@ async def seed(db_url: str) -> None:
         ta = await session.scalar(
             select(TechAnalysis).where(TechAnalysis.ticker == "SBER", TechAnalysis.batch_id.isnot(None))
         )
+        confirmation_data = {
+            "scenario_a": {"title": "A", "entry": "100-105", "stop": "98", "targets": "115", "why": "ok", "probability": 0.65, "rr": 2.5},
+            "scenario_b": {"title": "B", "entry": "98", "stop": "105", "targets": "90", "why": "альтернатива", "probability": 0.25, "rr": 1.5},
+            "scenario_c": {},
+            "confirmation_plans": {
+                "a": {"direction": "buy", "timeframe": "1ч", "level_label": "зона 100–105", "steps": [
+                    {"kind": "approach", "label": "Подход", "detail": "Цена подходит к зоне"},
+                    {"kind": "close", "label": "Закрытие", "detail": "Свеча закрывается выше зоны"},
+                    {"kind": "entry", "label": "Вход", "detail": "После подтверждения"},
+                ], "closed_candles": 1, "wait_minutes": None, "confirmations": ["объём растёт"], "cancellations": ["закрытие ниже зоны"]},
+                "b": {"direction": "sell", "timeframe": None, "level_label": "зона 98", "steps": [
+                    {"kind": "approach", "label": "Подход", "detail": "Цена подходит к зоне"},
+                    {"kind": "breakout", "label": "Пробой", "detail": "Цена уходит ниже зоны"},
+                    {"kind": "entry", "label": "Вход", "detail": "После пробоя"},
+                ], "closed_candles": None, "wait_minutes": None, "confirmations": [], "cancellations": ["возврат выше зоны"]},
+            },
+        }
+        confirmation_response = "## 1. Рынок\nКонтекст.\n\n## 10. Что должно подтвердить сделку\nЖдать закрытия свечи выше зоны.\n\n## 10. Риски\nУчитывать риск."
         if ta is None:
             batch = await session.scalar(
                 select(TechAnalysisBatch).where(TechAnalysisBatch.template_id == tpl.id)
@@ -121,14 +140,92 @@ async def seed(db_url: str) -> None:
                     entry="100-105",
                     tp="115",
                     sl="98",
-                    scenario_json=(
-                        '{"scenario_a":{"title":"A","entry":"100-105","stop":"98",'
-                        '"targets":"115","why":"ok","probability":0.65,"rr":2.5},'
-                        '"scenario_b":{},"scenario_c":{}}'
-                    ),
+                    scenario_json=json.dumps(confirmation_data, ensure_ascii=False),
+                    response_md=confirmation_response,
+                    await_confirmation=True,
                     model="e2e",
                     finished_at=datetime.now(timezone.utc),
                     batch_id=batch.id,
+                )
+            )
+        else:
+            ta.scenario_json = json.dumps(confirmation_data, ensure_ascii=False)
+            ta.response_md = confirmation_response
+            ta.await_confirmation = True
+            ta.finished_at = datetime.now(timezone.utc)
+        retry_template = await session.scalar(select(FuturesTemplate).where(FuturesTemplate.name == "e2e_top5_retry_future"))
+        if retry_template is None:
+            retry_template = FuturesTemplate(name="e2e_top5_retry_future", tickers="FUTRETRY", kind="futures")
+            session.add(retry_template)
+            await session.flush()
+        retry_batch = await session.scalar(select(TechAnalysisBatch).where(TechAnalysisBatch.template_id == retry_template.id))
+        if retry_batch is None:
+            retry_batch = TechAnalysisBatch(template_id=retry_template.id, status="failed")
+            session.add(retry_batch)
+            await session.flush()
+        retry_analysis = await session.scalar(select(TechAnalysis).where(TechAnalysis.batch_id == retry_batch.id))
+        if retry_analysis is None:
+            session.add(TechAnalysis(
+                ticker="FUTRETRY", status="failed", stage="done", error="тестовая ошибка",
+                batch_id=retry_batch.id,
+            ))
+        filter_template = await session.scalar(select(FuturesTemplate).where(FuturesTemplate.name == "e2e_top5_filter"))
+        if filter_template is None:
+            filter_template = FuturesTemplate(name="e2e_top5_filter", tickers="FILT1,FILT2,FILT3,FILT4,SBER,FILT5", kind="stock")
+            session.add(filter_template)
+        thirty_tickers = [f"THIRTY{i:02d}" for i in range(30)]
+        thirty_template = await session.scalar(select(FuturesTemplate).where(FuturesTemplate.name == "e2e_top5_thirty"))
+        if thirty_template is None:
+            session.add(FuturesTemplate(name="e2e_top5_thirty", tickers=",".join(thirty_tickers), kind="stock"))
+        for ticker in thirty_tickers:
+            analysis = await session.scalar(
+                select(TechAnalysis).where(TechAnalysis.ticker == ticker, TechAnalysis.model == "e2e-thirty")
+            )
+            if analysis is None:
+                analysis = TechAnalysis(ticker=ticker, status="success", stage="done", verdict="BUY", model="e2e-thirty")
+                session.add(analysis)
+            analysis.scenario_json = json.dumps({
+                "scenario_a": {"entry": "100", "stop": "98", "targets": "108", "why": "тест", "probability": 0.6, "rr": 2.0},
+                "scenario_b": {}, "scenario_c": {},
+            }, ensure_ascii=False)
+            analysis.finished_at = datetime.now(timezone.utc)
+        filter_cases = [
+            ("FILT1", "BUY", 0.8, 4.0),
+            ("FILT2", "BUY", 0.75, 3.5),
+            ("FILT3", "SELL", 0.7, 3.0),
+            ("FILT4", "WAIT", 0.6, 3.0),
+            ("FILT5", "BUY", 0.5, 2.0),
+        ]
+        for ticker, verdict, probability, rr in filter_cases:
+            analysis = await session.scalar(
+                select(TechAnalysis).where(TechAnalysis.ticker == ticker, TechAnalysis.model == "e2e-filter")
+            )
+            scenario_json = json.dumps({
+                "scenario_a": {"entry": "100", "stop": "98", "targets": "108", "why": "тестовый сценарий", "probability": probability, "rr": rr},
+                "scenario_b": {}, "scenario_c": {},
+            }, ensure_ascii=False)
+            if analysis is None:
+                session.add(TechAnalysis(
+                    ticker=ticker, status="success", stage="done", verdict=verdict,
+                    scenario_json=scenario_json, model="e2e-filter", finished_at=datetime.now(timezone.utc),
+                ))
+            else:
+                analysis.scenario_json = scenario_json
+                analysis.finished_at = datetime.now(timezone.utc)
+        legacy = await session.scalar(
+            select(TechAnalysis).where(TechAnalysis.ticker == "AFLT", TechAnalysis.model == "e2e-legacy")
+        )
+        if legacy is None:
+            session.add(
+                TechAnalysis(
+                    ticker="AFLT",
+                    status="success",
+                    stage="done",
+                    verdict="WAIT",
+                    scenario_json="[]",
+                    response_md="## 10. Что должно подтвердить сделку\nЖдать подтверждения без заданного срока.",
+                    model="e2e-legacy",
+                    finished_at=datetime.now(timezone.utc),
                 )
             )
         macro_seed = [

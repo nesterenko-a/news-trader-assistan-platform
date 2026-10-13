@@ -116,6 +116,7 @@ from app.market.indicators.adx import calculate_adx
 from app.market.indicators.rsi_indicator import calculate_rsi
 from app.market.indicators.basis_service import basis_for_ticker
 from app.tech_analysis.service import has_active, list_analyses, retry_analysis, start_analysis
+from app.tech_analysis.confirmation import build_confirmation_chart, closed_candles_label, plans_from_json
 from app.news.service import load_security_news
 from app.presentation.factories import WebContextFactory
 from app.presentation.markdown_renderer import render_markdown
@@ -1639,13 +1640,27 @@ async def tech_analysis_page(
     if row.scenario_json:
         try:
             data = _json.loads(row.scenario_json)
-            scenarios = {
-                "a": data.get("scenario_a") or {},
-                "b": data.get("scenario_b") or {},
-                "c": data.get("scenario_c") or {},
-            }
+            if isinstance(data, dict):
+                for key in ("a", "b", "c"):
+                    value = data.get(f"scenario_{key}")
+                    scenarios[key] = value if isinstance(value, dict) else {}
         except (ValueError, TypeError):
             scenarios = {"a": {}, "b": {}, "c": {}}
+    confirmation_plans = plans_from_json(row.scenario_json)
+    if row.verdict in ("BUY", "SELL", "WAIT") and "a" in confirmation_plans:
+        if confirmation_plans["a"]["direction"] != row.verdict.lower():
+            confirmation_plans.pop("a")
+    confirmation_views = [
+        {
+            "key": key,
+            "letter": key.upper(),
+            "plan": confirmation_plans[key],
+            "chart": build_confirmation_chart(confirmation_plans[key]),
+            "closed_candles_label": closed_candles_label(confirmation_plans[key]["closed_candles"]),
+        }
+        for key in ("a", "b", "c")
+        if key in confirmation_plans
+    ]
     provider = (row.provider or "").lower()
     model = row.model or ""
     llm_name = (
@@ -1658,6 +1673,7 @@ async def tech_analysis_page(
             "analysis": row,
             "security_name": security.name if security else row.ticker,
             "scenarios": scenarios,
+            "confirmation_views": confirmation_views,
             "llm_name": llm_name,
             "response_html": render_markdown(row.response_md),
         }
@@ -1710,30 +1726,35 @@ async def top5_page(
     user = await _optional_user(request, session)
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
-    from app.tech_analysis.batch import list_batches, top5 as top5_service
+    from app.tech_analysis.batch import _deal_qualified, _ticker_list, list_batches, top5 as top5_service
 
-    stock_templates = (
+    instrument_templates = (
         await session.scalars(
             select(FuturesTemplate)
-            .where(FuturesTemplate.kind == "stock")
+            .where(FuturesTemplate.kind.in_(("stock", "futures")))
             .order_by(FuturesTemplate.name)
         )
     ).all()
     context = await _base_context(session, user)
     result = None
     selected = None
+    selected_ticker_count = 0
     batches = []
     if template_id is not None:
         try:
             selected = await session.get(FuturesTemplate, template_id)
-            result = await top5_service(session, template_id)
+            selected_ticker_count = len(_ticker_list(selected)) if selected else 0
+            result = await top5_service(session, template_id, limit=selected_ticker_count)
             batches = await list_batches(session, template_id)
             if result is not None and not result.get("items"):
                 for batch in batches:
                     if batch.get("top5"):
                         result = {
                             **result,
-                            "items": batch["top5"][:5],
+                            "items": batch["top5"],
+                            "total": len(batch["top5"]),
+                            "qualified": sum(_deal_qualified(row) for row in batch["top5"]),
+                            "best_score": max((row.get("score") or 0 for row in batch["top5"]), default=None),
                             "as_of": batch.get("as_of"),
                             "stale": True,
                             "source_batch_id": batch["id"],
@@ -1745,10 +1766,12 @@ async def top5_page(
         {
             "templates": [
                 {"id": t.id, "name": t.name, "tickers": t.tickers, "kind": t.kind}
-                for t in stock_templates
+                for t in instrument_templates
             ],
             "selected_template_id": template_id,
             "selected_template": selected,
+            "selected_ticker_count": selected_ticker_count,
+            "top5_batch_size": get_cfg().top5_batch_size,
             "result": result,
             "batches": batches,
         }

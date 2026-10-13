@@ -14,7 +14,7 @@ from sqlalchemy import func, select
 
 from app.config import get_settings
 from app.db.connection import SessionLocal
-from app.db.models import MarketCandle, Security, TechAnalysis
+from app.db.models import MarketCandle, Security, TechAnalysis, TechAnalysisBatch
 from app.market.moex import MOEXClient
 from app.market.oi_data import ensure_futures_security, sync_security_oi
 from app.market.prices import sync_security_prices
@@ -90,14 +90,38 @@ async def _mark_stale_and_fail(session, analysis_id: int) -> None:
     await session.commit()
 
 
+async def _sync_batch_status(analysis_id: int) -> None:
+    async with SessionLocal() as session:
+        row = await session.get(TechAnalysis, analysis_id)
+        if row is None or row.batch_id is None:
+            return
+        batch = await session.get(TechAnalysisBatch, row.batch_id)
+        if batch is None:
+            return
+        rows = (await session.scalars(select(TechAnalysis).where(TechAnalysis.batch_id == row.batch_id))).all()
+        if not rows or any(item.status in ("queued", "running") for item in rows):
+            return
+        failures = sum(item.status == "failed" for item in rows)
+        batch.status = "failed" if failures == len(rows) else "partial" if failures else "success"
+        batch.finished_at = datetime.utcnow()
+        await session.commit()
+
+
 async def mark_stale_running() -> int:
     """При старте приложения помечает все активные (running) записи как failed."""
     async with SessionLocal() as session:
         rows = (
-            await session.scalars(select(TechAnalysis).where(TechAnalysis.status == "running"))
+            await session.scalars(select(TechAnalysis).where(TechAnalysis.status.in_(("running", "queued"))))
         ).all()
+        batch_ids = {row.batch_id for row in rows if row.batch_id is not None}
         for row in rows:
             await _mark_stale_and_fail(session, row.id)
+        for batch_id in batch_ids:
+            batch = await session.get(TechAnalysisBatch, batch_id)
+            if batch is not None:
+                batch.status = "partial"
+                batch.finished_at = datetime.utcnow()
+        await session.commit()
         return len(rows)
 
 
@@ -254,6 +278,7 @@ async def _analyze(analysis_id: int, ticker: str) -> None:
             _active.pop(ticker, None)
     else:
         _active.pop(ticker, None)
+    await _sync_batch_status(analysis_id)
 
 
 async def retry_analysis(analysis_id: int) -> TechAnalysis:
@@ -275,6 +300,41 @@ async def retry_analysis(analysis_id: int) -> TechAnalysis:
         await session.commit()
         _active[ticker] = row.id
     asyncio.create_task(_analyze_retry(analysis_id, ticker))
+    return row
+
+
+async def restart_batch_analysis(session, analysis_id: int) -> TechAnalysis:
+    row = await session.get(TechAnalysis, analysis_id)
+    if row is None:
+        raise KeyError("Анализ не найден")
+    if row.batch_id is None or row.status not in ("queued", "failed"):
+        raise RuntimeError("Повтор доступен только для ожидающего или ошибочного анализа батча")
+    ticker = row.ticker.upper()
+    if ticker in _active:
+        raise RuntimeError("Анализ по этому тикеру уже выполняется")
+    security = await _load_security(session, ticker)
+    if security is None:
+        raise RuntimeError("Бумага не найдена")
+    resolved = resolve_llm(row.provider)
+    if not resolved.api_key:
+        raise RuntimeError("Не задан ключ LLM для выбранного провайдера")
+    row.is_future = security.security_type == "futures"
+    row.model = resolved.model
+    row.status = "running"
+    row.stage = "refreshing_data"
+    row.error = None
+    row.finished_at = None
+    row.request_md = ""
+    row.response_md = None
+    row.verdict = None
+    row.entry = None
+    row.tp = None
+    row.sl = None
+    row.scenario_json = None
+    row.await_confirmation = False
+    await session.commit()
+    _active[ticker] = row.id
+    asyncio.create_task(_analyze(row.id, ticker))
     return row
 
 
@@ -326,6 +386,7 @@ async def _analyze_retry(analysis_id: int, ticker: str) -> None:
             _active.pop(ticker, None)
     else:
         _active.pop(ticker, None)
+    await _sync_batch_status(analysis_id)
 
 
 async def list_analyses(ticker: str, page: int = 1, per_page: int = 4) -> dict:

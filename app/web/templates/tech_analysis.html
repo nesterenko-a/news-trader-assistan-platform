@@ -5,6 +5,8 @@
 {% block content %}
 <link rel="stylesheet" href="/static/katex.min.css">
 <p class="crumb"><a href="/securities/{{ analysis.ticker }}">← {{ analysis.ticker }}</a> · <a href="/">Все бумаги</a></p>
+<div class="tech-analysis-layout">
+<div class="tech-analysis-main">
 
 <section class="card">
   <div class="security-head">
@@ -65,10 +67,63 @@
 </section>
 {% endif %}
 
-<section class="card" style="margin-top:12px">
+<details class="tech-outline-mobile" id="tech-outline-mobile">
+  <summary>На этой странице</summary>
+  <nav id="tech-outline-mobile-links" aria-label="Оглавление анализа"></nav>
+</details>
+
+{% if analysis.status == 'success' %}
+<section class="card tech-confirmation" id="confirmation-block" aria-label="Схема подтверждения сделки">
+  <div class="chart-head"><h3>Как подтвердить вход</h3></div>
+  {% if confirmation_views %}
+  {% if confirmation_views|length > 1 %}
+  <div class="tech-confirmation-tabs" role="tablist" aria-label="Сценарий подтверждения">
+    {% for view in confirmation_views %}<button type="button" class="btn {{ 'active' if loop.first else '' }}" role="tab" id="confirmation-tab-{{ view.key }}" aria-controls="confirmation-panel-{{ view.key }}" aria-selected="{{ 'true' if loop.first else 'false' }}" tabindex="{{ 0 if loop.first else -1 }}" data-confirmation-tab="{{ view.key }}">Сценарий {{ view.letter }}</button>{% endfor %}
+  </div>
+  {% endif %}
+  {% for view in confirmation_views %}
+  <div class="tech-confirmation-panel" id="confirmation-panel-{{ view.key }}" role="tabpanel" {% if confirmation_views|length > 1 %}aria-labelledby="confirmation-tab-{{ view.key }}"{% else %}aria-label="Сценарий {{ view.letter }}"{% endif %} data-confirmation-panel="{{ view.key }}" tabindex="0" {% if not loop.first %}hidden{% endif %}>
+    <p class="muted small">Схема условий, не реальные и не прогнозные свечи. Каждая свеча обозначает этап, а не число свечей закрепления. {{ 'Этапы ещё должны произойти.' if analysis.await_confirmation else 'Этапы показывают условия сценария, а не исполненную сделку.' }}</p>
+    <div class="tech-confirmation-meta">
+      <span>Направление: <b>{{ 'покупка' if view.plan.direction == 'buy' else 'продажа' if view.plan.direction == 'sell' else 'выжидание' }}</b></span>
+      <span>Таймфрейм: <b>{{ view.plan.timeframe or 'не указан' }}</b></span>
+      <span>Ключевой уровень: <b>{{ view.plan.level_label or 'не указан' }}</b></span>
+      <span>Закрепление: <b>{{ view.closed_candles_label }}</b></span>
+      <span>Ожидание: <b>{{ view.plan.wait_minutes ~ ' мин' if view.plan.wait_minutes else 'не указано' }}</b></span>
+    </div>
+    <svg class="tech-confirmation-svg" viewBox="0 0 {{ view.chart.width }} {{ view.chart.height }}" role="img" aria-label="Схематическая последовательность свечей сценария {{ view.letter }}">
+      <line x1="32" x2="{{ view.chart.width - 32 }}" y1="{{ view.chart.level_y }}" y2="{{ view.chart.level_y }}" class="tech-confirmation-level"/>
+      {% for candle in view.chart.candles %}
+      <g class="tech-confirmation-candle {{ 'up' if candle.rising else 'down' }} {{ candle.kind }}">
+        {% if candle.kind == 'entry' %}<circle class="tech-entry-halo" cx="{{ candle.x }}" cy="{{ candle.body_top + candle.body_height / 2 }}" r="20"/>{% endif %}
+        <line x1="{{ candle.x }}" x2="{{ candle.x }}" y1="{{ candle.wick_top }}" y2="{{ candle.wick_bottom }}"/>
+        <rect x="{{ candle.x - 9 }}" y="{{ candle.body_top }}" width="18" height="{{ candle.body_height }}" rx="2"/>
+        {% if candle.kind == 'entry' %}<text class="tech-entry-label" x="{{ candle.x }}" y="20" text-anchor="middle">ВХОД</text>{% endif %}
+        <text x="{{ candle.x }}" y="137" text-anchor="middle">{{ candle.number }}</text>
+      </g>
+      {% endfor %}
+    </svg>
+    <ol class="tech-confirmation-steps">
+      {% for step in view.plan.steps %}<li><b>{{ step.label }}</b><span>{{ step.detail }}</span>{% if step.kind == 'entry' %}<em>Только после подтверждений</em>{% elif step.kind == 'invalidation' %}<em>Условие отмены</em>{% endif %}</li>{% endfor %}
+    </ol>
+    {% if view.plan.confirmations %}<div class="tech-confirmation-conditions"><b>Дополнительные подтверждения</b><ul>{% for item in view.plan.confirmations %}<li>{{ item }}</li>{% endfor %}</ul></div>{% endif %}
+    {% if view.plan.cancellations %}<div class="tech-confirmation-conditions cancel"><b>Отмена сценария</b><ul>{% for item in view.plan.cancellations %}<li>{{ item }}</li>{% endfor %}</ul></div>{% endif %}
+  </div>
+  {% endfor %}
+  {% else %}<p class="muted">Для этого ответа свечная схема недоступна: структурированные условия не заданы. Условия главы 10 приведены в тексте анализа.</p>{% endif %}
+</section>
+{% endif %}
+
+<section class="card" id="tech-response" style="margin-top:12px">
   <div class="chart-head"><h2>Ответ LLM ({{ llm_name }} · {{ analysis.model or '—' }})</h2></div>
   <div class="md-body">{{ response_html|safe }}</div>
 </section>
+</div>
+<aside class="tech-outline" aria-label="Оглавление анализа">
+  <span class="indicators-catalog-title">На этой странице</span>
+  <nav id="tech-outline-links"></nav>
+</aside>
+</div>
 
 <script src="/static/mermaid.min.js"></script>
 <script src="/static/katex.min.js"></script>
@@ -94,6 +149,77 @@
     mermaid.initialize({ startOnLoad: false, theme: 'default' });
     mermaid.run({ nodes: Array.prototype.slice.call(body.querySelectorAll('pre.mermaid')) });
   }
+  var headings = Array.prototype.slice.call(body.querySelectorAll('h2'));
+  var confirmation = document.getElementById('confirmation-block');
+  var chapter = headings.find(function (heading) { return heading.textContent.toLowerCase().indexOf('что должно подтвердить сделку') !== -1; });
+  if (confirmation) {
+    if (chapter) chapter.after(confirmation);
+    else if (confirmation.querySelector('.tech-confirmation-panel')) document.getElementById('tech-response').before(confirmation);
+    else confirmation.remove();
+  }
+  headings.forEach(function (heading, index) { heading.id = 'tech-section-' + index; });
+  var sections = [];
+  var scenarios = document.getElementById('scenarios');
+  if (scenarios) sections.push({ id: 'scenarios', text: 'Сценарии' });
+  headings.forEach(function (heading) { sections.push({ id: heading.id, text: heading.textContent.trim() }); });
+  if (!sections.length) {
+    document.querySelector('.tech-outline').hidden = true;
+    document.getElementById('tech-outline-mobile').hidden = true;
+  }
+  ['tech-outline-links', 'tech-outline-mobile-links'].forEach(function (navId) {
+    var nav = document.getElementById(navId);
+    sections.forEach(function (section) {
+      var link = document.createElement('a');
+      link.href = '#' + section.id;
+      link.textContent = section.text;
+      link.addEventListener('click', function (event) {
+        event.preventDefault();
+        document.getElementById(section.id).scrollIntoView({ behavior: 'smooth', block: 'start' });
+        history.replaceState(null, '', '#' + section.id);
+        var mobile = document.getElementById('tech-outline-mobile');
+        if (mobile) mobile.open = false;
+      });
+      nav.appendChild(link);
+    });
+  });
+  var targets = headings.slice();
+  if (scenarios) targets.unshift(scenarios);
+  if (targets.length && window.IntersectionObserver) {
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        document.querySelectorAll('.tech-outline a, .tech-outline-mobile a').forEach(function (link) {
+          var active = link.hash === '#' + entry.target.id;
+          link.classList.toggle('active', active);
+          if (active) link.setAttribute('aria-current', 'location');
+          else link.removeAttribute('aria-current');
+        });
+      });
+    }, { rootMargin: '-18% 0px -70% 0px' });
+    targets.forEach(function (target) { observer.observe(target); });
+  }
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('[data-confirmation-tab]'));
+  function activateTab(tab) {
+    tabs.forEach(function (item) {
+      var active = item === tab;
+      item.classList.toggle('active', active);
+      item.setAttribute('aria-selected', active ? 'true' : 'false');
+      item.tabIndex = active ? 0 : -1;
+    });
+    document.querySelectorAll('[data-confirmation-panel]').forEach(function (panel) {
+      panel.hidden = panel.dataset.confirmationPanel !== tab.dataset.confirmationTab;
+    });
+  }
+  tabs.forEach(function (tab, index) {
+    tab.addEventListener('click', function () { activateTab(tab); });
+    tab.addEventListener('keydown', function (event) {
+      if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+      event.preventDefault();
+      var next = tabs[(index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length];
+      activateTab(next);
+      next.focus();
+    });
+  });
 })();
 </script>
 {% endblock %}

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "NewsTrader Assistant",
-    "version": "0.26.0"
+    "version": "0.29.0"
   },
   "paths": {
     "/v1/health": {
@@ -3191,6 +3191,59 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Top5 Status V1 Top5  Batch Id  Status Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/top5/{batch_id}/items/{analysis_id}/retry": {
+      "post": {
+        "tags": [
+          "top5"
+        ],
+        "summary": "Top5 Retry Item",
+        "operationId": "top5_retry_item_v1_top5__batch_id__items__analysis_id__retry_post",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Batch Id"
+            }
+          },
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Top5 Retry Item V1 Top5  Batch Id  Items  Analysis Id  Retry Post"
                 }
               }
             }

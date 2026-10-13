@@ -396,7 +396,7 @@ async def test_api_update_empty_name_rejected(session):
 
 
 async def test_registration_seeds_default_sources(session):
-    out = await register(RegisterIn(username="newuser", password="secret123"), session)
+    out = await register(RegisterIn(username="newuser", password="test-password-123"), session)  # pragma: allowlist secret
     assert out["username"] == "newuser"
     user = await session.scalar(select(User).where(User.username == "newuser"))
     rows = await user_sources(session, user.id, kind="rss")
