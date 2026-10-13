@@ -144,14 +144,15 @@
           </span>
           <span class="sort-sym" data-col="score"></span>
         </th>
+        <th aria-label="Раскрыть сделку"></th>
       </tr></thead>
       <tbody>
         {% for r in result['items'] %}
         <tr class="top5-row" data-idx="{{ loop.index0 }}" data-rank="{{ loop.index0 }}" data-dir="{{ r.dir }}" data-score="{{ r.score if r.score is not none else '' }}" data-rr="{{ r.rr if r.rr is not none else '' }}" data-risk="{{ r.risk if r.risk is not none else '' }}" data-probability="{{ r.probability if r.probability is not none else '' }}" data-liquidity="{{ r.liquidity_rub_day if r.liquidity_rub_day is not none else '' }}" data-plan="{{ '1' if r.has_confirmation_plan else '0' }}" aria-expanded="false" aria-controls="detail-{{ loop.index0 }}" tabindex="0" style="cursor:pointer;{% if loop.index > 5 %}display:none{% endif %}">
           <td class="t5-rank">{{ loop.index }}</td>
-          <td><div class="ticker-label"><span class="top5-chevron" aria-hidden="true">▸</span><b>{{ r.ticker }}</b> <span class="badge" title="Стратегия — сценарий {{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }} (лучший по Expected R); все сценарии — в полном разборе">S{{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }}</span></div>
+          <td><div class="ticker-label"><b>{{ r.ticker }}</b> <span class="badge" title="Стратегия — сценарий {{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }} (лучший по Expected R); все сценарии — в полном разборе">S{{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }}</span></div>
               <div class="muted small">{{ r.name }}</div></td>
-          <td>{% if r.dir == 'LONG' %}<span class="long">LONG</span>{% elif r.dir == 'SHORT' %}<span class="short">SHORT</span>{% else %}<span class="muted">Выжидать</span>{% endif %}{% if r.dir in ('LONG','SHORT') and r.await_confirmation %} <span class="await-conf" title="Стратегия определена, ждём подхода цены к точке входа и подтверждающих сигналов">⏳</span>{% endif %}</td>
+          <td>{% if r.dir == 'LONG' %}<span class="top5-dir-badge top5-dir-long">LONG</span>{% elif r.dir == 'SHORT' %}<span class="top5-dir-badge top5-dir-short">SHORT</span>{% else %}<span class="muted">Выжидать</span>{% endif %}{% if r.dir in ('LONG','SHORT') and r.await_confirmation %} <span class="await-conf" title="Стратегия определена, ждём подхода цены к точке входа и подтверждающих сигналов">⏳</span>{% endif %}</td>
           <td data-rt-price="{{ r.ticker }}" data-last="{{ r.price }}">{% if r.price is not none %}{{ '%.2f' | format(r.price) }}{% else %}—{% endif %}</td>
           <td class="top5-entry-reference">{{ '%g' | format(r.entry_reference) if r.entry_reference is not none else '—' }}</td>
           <td>{{ '%g' | format(r.first_target) if r.first_target is not none else '—' }}</td>
@@ -159,29 +160,30 @@
           <td>{% if r.risk is not none %}{{ '%.2f' | format(r.risk) }}%{% else %}—{% endif %}</td>
           <td><span class="score {{ 'high' if (r.score or 0) >= 75 else 'mid' }}">{{ '%.1f' | format(r.score) if r.score is not none else '—' }}</span>
               {% if r.score is not none %}<div class="bar"><span style="width:{{ r.score }}%"></span></div>{% endif %}</td>
+          <td class="top5-expand-cell"><span class="top5-expand-icon" aria-hidden="true">⌄</span></td>
         </tr>
         <tr class="top5-detail" id="detail-{{ loop.index0 }}" style="display:none">
-          <td colspan="9">
-            <div class="top5-level-card">
-              <div class="top5-level-head"><div><span class="top5-level-icon" aria-hidden="true">◎</span><h3>Уровни · {{ r.ticker }}</h3></div><a class="btn top5-open-analysis" href="/tech_analysis/{{ r.analysis_id }}">Открыть разбор ↗</a></div>
-              <div class="top5-level-track" aria-label="Схема уровней выбранного сценария: вход {{ r.entry or 'нет данных' }}, стоп {{ r.stop or 'нет данных' }}, цели {{ r.targets or 'нет данных' }}">
-                <div class="top5-level-point top5-level-entry"><span class="top5-level-label">Вход</span><span class="top5-level-dot" aria-hidden="true"></span><strong>{{ r.entry or '—' }}</strong></div>
-                <div class="top5-level-point top5-level-stop"><span class="top5-level-label">Стоп</span><span class="top5-level-dot" aria-hidden="true"></span><strong>{{ r.stop or '—' }}</strong></div>
-                {% for target in r.target_levels %}<div class="top5-level-point top5-level-target"><span class="top5-level-label">Цель {{ loop.index }}</span><span class="top5-level-dot" aria-hidden="true"></span><strong>{{ target }}</strong></div>{% endfor %}
-                {% if not r.target_levels %}<div class="top5-level-point top5-level-target"><span class="top5-level-label">Цели</span><span class="top5-level-dot" aria-hidden="true"></span><strong>—</strong></div>{% endif %}
+          <td colspan="10">
+            <div class="top5-deal-panel">
+              <div class="top5-level-card">
+                <div class="top5-panel-heading"><span class="top5-level-icon" aria-hidden="true">◎</span><h3>Уровни</h3></div>
+                <div class="top5-level-track" aria-label="Схема уровней выбранного сценария: вход {{ r.entry or 'нет данных' }}, стоп {{ r.stop or 'нет данных' }}, цели {{ r.targets or 'нет данных' }}">
+                  <div class="top5-level-point top5-level-entry"><span class="top5-level-label">Вход</span><span class="top5-level-dot" aria-hidden="true"></span><strong>{{ r.entry or '—' }}</strong></div>
+                  <div class="top5-level-point top5-level-stop"><span class="top5-level-label">Стоп</span><span class="top5-level-dot" aria-hidden="true"></span><strong>{{ r.stop or '—' }}</strong></div>
+                  {% for target in r.target_levels %}<div class="top5-level-point top5-level-target"><span class="top5-level-label">Цель {{ loop.index }}</span><span class="top5-level-dot" aria-hidden="true"></span><strong>{{ target }}</strong></div>{% endfor %}
+                  {% if not r.target_levels %}<div class="top5-level-point top5-level-target"><span class="top5-level-label">Цели</span><span class="top5-level-dot" aria-hidden="true"></span><strong>—</strong></div>{% endif %}
+                </div>
+                <p class="muted small top5-level-note">Отметки не в ценовом масштабе.</p>
               </div>
-              <p class="muted small top5-level-note">Схема последовательности уровней; расстояния между отметками не соответствуют ценовому масштабу.</p>
+              <div class="top5-scenario-panel">
+                <div class="top5-panel-heading"><span class="top5-panel-icon" aria-hidden="true">▤</span><h3>Сценарий {{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }}</h3></div>
+                <div class="top5-confirmation-card"><strong>{% if r.dir == 'WAIT' %}Выжидать{% elif r.await_confirmation %}⏳ Ждёт подтверждения{% elif r.has_confirmation_plan %}План подтверждения{% else %}Условия входа не заданы{% endif %}</strong><p>{% if r.confirmation_entry_detail %}{{ r.confirmation_entry_detail }}{% elif r.has_confirmation_plan %}Условия входа указаны в полном разборе.{% else %}Проверьте условия в полном разборе.{% endif %}{% if r.confirmation_signal %}<br>Сигнал: {{ r.confirmation_signal }}{% endif %}</p></div>
+              </div>
+              <div class="top5-analysis-panel">
+                <div class="top5-panel-heading"><span class="top5-panel-icon" aria-hidden="true">▥</span><h3>Открыть разбор</h3></div>
+                <a class="btn active top5-open-analysis" href="/tech_analysis/{{ r.analysis_id }}">Открыть разбор →</a>
+              </div>
             </div>
-            <p class="muted small" style="margin:10px 0">Средний оборот: {% if r.liquidity_rub_day is not none %}{{ '%.1f' | format(r.liquidity_rub_day / 1000000) }} млн ₽/день{% else %}нет данных{% endif %} · План подтверждения входа: {{ 'есть' if r.has_confirmation_plan else 'нет' }}{% if r.has_confirmation_plan %}; выполнение условий нужно проверить отдельно{% endif %}</p>
-            {% set fa = r.final_assessment if r.final_assessment else {} %}
-            {% if fa and (fa.get('key_level') or fa.get('main_risk') or fa.get('recommendation')) %}
-            <div style="margin-top:12px;border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--panel-2)">
-              <div class="chart-head"><b>Итоговая оценка</b></div>
-              {% if fa.get('key_level') %}<p class="small" style="margin:8px 0 0"><span class="label">Ключевой уровень</span> <span class="value" style="font-size:15px">{{ fa.key_level }}</span></p>{% endif %}
-              {% if fa.get('main_risk') %}<p class="small" style="margin:8px 0 0"><span class="label">Главный риск</span> <span class="value" style="font-size:15px">{{ fa.main_risk }}</span></p>{% endif %}
-              {% if fa.get('recommendation') %}<p class="small" style="margin:8px 0 0"><span class="label">Моя рекомендация</span> <span class="value" style="font-size:15px">{{ fa.recommendation }}</span></p>{% endif %}
-            </div>
-            {% endif %}
           </td>
         </tr>
         {% endfor %}
@@ -461,6 +463,7 @@
     var visible = passed.slice(0, 5);
     pairs.forEach(function (pair) {
       pair.main.style.display = 'none';
+      pair.main.setAttribute('aria-expanded', 'false');
       if (pair.detail) pair.detail.style.display = 'none';
     });
     passed.concat(pairs.filter(function (pair) { return passed.indexOf(pair) === -1; })).forEach(function (pair) {

@@ -337,10 +337,13 @@ def test_best_strategy_marks_matching_confirmation_plan():
         "direction": "buy", "steps": [
             {"kind": "approach", "label": "Подход", "detail": "Подойти к уровню"},
             {"kind": "entry", "label": "Вход", "detail": "После закрепления"},
-        ],
+        ], "confirmations": ["Объём растёт"],
     }}
     analysis = {"ticker": "X", "id": 1, "verdict": "BUY", "scenario_json": json.dumps(data)}
-    assert best_strategy([analysis])["has_confirmation_plan"] is True
+    best = best_strategy([analysis])
+    assert best["has_confirmation_plan"] is True
+    assert best["confirmation_entry_detail"] == "После закрепления"
+    assert best["confirmation_signal"] == "Объём растёт"
     analysis["verdict"] = "SELL"
     assert best_strategy([analysis])["has_confirmation_plan"] is False
 

@@ -545,6 +545,15 @@ def best_strategy(tickers_analyses: list[dict]) -> dict | None:
             if er is None:
                 continue
             dir_label = {"BUY": "LONG", "SELL": "SHORT", "WAIT": "WAIT"}.get(cur_verdict, "WAIT")
+            confirmation_plan = confirmation_plans.get(key[-1], {})
+            has_confirmation_plan = (
+                cur_verdict in ("BUY", "SELL")
+                and confirmation_plan.get("direction") == cur_verdict.lower()
+            )
+            entry_step = next(
+                (step for step in confirmation_plan.get("steps", []) if step["kind"] == "entry"),
+                None,
+            ) if has_confirmation_plan else None
             candidate = {
                 "ticker": ana.get("ticker"),
                 "name": ana.get("name") or ana.get("ticker"),
@@ -569,10 +578,9 @@ def best_strategy(tickers_analyses: list[dict]) -> dict | None:
                 "scenarios": _all_scenarios(ana),
                 "price": ana.get("price"),
                 "liquidity_rub_day": ana.get("liquidity_rub_day"),
-                "has_confirmation_plan": (
-                    cur_verdict in ("BUY", "SELL")
-                    and confirmation_plans.get(key[-1], {}).get("direction") == cur_verdict.lower()
-                ),
+                "has_confirmation_plan": has_confirmation_plan,
+                "confirmation_entry_detail": entry_step["detail"] if entry_step else "",
+                "confirmation_signal": confirmation_plan.get("confirmations", [""])[0] if has_confirmation_plan and confirmation_plan.get("confirmations") else "",
                 "as_of": ana.get("as_of"),
                 # Ключевой уровень / Главный риск / Моя рекомендация (из «Итоговой оценки»)
                 "final_assessment": parse_final_assessment(ana.get("response_md") or ""),

@@ -101,6 +101,8 @@ test.describe("Top-5: лучшая сделка из шаблона акций",
       await expect(page.locator("#top5-table thead")).toContainText("Цель 1");
       await expect(page.locator("#top5-table thead")).not.toContainText("Стоп");
       await expect(row.locator(".top5-entry-reference")).not.toContainText(/[-–—]\s*\d/);
+      await expect(row.locator(".top5-expand-cell")).toBeVisible();
+      await expect(row.locator(".top5-expand-icon")).toHaveText("⌄");
       await expect(row).toHaveAttribute("aria-expanded", "false");
       await row.click();
       await expect(page.locator(".top5-detail").first()).toBeVisible();
@@ -110,11 +112,17 @@ test.describe("Top-5: лучшая сделка из шаблона акций",
       await expect(detail.locator(".top5-level-entry strong")).not.toBeEmpty();
       await expect(detail.locator(".top5-level-stop strong")).not.toBeEmpty();
       await expect(detail.locator(".top5-level-target").first()).toBeVisible();
-      await expect(detail.locator(".top5-open-analysis")).toHaveText("Открыть разбор ↗");
+      await expect(detail.locator(".top5-deal-panel")).toBeVisible();
+      await expect(detail.locator(".top5-scenario-panel")).toBeVisible();
+      await expect(detail.locator(".top5-analysis-panel")).toBeVisible();
+      await expect(detail.locator(".top5-open-analysis")).toHaveText("Открыть разбор →");
       await expect(detail.locator(".top5-open-analysis")).toHaveAttribute("href", /\/tech_analysis\/\d+/);
-      await expect(detail.getByText("Сценарий A")).toHaveCount(0);
+      await expect(detail.locator(".top5-scenario-panel h3")).toContainText(/^Сценарий [ABC]$/);
+      await expect(detail.getByText("Итоговая оценка")).toHaveCount(0);
       await expect(detail.getByText("Сценарий B")).toHaveCount(0);
       await expect(detail.getByText("Сценарий C")).toHaveCount(0);
+      const columns = await detail.locator(".top5-deal-panel").evaluate(panel => getComputedStyle(panel).gridTemplateColumns.split(" ").map(parseFloat));
+      expect(columns[0]).toBeGreaterThan(columns[1] * 1.7);
       await row.focus();
       await page.keyboard.press("Enter");
       await expect(page.locator(".top5-detail").first()).toBeHidden();
