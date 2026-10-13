@@ -1728,10 +1728,10 @@ async def top5_page(
         return RedirectResponse(url="/login", status_code=303)
     from app.tech_analysis.batch import _deal_qualified, _ticker_list, list_batches, top5 as top5_service
 
-    stock_templates = (
+    instrument_templates = (
         await session.scalars(
             select(FuturesTemplate)
-            .where(FuturesTemplate.kind == "stock")
+            .where(FuturesTemplate.kind.in_(("stock", "futures")))
             .order_by(FuturesTemplate.name)
         )
     ).all()
@@ -1766,12 +1766,12 @@ async def top5_page(
         {
             "templates": [
                 {"id": t.id, "name": t.name, "tickers": t.tickers, "kind": t.kind}
-                for t in stock_templates
+                for t in instrument_templates
             ],
             "selected_template_id": template_id,
             "selected_template": selected,
             "selected_ticker_count": selected_ticker_count,
-            "top5_limit": get_cfg().top5_max_instruments,
+            "top5_batch_size": get_cfg().top5_batch_size,
             "result": result,
             "batches": batches,
         }

@@ -593,7 +593,7 @@ class TechAnalysisBatch(Base):
     """Лёгкий ярлык батча «Теханализ по группе акций шаблона» (Top-5).
 
     Создаётся при запуске батча, связывает одиночные анализы (`batch_id`)
-    из по одной на акцию шаблона kind=stock. Статусы: running / success /
+    из по одной на акцию или фьючерс шаблона. Статусы: queued / running / success /
     partial / failed.
     """
 
@@ -627,7 +627,7 @@ class UserPipelinePref(Base):
 class TechAnalysis(Base):
     """Запись «Теханализ в LLM»: отправка набора данных по бумаге в ChatGPT.
 
-    Статусы: running / success / failed; этапы: refreshing_data /
+    Статусы: queued / running / success / failed; этапы: queued / refreshing_data /
     forming_request / awaiting_llm / done. Карточка-результат формируется
     из Сценария A ответа LLM (verdict/entry/tp/sl).
     """

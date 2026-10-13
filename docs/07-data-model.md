@@ -1,6 +1,6 @@
 # 07. Модель данных
 
-**Статус:** утверждено v1.27 (структурированные подтверждения теханализа)
+**Статус:** утверждено v1.28 (очередь групп Top-5)
 **Система:** NewsTrader Assistant
 
 Описание сущностей системы и их взаимосвязей. Модель представлена концептуально, без привязки к конкретной СУБД (см. [06-architecture.md](./06-architecture.md)).
@@ -325,7 +325,7 @@
 Записи создаются при запуске скриптов из веб-интерфейса `/admin` (журнал действий администратора). Остановка не откатывает уже сохранённый скриптом результат: журнал получает `stopped`, ненулевой код выхода и отметку в `output`.
 
 ### 2.12.2.1. FuturesTemplate (шаблон инструментов)
-Именованный список инструментов (SECID фьючерсов или тикеров акций): фьючерсы — для наблюдения за OI и синхронизации свечей в фазе 2 Ежедневного конвейера, акции (kind=stock) — для пакетного теханализа Top-5 (см. [14-web-interface.md](./14-web-interface.md), архивное ТЗ [archive/25-top5-trades.md](./archive/25-top5-trades.md)). Создаётся на странице «Шаблоны фьючерсов» админки.
+Именованный список инструментов (SECID фьючерсов или тикеров акций): фьючерсы — для наблюдения за OI и синхронизации свечей в фазе 2 Ежедневного конвейера; оба типа шаблонов доступны для пакетного теханализа Top-5 (см. [14-web-interface.md](./14-web-interface.md), архивное ТЗ [archive/25-top5-trades.md](./archive/25-top5-trades.md)). Создаётся на странице «Шаблоны инструментов» админки.
 
 | Поле | Тип | Описание |
 |---|---|---|
@@ -536,8 +536,8 @@
 | user_id | FK, null | Пользователь, запустивший разбор |
 | ticker | string | Тикер бумаги |
 | is_future | bool | Фьючерс (true) или акция |
-| status | enum | running / success / failed |
-| stage | enum | refreshing_data / forming_request / awaiting_llm / done |
+| status | enum | queued / running / success / failed |
+| stage | enum | queued / refreshing_data / forming_request / awaiting_llm / done |
 | request_md | text | Сформированный запрос (markdown) |
 | response_md | text, null | Ответ LLM |
 | verdict / entry / tp / sl | text, null | Карточка-результат из Сценария A ответа (buy / sell / wait) |
@@ -551,14 +551,14 @@
 
 ### 2.20. TechAnalysisBatch (батч теханализа Top-5)
 
-Ярлык пакетного запуска «Теханализ по группе акций шаблона» (архивное ТЗ [archive/25-top5-trades.md](./archive/25-top5-trades.md)): связывает одиночные разборы (`batch_id`) по одному на акцию шаблона kind=stock.
+Ярлык пакетного запуска «Теханализ по группе инструментов шаблона» (архивное ТЗ [archive/25-top5-trades.md](./archive/25-top5-trades.md)): связывает одиночные разборы (`batch_id`) по одному на акцию или фьючерс шаблона. Для большого шаблона создаётся несколько последовательных групп.
 
 | Поле | Тип | Описание |
 |---|---|---|
 | id | PK | Идентификатор |
 | user_id | FK, null | Пользователь |
-| template_id | FK → futures_templates, null | Шаблон акций |
-| status | enum | running / success / partial / failed |
+| template_id | FK → futures_templates, null | Шаблон акций или фьючерсов |
+| status | enum | queued / running / success / partial / failed |
 | created_at / finished_at | datetime | Время запуска и завершения |
 
 ### 2.21. RealtimeConfig (настройки реального времени)
@@ -599,7 +599,7 @@ Singleton-строка настроек реалтайм-актуализаци�
 | User → WatchlistItem → Security | Пользователь отслеживает бумаги |
 | User → UserFavorite → Security | Избранные бумаги пользователя (звезда) |
 | User → UserSource → Source | Личные источники пользователя |
-| TechAnalysisBatch → TechAnalysis | Батч Top-5 объединяет разборы акций шаблона |
+| TechAnalysisBatch → TechAnalysis | Батч Top-5 объединяет разборы инструментов шаблона |
 | RealTimeQuote → Security | Live-котировка бумаги (1:1) |
 | User → PortfolioPosition → Security | Позиции пользователя по бумагам |
 | User → Alert → Security/Article | Алерты по значимым новостям отслеживаемых бумаг |

@@ -153,6 +153,22 @@ async def seed(db_url: str) -> None:
             ta.response_md = confirmation_response
             ta.await_confirmation = True
             ta.finished_at = datetime.now(timezone.utc)
+        retry_template = await session.scalar(select(FuturesTemplate).where(FuturesTemplate.name == "e2e_top5_retry_future"))
+        if retry_template is None:
+            retry_template = FuturesTemplate(name="e2e_top5_retry_future", tickers="FUTRETRY", kind="futures")
+            session.add(retry_template)
+            await session.flush()
+        retry_batch = await session.scalar(select(TechAnalysisBatch).where(TechAnalysisBatch.template_id == retry_template.id))
+        if retry_batch is None:
+            retry_batch = TechAnalysisBatch(template_id=retry_template.id, status="failed")
+            session.add(retry_batch)
+            await session.flush()
+        retry_analysis = await session.scalar(select(TechAnalysis).where(TechAnalysis.batch_id == retry_batch.id))
+        if retry_analysis is None:
+            session.add(TechAnalysis(
+                ticker="FUTRETRY", status="failed", stage="done", error="тестовая ошибка",
+                batch_id=retry_batch.id,
+            ))
         filter_template = await session.scalar(select(FuturesTemplate).where(FuturesTemplate.name == "e2e_top5_filter"))
         if filter_template is None:
             filter_template = FuturesTemplate(name="e2e_top5_filter", tickers="FILT1,FILT2,FILT3,FILT4,SBER,FILT5", kind="stock")

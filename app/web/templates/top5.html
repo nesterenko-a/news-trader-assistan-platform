@@ -3,6 +3,7 @@
 {% block title %}Top-5 — лучшие сделки — NewsTrader Assistant{% endblock %}
 
 {% block content %}
+<style>@keyframes top5-spin{to{transform:rotate(360deg)}}.top5-spinner{display:inline-block;width:13px;height:13px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;vertical-align:middle;animation:top5-spin .8s linear infinite}</style>
 <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
   <h1 style="margin:0">Отбор сделок — Top 5</h1>
   <p class="muted small" style="margin:0">Все стратегии по бумагам шаблона (Теханализ в LLM) → ранжирование → 5 лучших входов</p>
@@ -10,7 +11,7 @@
 
 <section class="card">
   <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap">
-    <h2 style="margin:0">Шаблон акций (kind=stock)</h2>
+    <h2 style="margin:0">Шаблоны акций и фьючерсов</h2>
     {% if templates %}<span class="muted small">Клик по карточке выбирает шаблон</span>{% endif %}
   </div>
   {% if templates %}
@@ -18,12 +19,12 @@
     {% for t in templates %}
     <a class="mini top5-tpl-card {% if selected_template_id == t.id %}top5-tpl-active{% endif %}" href="/top5?template_id={{ t.id }}" style="text-decoration:none;cursor:pointer">
       <span class="label">{{ t.name }}</span>
-      <span class="muted small" style="display:block;margin-top:4px">Бумаг: {{ t.tickers.split(',') | length }}{% if selected_template_id == t.id %} · выбрано{% endif %}</span>
+      <span class="muted small" style="display:block;margin-top:4px">{{ 'Фьючерсы' if t.kind == 'futures' else 'Акции' }} · инструментов: {{ t.tickers.split(',') | length }}{% if selected_template_id == t.id %} · выбрано{% endif %}</span>
     </a>
     {% endfor %}
   </div>
   {% else %}
-  <p class="muted small" style="margin-top:8px">Шаблонов акций пока нет — создайте «Шаблон инструментов» типа «Акции» в админ-панели (<a href="/admin/futures-templates">Шаблоны инструментов</a>).</p>
+  <p class="muted small" style="margin-top:8px">Шаблонов пока нет — создайте шаблон акций или фьючерсов в админ-панели (<a href="/admin/futures-templates">Шаблоны инструментов</a>).</p>
   {% endif %}
 </section>
 
@@ -34,7 +35,7 @@
       <h2 style="margin:0">{{ selected_template.name }}</h2>
       <span class="badge">Все</span>
     </div>
-    <span class="muted small">Состав шаблона — {{ selected_ticker_count }} бумаг · Лимит запуска — {{ top5_limit }} акций</span>
+    <span class="muted small">Состав шаблона — {{ selected_ticker_count }} инструментов · Группы по {{ top5_batch_size }}</span>
   </div>
 
   <div class="tpl-cloud-mask">
@@ -67,10 +68,10 @@
       </label>
     </div>
     <div style="margin-left:auto;display:flex;gap:8px">
-      <button class="btn active" id="btn-run" type="button" {% if (result and result.get('running')) or selected_ticker_count > top5_limit %}disabled{% endif %}><span>📊</span>Теханализ в LLM</button>
+      <button class="btn active" id="btn-run" type="button" {% if batches | selectattr('status', 'in', ['queued', 'running']) | list | length %}disabled{% endif %}><span>📊</span>Теханализ в LLM</button>
     </div>
   </div>
-  <div id="run-progress" class="muted small" style="margin-top:10px">{% if selected_ticker_count > top5_limit %}Шаблон превышает лимит: уменьшите число акций или увеличьте TOP5_MAX_INSTRUMENTS в .env.{% endif %}</div>
+  <div id="run-progress" class="muted small" style="margin-top:10px"></div>
 </section>
 {% endif %}
 
@@ -210,18 +211,19 @@
     <span class="muted small" id="batches-hint"></span>
   </div>
   <table class="table" style="margin-top:8px">
-    <thead><tr><th>Батч</th><th>Дата</th><th>Статус</th><th>Акций</th><th>Готово</th><th></th></tr></thead>
+    <thead><tr><th>Батч</th><th>Дата</th><th>Статус</th><th>Инструментов</th><th>Готово</th><th></th></tr></thead>
     <tbody id="batches-tbody">
       {% for b in batches %}
       <tr class="batch-row-toggle" data-batch-toggle="{{ b['id'] }}" style="cursor:pointer">
         <td>#{{ b['id'] }}</td>
         <td class="muted small">{{ b['created_at'] }}</td>
-        <td>{% if b['status'] == 'running' %}<span class="run-status run-running">выполняется…</span>
+        <td data-batch-state="{{ b['id'] }}">{% if b['status'] == 'queued' %}<span class="run-status run-warning">в очереди</span>
+            {% elif b['status'] == 'running' %}<span class="run-status run-running">выполняется…</span>
             {% elif b['status'] == 'success' %}<span class="run-status run-success">успех</span>
             {% elif b['status'] == 'partial' %}<span class="run-status run-warning">частично</span>
             {% else %}<span class="run-status run-error">ошибка</span>{% endif %}</td>
         <td>{{ b['total'] }}</td>
-        <td class="muted small">{{ b['success'] }} ок · {{ b['running'] }} в работе · {{ b['failed'] }} сбоев</td>
+        <td class="muted small" data-batch-counts="{{ b['id'] }}">{{ b['success'] }} ок · {{ b['running'] }} в работе · {{ b['failed'] }} сбоев</td>
         <td style="text-align:right"><span class="icon-btn" aria-hidden="true">▾</span></td>
       </tr>
       <tr class="batch-detail" id="batch-detail-{{ b['id'] }}" style="display:none">
@@ -278,16 +280,16 @@
           {% else %}
           <p class="muted small">Готовых сценариев по этому батчу нет (анализы ещё выполняются или завершились без валидных prob/rr).</p>
           {% endif %}
-          <h3 style="margin:12px 0 8px">Состав батча (статусы по акциям)</h3>
+          <h3 style="margin:12px 0 8px">Состав батча (статусы по инструментам)</h3>
           <table class="table">
             <thead><tr><th>Тикер</th><th>Статус</th><th>Вердикт</th><th></th></tr></thead>
             <tbody>
               {% for a in b['items'] %}
-              <tr>
+              <tr data-analysis-id="{{ a['analysis_id'] }}" data-batch-id="{{ b['id'] }}">
                 <td>{{ a['ticker'] }}</td>
-                <td>{{ a['status'] }}{% if a['status'] == 'running' %} · {{ a['stage'] }}{% endif %}</td>
-                <td>{{ a['verdict'] or '—' }}</td>
-                <td>{% if a['status'] == 'success' %}<a href="/tech_analysis/{{ a['analysis_id'] }}">разбор →</a>{% elif a['error'] %}<span class="muted small" title="{{ a['error'] }}">⚠</span>{% endif %}</td>
+                <td class="batch-item-state">{{ a['status'] }}{% if a['status'] == 'running' %} · {{ a['stage'] }}{% endif %}</td>
+                <td class="batch-item-verdict">{{ a['verdict'] or '—' }}</td>
+                <td class="batch-item-action">{% if a['status'] == 'success' %}<a href="/tech_analysis/{{ a['analysis_id'] }}">разбор →</a>{% elif a['status'] == 'failed' %}<button class="btn batch-retry" type="button" data-retry-batch="{{ b['id'] }}" data-retry-analysis="{{ a['analysis_id'] }}" title="{{ a['error'] or 'Повторить анализ' }}" aria-label="Повторить анализ {{ a['ticker'] }}">▶</button>{% elif a['status'] == 'running' %}<span class="top5-spinner" aria-label="Загрузка"></span> <span class="batch-item-percent">25%</span>{% else %}<span class="muted small">в очереди</span>{% endif %}</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -370,8 +372,8 @@
           btn.disabled = false;
           return;
         }
-        progress.textContent = 'Батч #' + res.d.batch_id + ' запущен. Обновляем страницу…';
-        setTimeout(function () { window.location.href = '/top5?template_id=' + templateId; }, 2500);
+        progress.textContent = 'Создано групп: ' + res.d.batch_ids.length + '. Показываем ход анализа…';
+        window.location.href = '/top5?template_id=' + templateId;
       })
       .catch(function () {
         progress.textContent = 'Ошибка сети. Попробуйте ещё раз.';
@@ -541,22 +543,93 @@
     });
   });
 
-  // Авто-поллинг активного (running) батча: обновляем прогресс, при завершении — перезагружаем
   {% if selected_template_id %}
-  var runningBatches = {{ (batches | selectattr('status', 'eq', 'running') | list | map(attribute='id') | list) | tojson | safe if batches else '[]' }};
-  if (runningBatches.length) {
-    var batchId = runningBatches[0];
-    var hint = document.getElementById('batches-hint');
-    var timer = setInterval(function () {
-      fetch('/v1/top5/' + batchId + '/status').then(function (r) { return r.json(); }).then(function (d) {
-        if (hint) hint.textContent = 'Выполняется #' + batchId + ' — успешно ' + d.success + ' из ' + d.total;
-        if (d.status === 'success' || d.status === 'failed' || d.status === 'partial') {
-          clearInterval(timer);
-          window.location.reload();
-        }
-      }).catch(function () {});
-    }, 4000);
+  var watchedBatches = new Set({{ (batches | selectattr('status', 'in', ['queued', 'running']) | list | map(attribute='id') | list) | tojson | safe if batches else '[]' }});
+  var stagePercent = { queued: 0, refreshing_data: 25, forming_request: 55, awaiting_llm: 80, done: 100 };
+  function renderBatchItem(item, batchId) {
+    var row = document.querySelector('[data-analysis-id="' + item.id + '"][data-batch-id="' + batchId + '"]');
+    if (!row) return;
+    row.querySelector('.batch-item-state').textContent = item.status + (item.status === 'running' ? ' · ' + item.stage : '');
+    row.querySelector('.batch-item-verdict').textContent = item.verdict || '—';
+    var action = row.querySelector('.batch-item-action');
+    action.replaceChildren();
+    if (item.status === 'success') {
+      var link = document.createElement('a');
+      link.href = '/tech_analysis/' + item.id;
+      link.textContent = 'разбор →';
+      action.appendChild(link);
+    } else if (item.status === 'failed') {
+      var retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'btn batch-retry';
+      retry.dataset.retryBatch = batchId;
+      retry.dataset.retryAnalysis = item.id;
+      retry.textContent = '▶';
+      retry.title = item.error || 'Повторить анализ';
+      retry.setAttribute('aria-label', 'Повторить анализ ' + item.ticker);
+      action.appendChild(retry);
+    } else if (item.status === 'running') {
+      var spinner = document.createElement('span');
+      spinner.className = 'top5-spinner';
+      spinner.setAttribute('aria-label', 'Загрузка');
+      var percent = document.createElement('span');
+      percent.className = 'batch-item-percent';
+      percent.textContent = ' ' + (stagePercent[item.stage] || 25) + '%';
+      action.append(spinner, percent);
+    } else {
+      action.textContent = 'в очереди';
+    }
   }
+  function pollBatch(batchId) {
+    return fetch('/v1/top5/' + batchId + '/status').then(function (r) {
+      if (!r.ok) throw new Error('Не удалось обновить батч');
+      return r.json();
+    }).then(function (data) {
+      var state = document.querySelector('[data-batch-state="' + batchId + '"]');
+      var counts = document.querySelector('[data-batch-counts="' + batchId + '"]');
+      var labels = { queued: 'в очереди', running: 'выполняется…', success: 'успех', partial: 'частично', failed: 'ошибка' };
+      if (state) state.textContent = labels[data.status] || data.status;
+      if (counts) counts.textContent = data.success + ' ок · ' + data.running + ' в работе · ' + data.failed + ' сбоев';
+      data.items.forEach(function (item) { renderBatchItem(item, batchId); });
+      if (data.status !== 'queued' && data.status !== 'running') watchedBatches.delete(batchId);
+      if (!watchedBatches.size) {
+        var hint = document.getElementById('batches-hint');
+        if (hint) hint.textContent = 'Обработка завершена. Обновите страницу для свежего рейтинга.';
+        btn.disabled = false;
+      }
+    }).catch(function () {});
+  }
+  document.addEventListener('click', function (event) {
+    var retry = event.target.closest('.batch-retry');
+    if (!retry) return;
+    var batchId = Number(retry.dataset.retryBatch);
+    var analysisId = Number(retry.dataset.retryAnalysis);
+    retry.disabled = true;
+    fetch('/v1/top5/' + batchId + '/items/' + analysisId + '/retry', { method: 'POST' })
+      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+      .then(function (res) {
+        if (!res.ok) {
+          retry.disabled = false;
+          var error = document.createElement('span');
+          error.className = 'error small batch-item-error';
+          error.textContent = res.data.detail || 'Не удалось повторить';
+          retry.parentElement.appendChild(error);
+          return;
+        }
+        watchedBatches.add(batchId);
+        renderBatchItem({ id: analysisId, ticker: '', status: 'running', stage: res.data.stage }, batchId);
+        pollBatch(batchId);
+      })
+      .catch(function () {
+        retry.disabled = false;
+        var error = document.createElement('span');
+        error.className = 'error small batch-item-error';
+        error.textContent = 'Ошибка сети';
+        retry.parentElement.appendChild(error);
+      });
+  });
+  watchedBatches.forEach(pollBatch);
+  setInterval(function () { watchedBatches.forEach(pollBatch); }, 3000);
   {% endif %}
 })();
 </script>

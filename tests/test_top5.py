@@ -20,7 +20,7 @@ from app.tech_analysis.batch import (
     _liquidity_by_ticker,
     best_strategy,
     fresh_analysis,
-    get_stock_template,
+    get_instrument_template,
     top5,
 )
 from app.tech_analysis.parser import expected_r, parse_response
@@ -87,6 +87,7 @@ def test_ticker_list():
 
 
 async def test_batch_starts_all_thirty_tickers(session, monkeypatch):
+    from app.db.models import TechAnalysisBatch
     from app.tech_analysis import batch as batch_module
 
     tickers = [f"T{i:02d}" for i in range(30)]
@@ -95,28 +96,180 @@ async def test_batch_starts_all_thirty_tickers(session, monkeypatch):
     await session.flush()
     captured = []
 
-    async def record_batch(batch_id, batch_tickers, user_id, provider, force):
-        captured.extend(batch_tickers)
+    async def record_batches(batch_ids, force):
+        captured.extend(batch_ids)
 
-    monkeypatch.setattr(batch_module, "_run_batch", record_batch)
-    await batch_module.start_batch(session, template.id)
+    monkeypatch.setattr(batch_module, "_run_batches", record_batches)
+    batches = await batch_module.start_batch(session, template.id)
     await asyncio.sleep(0)
-    assert captured == tickers
+    assert len(batches) == 3
+    assert captured == [batch.id for batch in batches]
+    assert [batch.status for batch in batches] == ["queued"] * 3
+    assert [len((await session.scalars(select(TechAnalysis).where(TechAnalysis.batch_id == batch.id))).all()) for batch in batches] == [10, 10, 10]
+    rows = (await session.scalars(select(TechAnalysis).where(TechAnalysis.batch_id.in_(captured)).order_by(TechAnalysis.id))).all()
+    assert [row.ticker for row in rows] == tickers
+    assert len((await session.scalars(select(TechAnalysisBatch).where(TechAnalysisBatch.template_id == template.id))).all()) == 3
+    progress = await batch_module.batch_progress(session, batches[2].id)
+    assert progress["total"] == 10
+    assert progress["queued"] == 10
+    assert progress["status"] == "queued"
 
 
-async def test_batch_rejects_template_above_limit(session, monkeypatch):
-    from types import SimpleNamespace
-
-    from app.db.models import TechAnalysisBatch
+async def test_batch_allows_template_above_old_limit(session, monkeypatch):
     from app.tech_analysis import batch as batch_module
 
     template = FuturesTemplate(name="too many", tickers=",".join(f"T{i:02d}" for i in range(30)), kind="stock")
     session.add(template)
     await session.flush()
-    monkeypatch.setattr(batch_module, "get_settings", lambda: SimpleNamespace(top5_max_instruments=20))
-    with pytest.raises(batch_module.Top5InstrumentLimitError, match="30 акций, лимит запуска — 20"):
-        await batch_module.start_batch(session, template.id)
-    assert await session.scalar(select(TechAnalysisBatch).where(TechAnalysisBatch.template_id == template.id)) is None
+    async def no_run(batch_ids, force):
+        return None
+
+    monkeypatch.setattr(batch_module, "_run_batches", no_run)
+    assert len(await batch_module.start_batch(session, template.id)) == 3
+
+
+@pytest.mark.parametrize("security_type", ["stock", "futures"])
+async def test_restart_failed_batch_analysis_from_first_stage(session, monkeypatch, security_type):
+    from types import SimpleNamespace
+
+    from app.db.models import TechAnalysisBatch
+    from app.tech_analysis import service
+
+    batch = TechAnalysisBatch(status="failed")
+    session.add(batch)
+    await session.flush()
+    row = TechAnalysis(ticker="AAA", status="failed", stage="done", error="сбой данных", batch_id=batch.id)
+    session.add(row)
+    await session.flush()
+    analysis_id = row.id
+    started = []
+
+    async def fake_security(store, ticker):
+        return Security(ticker=ticker, security_type=security_type)
+
+    async def fake_analyze(row_id, ticker):
+        started.append((row_id, ticker))
+
+    monkeypatch.setattr(service, "_load_security", fake_security)
+    monkeypatch.setattr(service, "resolve_llm", lambda provider: SimpleNamespace(api_key="test", model="test-model"))
+    monkeypatch.setattr(service, "_analyze", fake_analyze)
+    try:
+        restarted = await service.restart_batch_analysis(session, analysis_id)
+        await asyncio.sleep(0)
+        assert restarted.id == analysis_id
+        assert restarted.status == "running"
+        assert restarted.stage == "refreshing_data"
+        assert restarted.is_future is (security_type == "futures")
+        assert restarted.error is None
+        assert started == [(analysis_id, "AAA")]
+    finally:
+        service._active.pop("AAA", None)
+
+
+async def test_retry_api_rejects_other_batch_and_keeps_analysis_id(session, monkeypatch):
+    from fastapi import HTTPException
+
+    from app.api.routes import top5 as top5_routes
+    from app.db.models import TechAnalysisBatch
+
+    batch = TechAnalysisBatch(status="failed")
+    other = TechAnalysisBatch(status="failed")
+    session.add_all([batch, other])
+    await session.flush()
+    row = TechAnalysis(ticker="AAA", status="failed", stage="done", batch_id=batch.id)
+    session.add(row)
+    await session.flush()
+    with pytest.raises(HTTPException) as error:
+        await top5_routes.top5_retry_item(other.id, row.id, session, None)
+    assert error.value.status_code == 404
+
+    async def fake_restart(store, analysis_id):
+        current = await store.get(TechAnalysis, analysis_id)
+        current.status = "running"
+        current.stage = "refreshing_data"
+        return current
+
+    monkeypatch.setattr(top5_routes, "restart_batch_analysis", fake_restart)
+    response = await top5_routes.top5_retry_item(batch.id, row.id, session, None)
+    assert response == {"id": row.id, "status": "running", "stage": "refreshing_data"}
+    assert (await session.get(TechAnalysisBatch, batch.id)).status == "running"
+    with pytest.raises(HTTPException) as error:
+        await top5_routes.top5_retry_item(batch.id, row.id, session, None)
+    assert error.value.status_code == 409
+
+
+async def test_batches_finish_one_group_before_starting_next(monkeypatch):
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    import app.db.connection as dbconn
+    import app.tech_analysis.batch as batch_module
+    from app.db.models import TechAnalysisBatch
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as session:
+        for batch_number in range(2):
+            batch = TechAnalysisBatch(status="queued")
+            session.add(batch)
+            await session.flush()
+            for ticker_number in range(10):
+                session.add(TechAnalysis(
+                    ticker=f"T{batch_number}{ticker_number}", status="queued", stage="queued", batch_id=batch.id,
+                ))
+        await session.commit()
+    monkeypatch.setattr(dbconn, "SessionLocal", factory)
+    seen = []
+
+    async def finish_immediately(session, analysis_id):
+        row = await session.get(TechAnalysis, analysis_id)
+        if row.batch_id == 2:
+            assert (await session.get(TechAnalysisBatch, 1)).status == "partial"
+        seen.append((row.batch_id, row.ticker))
+        if row.ticker == "T03":
+            raise RuntimeError("временный сбой")
+        row.status = "success"
+        row.stage = "done"
+        await session.commit()
+
+    monkeypatch.setattr(batch_module, "restart_batch_analysis", finish_immediately)
+    await batch_module._run_batches([1, 2], force=True)
+    assert [batch_id for batch_id, _ in seen] == [1] * 10 + [2] * 10
+    async with factory() as session:
+        assert (await session.get(TechAnalysisBatch, 1)).status == "partial"
+        assert (await session.get(TechAnalysisBatch, 2)).status == "success"
+        failed = await session.scalar(select(TechAnalysis).where(TechAnalysis.ticker == "T03"))
+        assert failed.status == "failed"
+        assert failed.error == "временный сбой"
+    await engine.dispose()
+
+
+async def test_retry_completion_updates_batch_without_page_poll(monkeypatch):
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    import app.db.connection as dbconn
+    from app.db.models import TechAnalysisBatch
+    from app.tech_analysis.service import _sync_batch_status
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    monkeypatch.setattr(dbconn, "SessionLocal", factory)
+    monkeypatch.setattr("app.tech_analysis.service.SessionLocal", factory)
+    async with factory() as session:
+        batch = TechAnalysisBatch(status="running")
+        session.add(batch)
+        await session.flush()
+        row = TechAnalysis(ticker="AAA", status="success", stage="done", batch_id=batch.id)
+        session.add(row)
+        await session.commit()
+        batch_id = batch.id
+        await _sync_batch_status(row.id)
+        session.expire_all()
+        assert (await session.get(TechAnalysisBatch, batch_id)).status == "success"
+    await engine.dispose()
 
 
 def test_compute_rr_fallback_from_levels():
@@ -192,13 +345,13 @@ def test_best_strategy_marks_matching_confirmation_plan():
     assert best_strategy([analysis])["has_confirmation_plan"] is False
 
 
-async def test_get_stock_template_kind(session):
+async def test_get_instrument_template_kind(session):
     t_fut = FuturesTemplate(name="f", tickers="W4V6", kind="futures")
     t_stock = FuturesTemplate(name="s", tickers="AFLT", kind="stock")
     session.add_all([t_fut, t_stock])
     await session.flush()
-    assert await get_stock_template(session, t_stock.id) is t_stock
-    assert await get_stock_template(session, t_fut.id) is None
+    assert await get_instrument_template(session, t_stock.id) is t_stock
+    assert await get_instrument_template(session, t_fut.id) is t_fut
 
 
 def test_best_strategy_picks_max_expected_r():
@@ -367,13 +520,13 @@ async def test_top5_page_renders(session):
 
 async def test_run_batch_force_skips_fresh_reuse(session, monkeypatch):
     """force=True игнорирует свежесть: не переиспользует актуальный анализ."""
-    from datetime import datetime, timedelta
+    from datetime import datetime
 
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-    from sqlalchemy import select
 
     import app.db.connection as dbconn
     import app.tech_analysis.batch as batch_mod
+    from app.db.models import TechAnalysisBatch
 
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     from app.db.connection import Base
@@ -385,27 +538,33 @@ async def test_run_batch_force_skips_fresh_reuse(session, monkeypatch):
         s.add(TechAnalysis(ticker="AAA", status="success", stage="done", verdict="BUY",
                            scenario_json=_scenario_json(0.6, 2.5),
                            finished_at=datetime.utcnow()))
+        for _ in range(2):
+            batch = TechAnalysisBatch(status="queued")
+            s.add(batch)
+            await s.flush()
+            s.add(TechAnalysis(ticker="AAA", status="queued", stage="queued", batch_id=batch.id))
         await s.commit()
 
     monkeypatch.setattr(dbconn, "SessionLocal", factory)
 
     started = []
-    async def fake_start_analysis(session, ticker, user_id=None, provider=None, batch_id=None):
-        started.append(ticker)
-        # создаём успешную запись, чтобы батч-статус не падал
-        session.add(TechAnalysis(ticker=ticker, status="success", stage="done", verdict="BUY",
-                                 scenario_json=_scenario_json(0.6, 2.5),
-                                 finished_at=datetime.utcnow(), batch_id=batch_id))
+    async def fake_restart(session, analysis_id):
+        row = await session.get(TechAnalysis, analysis_id)
+        started.append(row.ticker)
+        row.status = "success"
+        row.stage = "done"
         await session.commit()
-        return None
-    monkeypatch.setattr(batch_mod, "start_analysis", fake_start_analysis)
+        return row
+    monkeypatch.setattr(batch_mod, "restart_batch_analysis", fake_restart)
 
-    # force=False — переиспользуем свежий анализ, start_analysis не вызывается
-    await batch_mod._run_batch(batch_id=1, tickers=["AAA"], user_id=None, provider=None, force=False)
+    await batch_mod._run_batches([1], force=False)
     assert started == []
+    async with factory() as s:
+        assert (await s.get(TechAnalysisBatch, 1)).status == "success"
+        assert (await s.get(TechAnalysis, 2)).status == "success"
+        assert (await s.get(TechAnalysis, 1)).batch_id is None
 
-    # force=True — анализ запускается заново
-    await batch_mod._run_batch(batch_id=2, tickers=["AAA"], user_id=None, provider=None, force=True)
+    await batch_mod._run_batches([2], force=True)
     assert started == ["AAA"]
 
     await engine.dispose()

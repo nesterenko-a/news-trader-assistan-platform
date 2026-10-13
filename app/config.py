@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     tech_analysis_prompt_file: str = "docs/promt_tech_analize.md"
     top5_fresh_hours: int = 6
     top5_max_instruments: int = 50
+    top5_batch_size: int = 10
     moex_base_url: str = "https://iss.moex.com/iss"
     telegram_bot_token: str = ""
     telegram_api_id: str = ""

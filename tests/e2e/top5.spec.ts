@@ -6,11 +6,45 @@ test.describe("Top-5: лучшая сделка из шаблона акций",
     await login(page, USER.username, USER.password);
     await page.goto("/top5");
     await page.locator("a.top5-tpl-card", { hasText: "e2e_top5_thirty" }).click();
-    await expect(page.locator("body")).toContainText("Состав шаблона — 30 бумаг · Лимит запуска — 50 акций");
+    await expect(page.locator("body")).toContainText("Состав шаблона — 30 инструментов · Группы по 10");
     await expect(page.locator("#tpl-cloud .tpl-tag")).toHaveCount(30);
     await expect(page.locator("#btn-run")).toBeEnabled();
     await expect(page.locator("#top5-count")).toHaveText("30");
     await expect(page.locator(".top5-row:visible")).toHaveCount(5);
+  });
+
+  test("ошибочный анализ повторяется в строке без перезагрузки", async ({ page }) => {
+    await login(page, USER.username, USER.password);
+    await page.goto("/top5");
+    await page.locator("a.top5-tpl-card", { hasText: "e2e_top5_retry_future" }).click();
+    await expect(page.locator("h2", { hasText: "e2e_top5_retry_future" })).toBeVisible();
+    await page.locator("[data-batch-toggle]").first().click();
+    const row = page.locator("tr[data-analysis-id]", { hasText: "FUTRETRY" });
+    const batchId = await row.getAttribute("data-batch-id");
+    const analysisId = await row.getAttribute("data-analysis-id");
+    await page.route(`**/v1/top5/${batchId}/items/${analysisId}/retry`, route => route.fulfill({
+      status: 200, contentType: "application/json", body: JSON.stringify({ id: Number(analysisId), status: "running", stage: "refreshing_data" }),
+    }));
+    let polls = 0;
+    await page.route(`**/v1/top5/${batchId}/status`, route => {
+      polls += 1;
+      const success = polls > 1;
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+        batch_id: Number(batchId), status: success ? "success" : "running", total: 1,
+        done: success ? 1 : 0, success: success ? 1 : 0, running: success ? 0 : 1, failed: 0,
+        items: [{ id: Number(analysisId), ticker: "FUTRETRY", status: success ? "success" : "running", stage: success ? "done" : "awaiting_llm", verdict: success ? "BUY" : null, error: null }],
+      }) });
+    });
+    const url = page.url();
+    let navigations = 0;
+    page.on("framenavigated", frame => { if (frame === page.mainFrame()) navigations += 1; });
+    await row.locator(".batch-retry").click();
+    await expect(row.locator(".batch-item-percent")).toHaveText("80%");
+    await expect(row.locator(".top5-spinner")).toBeVisible();
+    await expect(row.locator(".batch-item-action a")).toHaveText("разбор →", { timeout: 8000 });
+    await expect(row.locator(".batch-item-verdict")).toHaveText("BUY");
+    expect(page.url()).toBe(url);
+    expect(navigations).toBe(0);
   });
 
   test("авторизованному: страница с шаблоном и подборкой Top-5", async ({ page }) => {
