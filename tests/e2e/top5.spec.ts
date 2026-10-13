@@ -97,8 +97,20 @@ test.describe("Top-5: лучшая сделка из шаблона акций",
     await page.waitForLoadState("domcontentloaded");
     const row = page.locator(".top5-row").first();
     if (await row.count()) {
+      await expect(page.locator("#top5-table thead")).toContainText("Вход ≈");
+      await expect(page.locator("#top5-table thead")).toContainText("Цель 1");
+      await expect(page.locator("#top5-table thead")).not.toContainText("Стоп");
+      await expect(row.locator(".top5-entry-reference")).not.toContainText(/[-–—]\s*\d/);
+      await expect(row).toHaveAttribute("aria-expanded", "false");
       await row.click();
       await expect(page.locator(".top5-detail").first()).toBeVisible();
+      await expect(row).toHaveAttribute("aria-expanded", "true");
+      await expect(page.locator(".top5-detail").first().locator(".top5-levels")).toContainText("Диапазон входа");
+      await expect(page.locator(".top5-detail").first().locator(".top5-levels")).toContainText("Стоп");
+      await expect(page.locator(".top5-detail").first().locator(".top5-levels")).toContainText("Все цели");
+      await row.focus();
+      await page.keyboard.press("Enter");
+      await expect(page.locator(".top5-detail").first()).toBeHidden();
     }
   });
 

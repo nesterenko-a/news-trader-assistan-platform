@@ -115,8 +115,8 @@
         <th style="text-align:left">Бумага / стратегия<span class="sort-hint" data-hint="strategy">?</span><span class="isort-tip" data-tip="strategy"><b>Стратегия</b><br>SА — сценарий А (основной) · SВ — сценарий B (альтернативный) · SС — сценарий C (негативный).<br>Строка = лучшая стратегия бумаги (макс. Expected R); все 3 сценария — в раскрытии строки и «Полном разборе».</span></th>
         <th style="text-align:left">Направление</th>
         <th style="text-align:left">Цена</th>
-        <th style="text-align:left">Вход</th><th style="text-align:left">Стоп</th>
-        <th style="text-align:left">Цель</th>
+        <th style="text-align:left" title="Середина диапазона входа выбранного сценария; полный диапазон — в подробностях">Вход ≈</th>
+        <th style="text-align:left" title="Первая цель выбранного сценария; все цели — в подробностях">Цель 1</th>
         <th style="cursor:pointer" data-col="rr" class="sortable">
           R/R
           <span class="sort-hint" data-hint="rr">?</span>
@@ -147,22 +147,22 @@
       </tr></thead>
       <tbody>
         {% for r in result['items'] %}
-        <tr class="top5-row" data-idx="{{ loop.index0 }}" data-rank="{{ loop.index0 }}" data-dir="{{ r.dir }}" data-score="{{ r.score if r.score is not none else '' }}" data-rr="{{ r.rr if r.rr is not none else '' }}" data-risk="{{ r.risk if r.risk is not none else '' }}" data-probability="{{ r.probability if r.probability is not none else '' }}" data-liquidity="{{ r.liquidity_rub_day if r.liquidity_rub_day is not none else '' }}" data-plan="{{ '1' if r.has_confirmation_plan else '0' }}" style="cursor:pointer;{% if loop.index > 5 %}display:none{% endif %}">
+        <tr class="top5-row" data-idx="{{ loop.index0 }}" data-rank="{{ loop.index0 }}" data-dir="{{ r.dir }}" data-score="{{ r.score if r.score is not none else '' }}" data-rr="{{ r.rr if r.rr is not none else '' }}" data-risk="{{ r.risk if r.risk is not none else '' }}" data-probability="{{ r.probability if r.probability is not none else '' }}" data-liquidity="{{ r.liquidity_rub_day if r.liquidity_rub_day is not none else '' }}" data-plan="{{ '1' if r.has_confirmation_plan else '0' }}" aria-expanded="false" aria-controls="detail-{{ loop.index0 }}" tabindex="0" style="cursor:pointer;{% if loop.index > 5 %}display:none{% endif %}">
           <td class="t5-rank">{{ loop.index }}</td>
-          <td><div class="ticker-label"><b>{{ r.ticker }}</b> <span class="badge" title="Стратегия — сценарий {{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }} (лучший по Expected R); все сценарии — в раскрытии строки / «Полном разборе»">S{{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }}</span></div>
+          <td><div class="ticker-label"><span class="top5-chevron" aria-hidden="true">▸</span><b>{{ r.ticker }}</b> <span class="badge" title="Стратегия — сценарий {{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }} (лучший по Expected R); все сценарии — в раскрытии строки / «Полном разборе»">S{{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }}</span></div>
               <div class="muted small">{{ r.name }}</div></td>
           <td>{% if r.dir == 'LONG' %}<span class="long">LONG</span>{% elif r.dir == 'SHORT' %}<span class="short">SHORT</span>{% else %}<span class="muted">Выжидать</span>{% endif %}{% if r.dir in ('LONG','SHORT') and r.await_confirmation %} <span class="await-conf" title="Стратегия определена, ждём подхода цены к точке входа и подтверждающих сигналов">⏳</span>{% endif %}</td>
           <td data-rt-price="{{ r.ticker }}" data-last="{{ r.price }}">{% if r.price is not none %}{{ '%.2f' | format(r.price) }}{% else %}—{% endif %}</td>
-          <td>{{ r.entry or '—' }}</td>
-          <td>{{ r.stop or '—' }}</td>
-          <td>{{ r.targets or '—' }}</td>
+          <td class="top5-entry-reference">{{ '%g' | format(r.entry_reference) if r.entry_reference is not none else '—' }}</td>
+          <td>{{ '%g' | format(r.first_target) if r.first_target is not none else '—' }}</td>
           <td><b>{{ '%.2f' | format(r.rr) if r.rr is not none else '—' }}</b></td>
           <td>{% if r.risk is not none %}{{ '%.2f' | format(r.risk) }}%{% else %}—{% endif %}</td>
           <td><span class="score {{ 'high' if (r.score or 0) >= 75 else 'mid' }}">{{ '%.1f' | format(r.score) if r.score is not none else '—' }}</span>
               {% if r.score is not none %}<div class="bar"><span style="width:{{ r.score }}%"></span></div>{% endif %}</td>
         </tr>
         <tr class="top5-detail" id="detail-{{ loop.index0 }}" style="display:none">
-          <td colspan="10">
+          <td colspan="9">
+            <div class="top5-levels"><div><span class="label">Диапазон входа</span><b>{{ r.entry or '—' }}</b></div><div><span class="label">Стоп</span><b>{{ r.stop or '—' }}</b></div><div><span class="label">Все цели</span><b>{{ r.targets or '—' }}</b></div></div>
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">
               {% for key, letter, color in [('a','A','#16a34a'),('b','B','#f59e0b'),('c','C','#dc2626')] %}
               {% set sc = r.scenarios[key] if (r.scenarios and r.scenarios.get(key)) else {} %}
@@ -387,7 +387,17 @@
     row.addEventListener('click', function () {
       var idx = row.getAttribute('data-idx');
       var detail = document.getElementById('detail-' + idx);
-      if (detail) detail.style.display = detail.style.display === 'none' ? '' : 'none';
+      if (detail) {
+        var expanded = detail.style.display === 'none';
+        detail.style.display = expanded ? '' : 'none';
+        row.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      }
+    });
+    row.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        row.click();
+      }
     });
   });
 

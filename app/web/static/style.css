@@ -1229,7 +1229,16 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 
 /* Top-5 (docs/archive/25): строки сделок и раскрытие сценариев */
 .top5-row { cursor: pointer; }
-.top5-row td { padding: 12px 8px; }
+.top5-row td { padding: 10px 8px; }
+.top5-row:hover td, .top5-row:focus-visible td, .top5-row[aria-expanded="true"] td { background: var(--panel-2); }
+.top5-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.top5-chevron { display: inline-block; margin-right: 8px; color: var(--muted); transition: transform .15s ease; }
+.top5-row[aria-expanded="true"] .top5-chevron { transform: rotate(90deg); color: var(--accent); }
+.top5-entry-reference { font-weight: 700; white-space: nowrap; }
+.top5-levels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.top5-levels > div { display: grid; gap: 5px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+.top5-levels b { overflow-wrap: anywhere; }
+@media (max-width: 680px) { .top5-levels { grid-template-columns: 1fr; } }
 .ticker-label { font-weight: 700; font-size: 15px; }
 .ticker-label .badge { margin-left: 4px; vertical-align: middle; }
 .top5-detail td { background: var(--panel-2, #202a40); }

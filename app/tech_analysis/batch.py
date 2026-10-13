@@ -544,6 +544,8 @@ def best_strategy(tickers_analyses: list[dict]) -> dict | None:
                 "verdict": cur_verdict,
                 "await_confirmation": bool(ana.get("await_confirmation")),
                 "entry": sc.get("entry") or "",
+                "entry_reference": _entry_mid(sc.get("entry")),
+                "first_target": _first_target(sc.get("targets")),
                 "stop": sc.get("stop") or "",
                 "targets": sc.get("targets") or "",
                 "rr": compute_rr(sc),

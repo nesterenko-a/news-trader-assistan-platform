@@ -607,6 +607,9 @@ def test_best_strategy_carries_distinct_scenarios_and_price():
     assert sc["b"]["entry"] == "95"
     # лучший сценарий (макс. Expected R) — сценарий A
     assert best["strategy"] == "scenario_a"
+    assert best["entry_reference"] == 102.5
+    assert best["first_target"] == 110.0
+    assert best["entry"] == "100-105"
 
 
 def test_parse_final_assessment():
