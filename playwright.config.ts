@@ -16,7 +16,7 @@ export default defineConfig({
   reporter: [["list"]],
   globalSetup: "./tests/e2e/global-setup.ts",
   globalTeardown: "./tests/e2e/global-teardown.ts",
-  outputDir: "test-results",
+  outputDir: "test-results/artifacts",
   use: {
     baseURL: "http://127.0.0.1:8765",
     headless: true,

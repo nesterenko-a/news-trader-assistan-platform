@@ -74,7 +74,7 @@
 </section>
 {% endif %}
 
-{% if result and result['items'] %}
+{% if result %}
 <section class="card" style="margin-top:12px">
   {% if result.get('stale') %}<p class="warning small" style="margin-top:0">Данные нуждаются в обновлении: показана последняя успешная подборка{% if result.get('source_batch_id') %} (батч #{{ result['source_batch_id'] }}){% endif %}. Запустите Теханализ, чтобы получить актуальный рейтинг.</p>{% endif %}
   <div class="header-line" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
@@ -87,11 +87,31 @@
     </div>
   </div>
 
+  <div class="top5-quality" id="top5-quality">
+    <div class="top5-quality-metrics">
+      <div><span class="label">Кандидатов</span><b id="top5-count">{{ result.total }}</b></div>
+      <div><span class="label">Прошли фильтры</span><b id="top5-qualified">{{ result.total }}</b></div>
+      <div><span class="label">Показано</span><b id="top5-shown">{{ [result['items']|length, 5]|min }}</b></div>
+    </div>
+    <div class="top5-quality-head"><h3>Фильтр качества сделки</h3><button class="btn" id="top5-filter-reset" type="button">Сбросить</button></div>
+    <div class="top5-quality-fields">
+      <label class="top5-quality-check"><input id="top5-filter-on" type="checkbox"> Только подходящие</label>
+      <label>Минимальный R/R<input id="top5-filter-rr" type="number" min="0" max="20" step="0.1" value="1.5"></label>
+      <label>Максимальный риск, %<input id="top5-filter-risk" type="number" min="0" max="100" step="0.1" value="4"></label>
+      <label>Минимальная уверенность, %<input id="top5-filter-confidence" type="number" min="0" max="100" step="1" value="40"></label>
+      <label>Направление<select id="top5-filter-direction"><option value="all">Все</option><option value="LONG">LONG</option><option value="SHORT">SHORT</option><option value="WAIT">Выжидать</option></select></label>
+      <label class="top5-quality-check"><input id="top5-filter-liquidity-on" type="checkbox"> Минимальная ликвидность</label>
+      <label>Оборот, млн ₽/день<input id="top5-filter-liquidity" type="number" min="0" max="100000" step="0.1" value="1"></label>
+      <label class="top5-quality-check"><input id="top5-filter-plan" type="checkbox"> План подтверждения входа</label>
+    </div>
+    <p id="top5-filter-error" class="warning small" role="alert" hidden></p>
+    <p class="muted small" style="margin:8px 0 0">Ликвидность — средний оборот по 10–20 дневным свечам за последние 45 дней. План подтверждения не означает, что условия входа уже выполнены. Уверенность — оценка LLM, а не статистическая вероятность.</p>
+  </div>
   <div>
     <table class="table" id="top5-table">
       <thead><tr>
         <th>#</th>
-        <th style="text-align:left">Бумага / стратегия<span class="sort-hint" data-hint="strategy">?</span><span class="isort-tip" data-tip="strategy"><b>Стратегия</b><br>SА — сценарий А (основной) · SВ — сценарий B (альтернативный) · SС — сценарий C (негативный).<br>Строка = лучшая стратегия бумаги (макс. Score); все 3 сценария — в раскрытии строки и «Полном разборе».</span></th>
+        <th style="text-align:left">Бумага / стратегия<span class="sort-hint" data-hint="strategy">?</span><span class="isort-tip" data-tip="strategy"><b>Стратегия</b><br>SА — сценарий А (основной) · SВ — сценарий B (альтернативный) · SС — сценарий C (негативный).<br>Строка = лучшая стратегия бумаги (макс. Expected R); все 3 сценария — в раскрытии строки и «Полном разборе».</span></th>
         <th style="text-align:left">Направление</th>
         <th style="text-align:left">Цена</th>
         <th style="text-align:left">Вход</th><th style="text-align:left">Стоп</th>
@@ -126,9 +146,9 @@
       </tr></thead>
       <tbody>
         {% for r in result['items'] %}
-        <tr class="top5-row" data-idx="{{ loop.index0 }}" data-dir="{{ r.dir }}" data-score="{{ r.score or 0 }}" data-rr="{{ r.rr or 0 }}" data-risk="{{ r.risk or 999 }}" style="cursor:pointer">
+        <tr class="top5-row" data-idx="{{ loop.index0 }}" data-rank="{{ loop.index0 }}" data-dir="{{ r.dir }}" data-score="{{ r.score if r.score is not none else '' }}" data-rr="{{ r.rr if r.rr is not none else '' }}" data-risk="{{ r.risk if r.risk is not none else '' }}" data-probability="{{ r.probability if r.probability is not none else '' }}" data-liquidity="{{ r.liquidity_rub_day if r.liquidity_rub_day is not none else '' }}" data-plan="{{ '1' if r.has_confirmation_plan else '0' }}" style="cursor:pointer;{% if loop.index > 5 %}display:none{% endif %}">
           <td class="t5-rank">{{ loop.index }}</td>
-          <td><div class="ticker-label"><b>{{ r.ticker }}</b> <span class="badge" title="Стратегия — сценарий {{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }} (лучший по Score); все сценарии — в раскрытии строки / «Полном разборе»">S{{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }}</span></div>
+          <td><div class="ticker-label"><b>{{ r.ticker }}</b> <span class="badge" title="Стратегия — сценарий {{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }} (лучший по Expected R); все сценарии — в раскрытии строки / «Полном разборе»">S{{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }}</span></div>
               <div class="muted small">{{ r.name }}</div></td>
           <td>{% if r.dir == 'LONG' %}<span class="long">LONG</span>{% elif r.dir == 'SHORT' %}<span class="short">SHORT</span>{% else %}<span class="muted">Выжидать</span>{% endif %}{% if r.dir in ('LONG','SHORT') and r.await_confirmation %} <span class="await-conf" title="Стратегия определена, ждём подхода цены к точке входа и подтверждающих сигналов">⏳</span>{% endif %}</td>
           <td data-rt-price="{{ r.ticker }}" data-last="{{ r.price }}">{% if r.price is not none %}{{ '%.2f' | format(r.price) }}{% else %}—{% endif %}</td>
@@ -136,7 +156,7 @@
           <td>{{ r.stop or '—' }}</td>
           <td>{{ r.targets or '—' }}</td>
           <td><b>{{ '%.2f' | format(r.rr) if r.rr is not none else '—' }}</b></td>
-          <td>{{ '%.2f' | format(r.risk) }}%{% if r.risk is not none %} {% endif %}</td>
+          <td>{% if r.risk is not none %}{{ '%.2f' | format(r.risk) }}%{% else %}—{% endif %}</td>
           <td><span class="score {{ 'high' if (r.score or 0) >= 75 else 'mid' }}">{{ '%.1f' | format(r.score) if r.score is not none else '—' }}</span>
               {% if r.score is not none %}<div class="bar"><span style="width:{{ r.score }}%"></span></div>{% endif %}</td>
         </tr>
@@ -156,6 +176,7 @@
               </div>
               {% endfor %}
             </div>
+            <p class="muted small" style="margin:10px 0">Средний оборот: {% if r.liquidity_rub_day is not none %}{{ '%.1f' | format(r.liquidity_rub_day / 1000000) }} млн ₽/день{% else %}нет данных{% endif %} · План подтверждения входа: {{ 'есть' if r.has_confirmation_plan else 'нет' }}{% if r.has_confirmation_plan %}; выполнение условий нужно проверить отдельно{% endif %}</p>
             {% set fa = r.final_assessment if r.final_assessment else {} %}
             {% if fa and (fa.get('key_level') or fa.get('main_risk') or fa.get('recommendation')) %}
             <div style="margin-top:12px;border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--panel-2)">
@@ -171,8 +192,9 @@
         {% endfor %}
       </tbody>
     </table>
-    <p class="muted small" style="margin-top:10px">Показана одна лучшая стратегия каждой бумаги (по Score). Раскройте строку, чтобы увидеть все 3 сценария «Моя стратегия».</p>
-    <p class="muted small"><b>Стратегия:</b> <span class="badge">SA</span> — сценарий A (основной) · <span class="badge">SB</span> — сценарий B (альтернативный) · <span class="badge">SC</span> — сценарий C (негативный); строка = лучший из трёх по Score.</p>
+    <p id="top5-empty" class="muted" {% if result['items'] %}hidden{% endif %}>{{ 'Пока нет кандидатов. Запустите Теханализ по шаблону.' if not result['items'] else 'По выбранным условиям кандидатов нет.' }}</p>
+    <p class="muted small" style="margin-top:10px">Показана одна лучшая стратегия каждой бумаги (по Expected R). Раскройте строку, чтобы увидеть все 3 сценария «Моя стратегия».</p>
+    <p class="muted small"><b>Стратегия:</b> <span class="badge">SA</span> — сценарий A (основной) · <span class="badge">SB</span> — сценарий B (альтернативный) · <span class="badge">SC</span> — сценарий C (негативный); строка = лучший из трёх по Expected R.</p>
     <p class="muted small">Дисклеймер: материал носит информационный характер и не является инвестиционной рекомендацией. Значение «Score»/«conf» — оценка модели/аналитика, а не статистически подтверждённая вероятность.</p>
     <p class="muted small" style="margin-top:6px"><span class="await-conf">⏳</span> — стратегия определена (BUY/SELL), но ждём подхода цены к точке входа и подтверждающего сигнала.</p>
   </div>
@@ -208,12 +230,12 @@
           <h3 style="margin:4px 0 8px">Лучшие возможности (батч #{{ b['id'] }})</h3>
           {% if b.get('as_of') %}<p class="muted small" style="margin:0 0 8px"><span style="white-space:nowrap"><span class="label">Прогноз сформирован:</span> <span class="value" style="font-size:15px;color:var(--text);margin-left:4px">{{ b['as_of'].strftime('%d.%m.%Y %H:%M') }}</span> <span class="badge">UTC</span></span></p>{% endif %}
           <table class="table">
-            <thead><tr><th>#</th><th style="text-align:left">Бумага / стратегия<span class="sort-hint" data-hint="strategy">?</span><span class="isort-tip" data-tip="strategy"><b>Стратегия</b><br>SА — сценарий А (основной) · SВ — сценарий B (альтернативный) · SС — сценарий C (негативный).<br>Строка = лучшая стратегия бумаги (макс. Score).</span></th><th style="text-align:left">Направление</th><th style="text-align:left">Цена</th><th style="text-align:left">Вход</th><th style="text-align:left">Стоп</th><th style="text-align:left">Цель</th><th>R/R</th><th>Expected R</th><th>Score</th><th></th></tr></thead>
+            <thead><tr><th>#</th><th style="text-align:left">Бумага / стратегия<span class="sort-hint" data-hint="strategy">?</span><span class="isort-tip" data-tip="strategy"><b>Стратегия</b><br>SА — сценарий А (основной) · SВ — сценарий B (альтернативный) · SС — сценарий C (негативный).<br>Строка = лучшая стратегия бумаги (макс. Expected R).</span></th><th style="text-align:left">Направление</th><th style="text-align:left">Цена</th><th style="text-align:left">Вход</th><th style="text-align:left">Стоп</th><th style="text-align:left">Цель</th><th>R/R</th><th>Expected R</th><th>Score</th><th></th></tr></thead>
             <tbody>
               {% for rb in b['top5'] %}
               <tr class="batch-top5-row" data-btop5="batch-{{ b['id'] }}-{{ loop.index0 }}" style="cursor:pointer">
                 <td>{{ loop.index }}</td>
-                <td><div class="ticker-label"><b>{{ rb['ticker'] }}</b> <span class="badge" title="Стратегия — сценарий {{ 'A' if rb['strategy'] == 'scenario_a' else ('B' if rb['strategy'] == 'scenario_b' else 'C') }} (лучший по Score)">S{{ 'A' if rb['strategy'] == 'scenario_a' else ('B' if rb['strategy'] == 'scenario_b' else 'C') }}</span></div></td>
+                <td><div class="ticker-label"><b>{{ rb['ticker'] }}</b> <span class="badge" title="Стратегия — сценарий {{ 'A' if rb['strategy'] == 'scenario_a' else ('B' if rb['strategy'] == 'scenario_b' else 'C') }} (лучший по Expected R)">S{{ 'A' if rb['strategy'] == 'scenario_a' else ('B' if rb['strategy'] == 'scenario_b' else 'C') }}</span></div></td>
                 <td>{% if rb['dir'] == 'LONG' %}<span class="long">LONG</span>{% elif rb['dir'] == 'SHORT' %}<span class="short">SHORT</span>{% else %}Выжидать{% endif %}{% if rb['dir'] in ('LONG','SHORT') and rb.get('await_confirmation') %} <span class="await-conf" title="Ждём подхода цены к точке входа и подтверждающих сигналов">⏳</span>{% endif %}</td>
                 <td data-rt-price="{{ rb['ticker'] }}" data-last="{{ rb.get('price') }}">{% if rb.get('price') is not none %}{{ '%.2f' | format(rb['price']) }}{% else %}—{% endif %}</td>
                 <td>{{ rb['entry'] or '—' }}</td>
@@ -252,7 +274,7 @@
               {% endfor %}
             </tbody>
           </table>
-          <p class="muted small"><b>Стратегия:</b> <span class="badge">SA</span> — сценарий A (основной) · <span class="badge">SB</span> — сценарий B (альтернативный) · <span class="badge">SC</span> — сценарий C (негативный); строка = лучший из трёх по Score. Клик по строке раскрывает все 3 сценария.</p>
+          <p class="muted small"><b>Стратегия:</b> <span class="badge">SA</span> — сценарий A (основной) · <span class="badge">SB</span> — сценарий B (альтернативный) · <span class="badge">SC</span> — сценарий C (негативный); строка = лучший из трёх по Expected R. Клик по строке раскрывает все 3 сценария.</p>
           {% else %}
           <p class="muted small">Готовых сценариев по этому батчу нет (анализы ещё выполняются или завершились без валидных prob/rr).</p>
           {% endif %}
@@ -368,35 +390,87 @@
   });
 
   // Сортировка таблицы Top-5 по столбцам (клик по заголовку R/R · Риск · Score)
-  var currentSort = 'score';
-  var sortDir = 'desc'; // score/rr — по убыванию, risk — по возрастанию
-  function applySort() {
-    var table = document.getElementById('top5-table');
-    if (!table) return;
-    var body = table.querySelector('tbody');
-    // Пары «строка + её детали» в DOM — переупорядочиваем реально (физически)
-    var rows = [];
-    Array.prototype.slice.call(body.querySelectorAll('tr.top5-row')).forEach(function (tr) {
-      var detail = tr.nextElementSibling && tr.nextElementSibling.classList.contains('top5-detail')
-        ? tr.nextElementSibling : null;
-      rows.push({ main: tr, detail: detail });
+  var currentSort = 'expected';
+  var sortDir = 'desc';
+  var table = document.getElementById('top5-table');
+  var body = table ? table.querySelector('tbody') : null;
+  var pairs = body ? Array.prototype.slice.call(body.querySelectorAll('tr.top5-row')).map(function (tr) {
+    return { main: tr, detail: tr.nextElementSibling && tr.nextElementSibling.classList.contains('top5-detail') ? tr.nextElementSibling : null };
+  }) : [];
+  var filterOn = document.getElementById('top5-filter-on');
+  var rrInput = document.getElementById('top5-filter-rr');
+  var riskInput = document.getElementById('top5-filter-risk');
+  var confidenceInput = document.getElementById('top5-filter-confidence');
+  var directionInput = document.getElementById('top5-filter-direction');
+  var liquidityOn = document.getElementById('top5-filter-liquidity-on');
+  var liquidityInput = document.getElementById('top5-filter-liquidity');
+  var planOn = document.getElementById('top5-filter-plan');
+  function metric(tr, key) {
+    var raw = tr.getAttribute('data-' + key);
+    return raw === null || raw === '' ? null : Number(raw);
+  }
+  function validNumber(input) {
+    return input.value !== '' && input.checkValidity() && Number.isFinite(Number(input.value));
+  }
+  function applyFilters() {
+    if (!body) return;
+    var invalid = [rrInput, riskInput, confidenceInput, liquidityInput].find(function (input) { return !validNumber(input); });
+    var error = document.getElementById('top5-filter-error');
+    if (invalid) {
+      error.textContent = 'Проверьте значение поля «' + invalid.parentElement.firstChild.textContent.trim() + '».';
+      error.hidden = false;
+      return;
+    }
+    error.hidden = true;
+    var rrMin = Number(rrInput.value);
+    var riskMax = Number(riskInput.value);
+    var confidenceMin = Number(confidenceInput.value) / 100;
+    var liquidityMin = Number(liquidityInput.value) * 1000000;
+    var passed = pairs.filter(function (pair) {
+      var tr = pair.main;
+      var direction = tr.getAttribute('data-dir');
+      if (directionInput.value !== 'all' && direction !== directionInput.value) return false;
+      if (filterOn.checked) {
+        var rr = metric(tr, 'rr');
+        var risk = metric(tr, 'risk');
+        var confidence = metric(tr, 'probability');
+        if (direction === 'WAIT' || rr === null || risk === null || confidence === null) return false;
+        if (rr < rrMin || risk > riskMax || confidence < confidenceMin) return false;
+      }
+      if (liquidityOn.checked) {
+        var liquidity = metric(tr, 'liquidity');
+        if (liquidity === null || liquidity < liquidityMin) return false;
+      }
+      return !planOn.checked || tr.getAttribute('data-plan') === '1';
     });
-    rows.sort(function (a, b) {
-      var av = parseFloat(a.main.getAttribute('data-' + currentSort));
-      var bv = parseFloat(b.main.getAttribute('data-' + currentSort));
-      if (isNaN(av)) av = currentSort === 'risk' ? 999 : -999;
-      if (isNaN(bv)) bv = currentSort === 'risk' ? 999 : -999;
-      var cmp = av - bv;
-      return sortDir === 'desc' ? -cmp : cmp;
+    passed.sort(function (a, b) {
+      if (currentSort === 'expected') return metric(a.main, 'rank') - metric(b.main, 'rank');
+      var av = metric(a.main, currentSort);
+      var bv = metric(b.main, currentSort);
+      if (av === null) return bv === null ? metric(a.main, 'rank') - metric(b.main, 'rank') : 1;
+      if (bv === null) return -1;
+      var cmp = sortDir === 'desc' ? bv - av : av - bv;
+      return cmp || metric(a.main, 'rank') - metric(b.main, 'rank');
     });
-    // Пересобираем tbody в отсортированном порядке и обновляем номера «#»
-    rows.forEach(function (row, i) {
-      var rcell = row.main.querySelector('.t5-rank');
-      if (rcell) rcell.textContent = i + 1;
-      if (row.detail) row.detail.style.display = 'none';
-      body.appendChild(row.main);
-      if (row.detail) body.appendChild(row.detail);
+    var visible = passed.slice(0, 5);
+    pairs.forEach(function (pair) {
+      pair.main.style.display = 'none';
+      if (pair.detail) pair.detail.style.display = 'none';
     });
+    passed.concat(pairs.filter(function (pair) { return passed.indexOf(pair) === -1; })).forEach(function (pair) {
+      body.appendChild(pair.main);
+      if (pair.detail) body.appendChild(pair.detail);
+    });
+    visible.forEach(function (pair, index) {
+      pair.main.style.display = '';
+      pair.main.querySelector('.t5-rank').textContent = index + 1;
+    });
+    document.getElementById('top5-count').textContent = pairs.length;
+    document.getElementById('top5-qualified').textContent = passed.length;
+    document.getElementById('top5-shown').textContent = visible.length;
+    var empty = document.getElementById('top5-empty');
+    empty.hidden = visible.length > 0;
+    empty.textContent = pairs.length ? 'По выбранным условиям кандидатов нет.' : 'Пока нет кандидатов. Запустите Теханализ по шаблону.';
   }
   function renderSortSymbols() {
     document.querySelectorAll('.sort-sym').forEach(function (s) {
@@ -418,7 +492,7 @@
       sortDir = (col === 'risk') ? 'asc' : 'desc';
     }
     renderSortSymbols();
-    applySort();
+    applyFilters();
   }
   // Клик по заголовку столбца (R/R, Риск, Score)
   document.querySelectorAll('#top5-table th[data-col]').forEach(function (th) {
@@ -426,8 +500,26 @@
       setSort(th.getAttribute('data-col'));
     });
   });
+  [filterOn, rrInput, riskInput, confidenceInput, directionInput, liquidityOn, liquidityInput, planOn].forEach(function (input) {
+    if (input) input.addEventListener('input', applyFilters);
+  });
+  var reset = document.getElementById('top5-filter-reset');
+  if (reset) reset.addEventListener('click', function () {
+    filterOn.checked = false;
+    rrInput.value = '1.5';
+    riskInput.value = '4';
+    confidenceInput.value = '40';
+    directionInput.value = 'all';
+    liquidityOn.checked = false;
+    liquidityInput.value = '1';
+    planOn.checked = false;
+    currentSort = 'expected';
+    sortDir = 'desc';
+    renderSortSymbols();
+    applyFilters();
+  });
   renderSortSymbols();
-  applySort();
+  applyFilters();
 
   // История батчей: раскрытие деталей по клику на строку или кнопку ▾
   function toggleBatch(id) {

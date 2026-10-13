@@ -134,6 +134,18 @@ main { padding: 24px 16px 40px; }
 .tech-confirmation-conditions { margin-top: 12px; font-size: 13px; }
 .tech-confirmation-conditions ul { margin: 5px 0 0; padding-left: 20px; }
 .tech-confirmation-conditions.cancel b { color: var(--red); }
+.top5-quality { margin: 16px 0; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); }
+.top5-quality-metrics { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.top5-quality-metrics > div { min-width: 125px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+.top5-quality-metrics .label { display: block; margin-bottom: 4px; }
+.top5-quality-metrics b { font-size: 20px; }
+.top5-quality-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.top5-quality-head h3 { margin: 0; }
+.top5-quality-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; align-items: end; }
+.top5-quality-fields label { display: grid; gap: 5px; font-size: 12px; color: var(--muted); }
+.top5-quality-fields input[type="number"], .top5-quality-fields select { width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel); color: var(--text); }
+.top5-quality-fields .top5-quality-check { display: flex; align-items: center; gap: 7px; min-height: 36px; color: var(--text); }
+.top5-quality-fields .top5-quality-check input { margin: 0; }
 .indicators-intro h1 { margin-bottom: 10px; }
 .indicator-selected { margin: 0 0 16px; }
 .indicator-mobile-label, .indicator-mobile-select { display: none; }

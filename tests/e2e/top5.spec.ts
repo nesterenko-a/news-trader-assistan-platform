@@ -56,4 +56,44 @@ test.describe("Top-5: лучшая сделка из шаблона акций",
       await expect(page.locator(".top5-detail").first()).toBeVisible();
     }
   });
+
+  test("фильтр качества пересчитывает весь набор и поднимает шестого кандидата", async ({ page }) => {
+    await login(page, USER.username, USER.password);
+    await page.goto("/top5");
+    await page.locator("a.top5-tpl-card", { hasText: "e2e_top5_filter" }).click();
+    await expect(page.locator("#top5-count")).toHaveText("6");
+    await expect(page.locator(".top5-row:visible")).toHaveCount(5);
+    await expect(page.locator(".top5-row", { hasText: "FILT5" })).toBeHidden();
+
+    await page.locator("#top5-filter-on").check();
+    await expect(page.locator("#top5-qualified")).toHaveText("4");
+    await expect(page.locator(".top5-row", { hasText: "FILT5" })).toBeVisible();
+    await expect(page.locator(".top5-row", { hasText: "SBER" })).toBeHidden();
+    await expect(page.locator(".top5-row", { hasText: "FILT4" })).toBeHidden();
+
+    await page.locator("#top5-filter-risk").fill("1.5");
+    await expect(page.locator("#top5-qualified")).toHaveText("0");
+    await expect(page.locator("#top5-empty")).toBeVisible();
+    await page.locator("#top5-filter-reset").click();
+    await expect(page.locator("#top5-qualified")).toHaveText("6");
+    await expect(page.locator(".top5-row:visible")).toHaveCount(5);
+
+    await page.locator("#top5-filter-liquidity-on").check();
+    await expect(page.locator("#top5-qualified")).toHaveText("1");
+    await expect(page.locator(".top5-row", { hasText: "SBER" })).toBeVisible();
+    await page.locator("#top5-filter-liquidity-on").uncheck();
+    await page.locator("#top5-filter-plan").check();
+    await expect(page.locator("#top5-qualified")).toHaveText("1");
+    await page.locator("#top5-filter-plan").uncheck();
+    await page.locator("#top5-filter-direction").selectOption("SHORT");
+    await expect(page.locator("#top5-qualified")).toHaveText("1");
+    await expect(page.locator(".top5-row", { hasText: "FILT3" })).toBeVisible();
+    await page.locator(".top5-row", { hasText: "FILT3" }).click();
+    await expect(page.locator(".top5-detail:visible")).toHaveCount(1);
+    await page.setViewportSize({ width: 375, height: 760 });
+    await expect(page.locator("#top5-quality")).toBeVisible();
+    const panel = await page.locator("#top5-quality").boundingBox();
+    expect(panel).not.toBeNull();
+    expect(panel!.x + panel!.width).toBeLessThanOrEqual(375);
+  });
 });

@@ -11,12 +11,13 @@ Expected R каждого сценария = prob × rr − (1 − prob) × 1 (�
 
 import asyncio
 import json as _json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
 from app.config import get_settings
 from app.db.models import FuturesTemplate, MarketCandle, RealTimeQuote, TechAnalysis, TechAnalysisBatch
+from app.tech_analysis.confirmation import plans_from_json
 from app.tech_analysis.parser import expected_r, parse_final_assessment
 from app.tech_analysis.service import start_analysis
 
@@ -221,6 +222,7 @@ async def list_batches(session, template_id: int, limit: int = 10) -> list[dict]
         ]
         batch_tickers = [i["ticker"] for i in items]
         prices = await _current_prices(session, batch_tickers)
+        liquidity = await _liquidity_by_ticker(session, batch_tickers)
         # Собственный Top-5 батча: по его успешным анализам (сценарии + вердикт)
         top_rows = _rank_best_rows(
             [
@@ -232,6 +234,7 @@ async def list_batches(session, template_id: int, limit: int = 10) -> list[dict]
                     "scenario_json": a["scenario_json"],
                     "await_confirmation": a.get("await_confirmation"),
                     "price": prices.get(a["ticker"]),
+                    "liquidity_rub_day": liquidity.get(a["ticker"]),
                     "as_of": a.get("finished_at"),
                     "response_md": a.get("response_md"),
                 }
@@ -411,6 +414,8 @@ def _all_scenarios(ana: dict) -> dict:
         data = _json.loads(ana["scenario_json"])
     except (ValueError, TypeError):
         return out
+    if not isinstance(data, dict):
+        return out
     for letter, key in (("a", "scenario_a"), ("b", "scenario_b"), ("c", "scenario_c")):
         sc = data.get(key) or {}
         out[letter] = _scenario_metrics(sc) if isinstance(sc, dict) else {}
@@ -454,6 +459,40 @@ async def _current_prices(session, tickers: list[str]) -> dict:
     return prices
 
 
+async def _liquidity_by_ticker(session, tickers: list[str]) -> dict[str, int]:
+    from app.db.models import Security
+
+    if not tickers:
+        return {}
+    securities = (
+        await session.scalars(select(Security).where(Security.ticker.in_(tickers)))
+    ).all()
+    id_to_ticker = {security.id: security.ticker for security in securities}
+    if not id_to_ticker:
+        return {}
+    today = datetime.now(timezone.utc).date()
+    cutoff = today - timedelta(days=45)
+    candles = (
+        await session.scalars(
+            select(MarketCandle)
+            .where(
+                MarketCandle.security_id.in_(id_to_ticker),
+                MarketCandle.trading_date >= cutoff,
+                MarketCandle.trading_date <= today,
+            )
+            .order_by(MarketCandle.trading_date.desc())
+        )
+    ).all()
+    values: dict[str, list[float]] = {ticker: [] for ticker in id_to_ticker.values()}
+    for candle in candles:
+        ticker = id_to_ticker[candle.security_id]
+        if len(values[ticker]) < 20 and candle.close is not None and candle.close > 0 and candle.volume is not None and candle.volume > 0:
+            values[ticker].append(float(candle.close) * candle.volume)
+    return {
+        ticker: round(sum(turnovers) / len(turnovers))
+        for ticker, turnovers in values.items()
+        if len(turnovers) >= 10
+    }
 
 
 def best_strategy(tickers_analyses: list[dict]) -> dict | None:
@@ -472,11 +511,16 @@ def best_strategy(tickers_analyses: list[dict]) -> dict | None:
             data = _json.loads(ana["scenario_json"])
         except (ValueError, TypeError):
             continue
+        if not isinstance(data, dict):
+            continue
         cur_verdict = (ana.get("verdict") or "").upper()
         if cur_verdict not in ("BUY", "SELL", "WAIT"):
             continue
+        confirmation_plans = plans_from_json(ana["scenario_json"])
         for key in ("scenario_a", "scenario_b", "scenario_c"):
             sc = data.get(key) or {}
+            if not isinstance(sc, dict):
+                continue
             er = expected_r(sc.get("probability"), compute_rr(sc))
             if er is None:
                 continue
@@ -501,6 +545,11 @@ def best_strategy(tickers_analyses: list[dict]) -> dict | None:
                 # Все три сценария для раскрытия строки (идентично «Полному разбору»)
                 "scenarios": _all_scenarios(ana),
                 "price": ana.get("price"),
+                "liquidity_rub_day": ana.get("liquidity_rub_day"),
+                "has_confirmation_plan": (
+                    cur_verdict in ("BUY", "SELL")
+                    and confirmation_plans.get(key[-1], {}).get("direction") == cur_verdict.lower()
+                ),
                 "as_of": ana.get("as_of"),
                 # Ключевой уровень / Главный риск / Моя рекомендация (из «Итоговой оценки»)
                 "final_assessment": parse_final_assessment(ana.get("response_md") or ""),
@@ -533,7 +582,7 @@ async def top5(session, template_id: int, limit: int = 5) -> dict:
     template = await get_stock_template(session, template_id)
     if template is None:
         raise ValueError("Шаблон не найден или не является шаблоном акций")
-    tickers = _ticker_list(template)
+    tickers = _ticker_list(template)[: get_settings().top5_max_instruments]
     from app.db.models import Security
 
     names = {}
@@ -543,6 +592,7 @@ async def top5(session, template_id: int, limit: int = 5) -> dict:
         )
         names = {s.ticker: s.name for s in secs.all()}
     prices = await _current_prices(session, tickers)
+    liquidity = await _liquidity_by_ticker(session, tickers)
     rows = []
     for ticker in tickers:
         ana = await _latest_analysis(session, ticker)
@@ -557,6 +607,7 @@ async def top5(session, template_id: int, limit: int = 5) -> dict:
                 "scenario_json": ana.scenario_json,
                 "await_confirmation": ana.await_confirmation,
                 "price": prices.get(ana.ticker),
+                "liquidity_rub_day": liquidity.get(ana.ticker),
                 "as_of": ana.finished_at,
                 "response_md": ana.response_md,
             }
@@ -587,15 +638,17 @@ async def top5(session, template_id: int, limit: int = 5) -> dict:
 
 def _deal_qualified(r: dict) -> bool:
     """Фильтр качества сделки (как в макете): R/R ≥ 1.5, риск ≤ 4%, уверенность ≥ 40%."""
+    if r.get("dir") == "WAIT":
+        return False
     rr = r.get("rr")
     risk = r.get("risk")
     prob = r.get("probability")
-    if rr is None or risk is None:
+    if rr is None or risk is None or prob is None:
         return False
     if rr < 1.5:
         return False
     if risk > 4.0:
         return False
-    if prob is not None and prob < 0.40:
+    if prob < 0.40:
         return False
     return True

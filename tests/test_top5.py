@@ -13,9 +13,10 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy import select
 
 from app.db.connection import Base
-from app.db.models import FuturesTemplate, Security, TechAnalysis, User
+from app.db.models import FuturesTemplate, MarketCandle, Security, TechAnalysis, User
 from app.tech_analysis.batch import (
     _ticker_list,
+    _liquidity_by_ticker,
     best_strategy,
     fresh_analysis,
     get_stock_template,
@@ -118,6 +119,43 @@ def test_compute_score_and_qualified():
     assert _deal_qualified(row) is True
     row_bad = {"rr": 1.2, "risk": 2.0, "probability": 0.65}
     assert _deal_qualified(row_bad) is False
+    assert _deal_qualified({"rr": 2.5, "risk": 2.0, "probability": None}) is False
+    assert _deal_qualified({"dir": "WAIT", "rr": 2.5, "risk": 2.0, "probability": 0.65}) is False
+
+
+async def test_liquidity_requires_ten_recent_valid_candles(session):
+    from datetime import datetime, timedelta
+
+    good = Security(ticker="GOOD", name="Good", security_type="stock")
+    sparse = Security(ticker="SPARSE", name="Sparse", security_type="stock")
+    session.add_all([good, sparse])
+    await session.flush()
+    today = datetime.utcnow().date()
+    for index in range(10):
+        session.add(MarketCandle(
+            security_id=good.id, trading_date=today - timedelta(days=index),
+            close=100, volume=20_000,
+        ))
+    session.add(MarketCandle(security_id=good.id, trading_date=today - timedelta(days=11), close=100, volume=0))
+    session.add(MarketCandle(security_id=sparse.id, trading_date=today - timedelta(days=46), close=100, volume=20_000))
+    session.add(MarketCandle(security_id=sparse.id, trading_date=today + timedelta(days=1), close=100, volume=20_000))
+    await session.flush()
+    result = await _liquidity_by_ticker(session, ["GOOD", "SPARSE"])
+    assert result == {"GOOD": 2_000_000}
+
+
+def test_best_strategy_marks_matching_confirmation_plan():
+    data = json.loads(_scenario_json(0.6, 2.5))
+    data["confirmation_plans"] = {"a": {
+        "direction": "buy", "steps": [
+            {"kind": "approach", "label": "Подход", "detail": "Подойти к уровню"},
+            {"kind": "entry", "label": "Вход", "detail": "После закрепления"},
+        ],
+    }}
+    analysis = {"ticker": "X", "id": 1, "verdict": "BUY", "scenario_json": json.dumps(data)}
+    assert best_strategy([analysis])["has_confirmation_plan"] is True
+    analysis["verdict"] = "SELL"
+    assert best_strategy([analysis])["has_confirmation_plan"] is False
 
 
 async def test_get_stock_template_kind(session):
@@ -146,6 +184,8 @@ def test_best_strategy_none_when_no_valid():
     # пустой JSON (нет prob/rr) → None
     items = [{"ticker": "X", "id": 1, "verdict": "BUY", "scenario_json": "{}"}]
     assert best_strategy(items) is None
+    assert best_strategy([{"ticker": "X", "id": 1, "verdict": "BUY", "scenario_json": "[]"}]) is None
+    assert best_strategy([{"ticker": "X", "id": 1, "verdict": "BUY", "scenario_json": '{"scenario_a": []}'}]) is None
     # WAIT теперь учитывается (выжидать), чтобы список не был пуст
     items = [{"ticker": "X", "id": 1, "verdict": "WAIT", "scenario_json": _scenario_json(0.6, 2.5)}]
     best = best_strategy(items)
@@ -280,6 +320,8 @@ async def test_top5_page_renders(session):
     assert 'data-col="score"' in html
     assert "Как считать Score" in html
     assert "R/R" in html and "Риск" in html and "риск до стопа" in html
+    assert "Фильтр качества сделки" in html
+    assert "top5-filter-liquidity" in html
     assert "Показана одна лучшая стратегия" in html
     # легенда значка «ожидание подтверждения»
     assert "ждём подхода цены к точке входа" in html

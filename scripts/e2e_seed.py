@@ -152,6 +152,34 @@ async def seed(db_url: str) -> None:
             ta.scenario_json = json.dumps(confirmation_data, ensure_ascii=False)
             ta.response_md = confirmation_response
             ta.await_confirmation = True
+            ta.finished_at = datetime.now(timezone.utc)
+        filter_template = await session.scalar(select(FuturesTemplate).where(FuturesTemplate.name == "e2e_top5_filter"))
+        if filter_template is None:
+            filter_template = FuturesTemplate(name="e2e_top5_filter", tickers="FILT1,FILT2,FILT3,FILT4,SBER,FILT5", kind="stock")
+            session.add(filter_template)
+        filter_cases = [
+            ("FILT1", "BUY", 0.8, 4.0),
+            ("FILT2", "BUY", 0.75, 3.5),
+            ("FILT3", "SELL", 0.7, 3.0),
+            ("FILT4", "WAIT", 0.6, 3.0),
+            ("FILT5", "BUY", 0.5, 2.0),
+        ]
+        for ticker, verdict, probability, rr in filter_cases:
+            analysis = await session.scalar(
+                select(TechAnalysis).where(TechAnalysis.ticker == ticker, TechAnalysis.model == "e2e-filter")
+            )
+            scenario_json = json.dumps({
+                "scenario_a": {"entry": "100", "stop": "98", "targets": "108", "why": "тестовый сценарий", "probability": probability, "rr": rr},
+                "scenario_b": {}, "scenario_c": {},
+            }, ensure_ascii=False)
+            if analysis is None:
+                session.add(TechAnalysis(
+                    ticker=ticker, status="success", stage="done", verdict=verdict,
+                    scenario_json=scenario_json, model="e2e-filter", finished_at=datetime.now(timezone.utc),
+                ))
+            else:
+                analysis.scenario_json = scenario_json
+                analysis.finished_at = datetime.now(timezone.utc)
         legacy = await session.scalar(
             select(TechAnalysis).where(TechAnalysis.ticker == "AFLT", TechAnalysis.model == "e2e-legacy")
         )
