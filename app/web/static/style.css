@@ -1235,10 +1235,22 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 .top5-chevron { display: inline-block; margin-right: 8px; color: var(--muted); transition: transform .15s ease; }
 .top5-row[aria-expanded="true"] .top5-chevron { transform: rotate(90deg); color: var(--accent); }
 .top5-entry-reference { font-weight: 700; white-space: nowrap; }
-.top5-levels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
-.top5-levels > div { display: grid; gap: 5px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
-.top5-levels b { overflow-wrap: anywhere; }
-@media (max-width: 680px) { .top5-levels { grid-template-columns: 1fr; } }
+.top5-level-card { padding: 18px 20px 12px; border: 1px solid #1d3f65; border-radius: 12px; background: linear-gradient(115deg, #091d35, #0c2440 62%, #0b1c33); box-shadow: inset 0 1px 0 #ffffff12; }
+.top5-level-head, .top5-level-head > div { display: flex; align-items: center; gap: 12px; }
+.top5-level-head { justify-content: space-between; flex-wrap: wrap; }
+.top5-level-head h3 { margin: 0; font-size: 17px; color: #dbe9ff; }
+.top5-level-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; background: #163858; color: #99caff; font-size: 24px; }
+.top5-open-analysis { text-decoration: none; white-space: nowrap; }
+.top5-level-track { display: flex; position: relative; gap: 0; overflow-x: auto; padding: 18px 0 8px; }
+.top5-level-track::before { content: ''; position: absolute; z-index: 0; left: 8%; right: 8%; top: 51px; height: 2px; background: linear-gradient(90deg, #3d82bf, #a94868 35%, #18bb92 65%, #18bb92); }
+.top5-level-point { position: relative; z-index: 1; flex: 1 0 95px; min-width: 0; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; color: #e4edff; }
+.top5-level-label { font-size: 13px; color: #9db7dc; }
+.top5-level-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; background: #0c2440; box-shadow: 0 0 0 4px #0c2440, 0 0 12px currentColor; }
+.top5-level-entry .top5-level-dot { color: #79c8ff; }
+.top5-level-stop .top5-level-dot { color: #ff6d87; }
+.top5-level-target .top5-level-dot { color: #42e7ae; }
+.top5-level-point strong { font-size: 15px; white-space: nowrap; }
+.top5-level-note { margin: 8px 0 0; }
 .ticker-label { font-weight: 700; font-size: 15px; }
 .ticker-label .badge { margin-left: 4px; vertical-align: middle; }
 .top5-detail td { background: var(--panel-2, #202a40); }

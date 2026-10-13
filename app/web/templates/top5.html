@@ -112,7 +112,7 @@
     <table class="table" id="top5-table">
       <thead><tr>
         <th>#</th>
-        <th style="text-align:left">Бумага / стратегия<span class="sort-hint" data-hint="strategy">?</span><span class="isort-tip" data-tip="strategy"><b>Стратегия</b><br>SА — сценарий А (основной) · SВ — сценарий B (альтернативный) · SС — сценарий C (негативный).<br>Строка = лучшая стратегия бумаги (макс. Expected R); все 3 сценария — в раскрытии строки и «Полном разборе».</span></th>
+        <th style="text-align:left">Бумага / стратегия<span class="sort-hint" data-hint="strategy">?</span><span class="isort-tip" data-tip="strategy"><b>Стратегия</b><br>SА — сценарий А (основной) · SВ — сценарий B (альтернативный) · SС — сценарий C (негативный).<br>Строка = лучшая стратегия бумаги (макс. Expected R); все 3 сценария — в полном разборе.</span></th>
         <th style="text-align:left">Направление</th>
         <th style="text-align:left">Цена</th>
         <th style="text-align:left" title="Середина диапазона входа выбранного сценария; полный диапазон — в подробностях">Вход ≈</th>
@@ -149,7 +149,7 @@
         {% for r in result['items'] %}
         <tr class="top5-row" data-idx="{{ loop.index0 }}" data-rank="{{ loop.index0 }}" data-dir="{{ r.dir }}" data-score="{{ r.score if r.score is not none else '' }}" data-rr="{{ r.rr if r.rr is not none else '' }}" data-risk="{{ r.risk if r.risk is not none else '' }}" data-probability="{{ r.probability if r.probability is not none else '' }}" data-liquidity="{{ r.liquidity_rub_day if r.liquidity_rub_day is not none else '' }}" data-plan="{{ '1' if r.has_confirmation_plan else '0' }}" aria-expanded="false" aria-controls="detail-{{ loop.index0 }}" tabindex="0" style="cursor:pointer;{% if loop.index > 5 %}display:none{% endif %}">
           <td class="t5-rank">{{ loop.index }}</td>
-          <td><div class="ticker-label"><span class="top5-chevron" aria-hidden="true">▸</span><b>{{ r.ticker }}</b> <span class="badge" title="Стратегия — сценарий {{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }} (лучший по Expected R); все сценарии — в раскрытии строки / «Полном разборе»">S{{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }}</span></div>
+          <td><div class="ticker-label"><span class="top5-chevron" aria-hidden="true">▸</span><b>{{ r.ticker }}</b> <span class="badge" title="Стратегия — сценарий {{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }} (лучший по Expected R); все сценарии — в полном разборе">S{{ 'A' if r.strategy == 'scenario_a' else ('B' if r.strategy == 'scenario_b' else 'C') }}</span></div>
               <div class="muted small">{{ r.name }}</div></td>
           <td>{% if r.dir == 'LONG' %}<span class="long">LONG</span>{% elif r.dir == 'SHORT' %}<span class="short">SHORT</span>{% else %}<span class="muted">Выжидать</span>{% endif %}{% if r.dir in ('LONG','SHORT') and r.await_confirmation %} <span class="await-conf" title="Стратегия определена, ждём подхода цены к точке входа и подтверждающих сигналов">⏳</span>{% endif %}</td>
           <td data-rt-price="{{ r.ticker }}" data-last="{{ r.price }}">{% if r.price is not none %}{{ '%.2f' | format(r.price) }}{% else %}—{% endif %}</td>
@@ -162,20 +162,15 @@
         </tr>
         <tr class="top5-detail" id="detail-{{ loop.index0 }}" style="display:none">
           <td colspan="9">
-            <div class="top5-levels"><div><span class="label">Диапазон входа</span><b>{{ r.entry or '—' }}</b></div><div><span class="label">Стоп</span><b>{{ r.stop or '—' }}</b></div><div><span class="label">Все цели</span><b>{{ r.targets or '—' }}</b></div></div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">
-              {% for key, letter, color in [('a','A','#16a34a'),('b','B','#f59e0b'),('c','C','#dc2626')] %}
-              {% set sc = r.scenarios[key] if (r.scenarios and r.scenarios.get(key)) else {} %}
-              <div style="border:1px solid var(--border);border-top:3px solid {{ color }};border-radius:10px;padding:12px;background:var(--panel-2)">
-                <div class="chart-head"><b>Сценарий {{ letter }}</b></div>
-                {% if sc and sc.get('title') %}<p class="muted small" style="margin:6px 0"><b>{{ sc.title }}</b></p>{% endif %}
-                {% if sc and sc.get('entry') %}<div><span class="label">Вход</span><span class="value">{{ sc.entry }}</span></div>{% endif %}
-                {% if sc and sc.get('stop') %}<div><span class="label">Стоп</span><span class="value">{{ sc.stop }}</span></div>{% endif %}
-                {% if sc and sc.get('targets') %}<div><span class="label">Цели</span><span class="value">{{ sc.targets }}</span></div>{% endif %}
-                {% if sc and sc.get('probability') is not none %}<div><span class="label">Вероятность</span><span class="value">{{ '%.0f' | format(sc.probability * 100) }}%</span></div>{% endif %}
-                {% if sc and sc.get('why') %}<p class="muted small">{{ sc.why }}</p>{% endif %}
+            <div class="top5-level-card">
+              <div class="top5-level-head"><div><span class="top5-level-icon" aria-hidden="true">◎</span><h3>Уровни · {{ r.ticker }}</h3></div><a class="btn top5-open-analysis" href="/tech_analysis/{{ r.analysis_id }}">Открыть разбор ↗</a></div>
+              <div class="top5-level-track" aria-label="Схема уровней выбранного сценария: вход {{ r.entry or 'нет данных' }}, стоп {{ r.stop or 'нет данных' }}, цели {{ r.targets or 'нет данных' }}">
+                <div class="top5-level-point top5-level-entry"><span class="top5-level-label">Вход</span><span class="top5-level-dot" aria-hidden="true"></span><strong>{{ r.entry or '—' }}</strong></div>
+                <div class="top5-level-point top5-level-stop"><span class="top5-level-label">Стоп</span><span class="top5-level-dot" aria-hidden="true"></span><strong>{{ r.stop or '—' }}</strong></div>
+                {% for target in r.target_levels %}<div class="top5-level-point top5-level-target"><span class="top5-level-label">Цель {{ loop.index }}</span><span class="top5-level-dot" aria-hidden="true"></span><strong>{{ target }}</strong></div>{% endfor %}
+                {% if not r.target_levels %}<div class="top5-level-point top5-level-target"><span class="top5-level-label">Цели</span><span class="top5-level-dot" aria-hidden="true"></span><strong>—</strong></div>{% endif %}
               </div>
-              {% endfor %}
+              <p class="muted small top5-level-note">Схема последовательности уровней; расстояния между отметками не соответствуют ценовому масштабу.</p>
             </div>
             <p class="muted small" style="margin:10px 0">Средний оборот: {% if r.liquidity_rub_day is not none %}{{ '%.1f' | format(r.liquidity_rub_day / 1000000) }} млн ₽/день{% else %}нет данных{% endif %} · План подтверждения входа: {{ 'есть' if r.has_confirmation_plan else 'нет' }}{% if r.has_confirmation_plan %}; выполнение условий нужно проверить отдельно{% endif %}</p>
             {% set fa = r.final_assessment if r.final_assessment else {} %}
@@ -187,14 +182,13 @@
               {% if fa.get('recommendation') %}<p class="small" style="margin:8px 0 0"><span class="label">Моя рекомендация</span> <span class="value" style="font-size:15px">{{ fa.recommendation }}</span></p>{% endif %}
             </div>
             {% endif %}
-            <p class="muted small" style="margin-top:8px"><a href="/tech_analysis/{{ r.analysis_id }}">Полный разбор «{{ r.ticker }}» →</a></p>
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
     <p id="top5-empty" class="muted" {% if result['items'] %}hidden{% endif %}>{{ 'Пока нет кандидатов. Запустите Теханализ по шаблону.' if not result['items'] else 'По выбранным условиям кандидатов нет.' }}</p>
-    <p class="muted small" style="margin-top:10px">Показана одна лучшая стратегия каждой бумаги (по Expected R). Раскройте строку, чтобы увидеть все 3 сценария «Моя стратегия».</p>
+    <p class="muted small" style="margin-top:10px">Показана одна лучшая стратегия каждой бумаги (по Expected R). Раскройте строку для схемы уровней; все сценарии доступны через «Открыть разбор».</p>
     <p class="muted small"><b>Стратегия:</b> <span class="badge">SA</span> — сценарий A (основной) · <span class="badge">SB</span> — сценарий B (альтернативный) · <span class="badge">SC</span> — сценарий C (негативный); строка = лучший из трёх по Expected R.</p>
     <p class="muted small">Дисклеймер: материал носит информационный характер и не является инвестиционной рекомендацией. Значение «Score»/«conf» — оценка модели/аналитика, а не статистически подтверждённая вероятность.</p>
     <p class="muted small" style="margin-top:6px"><span class="await-conf">⏳</span> — стратегия определена (BUY/SELL), но ждём подхода цены к точке входа и подтверждающего сигнала.</p>

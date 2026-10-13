@@ -333,6 +333,15 @@ def _first_target(text: str) -> float | None:
     return _first_num(text)
 
 
+def _target_levels(text: str) -> list[str]:
+    if not text:
+        return []
+    import re as _re
+
+    values = _re.findall(r"\d+(?:[.,]\d+)?", str(text))
+    return [value.replace(",", ".") for value in values] or [str(text)]
+
+
 def compute_rr(sc: dict, fallback: bool = True) -> float | None:
     """R/R сценария: из явного rr LLM или fallback из уровней entry/stop/targets."""
     rr = sc.get("rr")
@@ -546,6 +555,7 @@ def best_strategy(tickers_analyses: list[dict]) -> dict | None:
                 "entry": sc.get("entry") or "",
                 "entry_reference": _entry_mid(sc.get("entry")),
                 "first_target": _first_target(sc.get("targets")),
+                "target_levels": _target_levels(sc.get("targets")),
                 "stop": sc.get("stop") or "",
                 "targets": sc.get("targets") or "",
                 "rr": compute_rr(sc),

@@ -609,7 +609,15 @@ def test_best_strategy_carries_distinct_scenarios_and_price():
     assert best["strategy"] == "scenario_a"
     assert best["entry_reference"] == 102.5
     assert best["first_target"] == 110.0
+    assert best["target_levels"] == ["110"]
     assert best["entry"] == "100-105"
+
+
+def test_target_levels_keep_each_goal_for_track():
+    from app.tech_analysis.batch import _target_levels
+
+    assert _target_levels("137,9 / 142.0 / 145.5") == ["137.9", "142.0", "145.5"]
+    assert _target_levels("") == []
 
 
 def test_parse_final_assessment():
