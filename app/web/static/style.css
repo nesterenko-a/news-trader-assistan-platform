@@ -99,6 +99,41 @@ main { padding: 24px 16px 40px; }
 .indicator-nav-link.active { background: var(--accent); color: #fff; font-weight: 700; }
 .indicators-workspace { min-width: 0; }
 .indicators-outline { display: none; }
+.tech-analysis-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.tech-analysis-main { min-width: 0; }
+.tech-outline { display: none; }
+.tech-outline-mobile { margin: 12px 0; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+.tech-outline[hidden], .tech-outline-mobile[hidden] { display: none; }
+.tech-outline-mobile summary { cursor: pointer; font-weight: 700; }
+.tech-outline-mobile nav { display: grid; margin-top: 8px; }
+.tech-outline a, .tech-outline-mobile a { display: block; padding: 7px 8px; border-radius: 6px; color: var(--muted); font-size: 12px; line-height: 1.35; }
+.tech-outline a:hover, .tech-outline a.active, .tech-outline-mobile a:hover, .tech-outline-mobile a.active { background: var(--panel-2); color: var(--text); text-decoration: none; }
+.tech-analysis-main .md-body h2, .tech-analysis-main #scenarios { scroll-margin-top: 84px; }
+.tech-confirmation { margin-top: 12px; }
+.tech-confirmation-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.tech-confirmation-tabs .active { background: var(--accent); color: #fff; }
+.tech-confirmation-panel[hidden] { display: none; }
+.tech-confirmation-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 12px 0; font-size: 13px; }
+.tech-confirmation-meta span { color: var(--muted); }
+.tech-confirmation-meta b { color: var(--text); }
+.tech-confirmation-svg { display: block; width: 100%; height: auto; max-height: 210px; margin: 14px 0; }
+.tech-confirmation-level { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 6 5; }
+.tech-confirmation-candle line { stroke: var(--green); stroke-width: 2; }
+.tech-confirmation-candle rect { fill: var(--green); }
+.tech-confirmation-candle.down line { stroke: var(--red); }
+.tech-confirmation-candle.down rect { fill: var(--red); }
+.tech-confirmation-candle.entry rect { fill: var(--accent); stroke: var(--text); stroke-width: 1; }
+.tech-confirmation-candle.entry .tech-entry-halo { fill: color-mix(in srgb, var(--accent) 18%, transparent); }
+.tech-confirmation-candle.entry .tech-entry-label { fill: var(--accent); font-weight: 700; }
+.tech-confirmation-candle.invalidation rect { fill: var(--red); stroke: var(--text); stroke-dasharray: 3 2; }
+.tech-confirmation-candle text { fill: var(--muted); font-size: 12px; }
+.tech-confirmation-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.tech-confirmation-steps li { display: grid; align-content: start; gap: 5px; border: 1px solid var(--border); border-radius: 8px; padding: 10px; font-size: 12px; }
+.tech-confirmation-steps li span { color: var(--muted); }
+.tech-confirmation-steps li em { color: var(--accent); font-style: normal; }
+.tech-confirmation-conditions { margin-top: 12px; font-size: 13px; }
+.tech-confirmation-conditions ul { margin: 5px 0 0; padding-left: 20px; }
+.tech-confirmation-conditions.cancel b { color: var(--red); }
 .indicators-intro h1 { margin-bottom: 10px; }
 .indicator-selected { margin: 0 0 16px; }
 .indicator-mobile-label, .indicator-mobile-select { display: none; }
@@ -999,6 +1034,10 @@ tr.unread td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 }
 
 @media (min-width: 1181px) {
+  main.wrap:has(.tech-analysis-layout) { max-width: 1400px; }
+  .tech-analysis-layout { grid-template-columns: minmax(0, 1fr) 190px; }
+  .tech-outline { display: block; position: sticky; top: 74px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+  .tech-outline-mobile { display: none; }
   main.wrap:has(.indicators-layout) { max-width: 1400px; }
   .indicators-layout { grid-template-columns: 236px minmax(0, 1fr) 190px; }
   .indicators-outline { display: block; position: sticky; top: 74px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }

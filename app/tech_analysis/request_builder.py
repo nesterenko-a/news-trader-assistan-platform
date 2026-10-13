@@ -33,7 +33,12 @@ FALLBACK_PROMPT = """Проведи технический анализ данн
 Не соглашайся автоматически, отделяй факты от предположений, учитывай текущую цену. Если данных недостаточно — прямо укажи.
 
 Используй структуру ответа: сценарии A (основной), B (альтернативный), C (негативный),
-и обязательно в конце добавь JSON-блок {verdict, entry, tp, sl, scenario_a, scenario_b, scenario_c}.
+глава «10. Что должно подтвердить сделку» с условиями входа и отмены,
+и обязательно в конце добавь JSON-блок {verdict, entry, tp, sl, scenario_a, scenario_b, scenario_c, confirmation_plans}.
+В confirmation_plans укажи для каждого конкретного сценария направление buy/sell/wait,
+таймфрейм, ключевой уровень, шаги approach/breakout/close/retest/hold/entry/invalidation
+с label/detail, число закрытых свечей и время ожидания только если они заданы в тексте,
+а также списки confirmations и cancellations. Не придумывай сроки и уровни.
 """
 
 WINDOWS = [

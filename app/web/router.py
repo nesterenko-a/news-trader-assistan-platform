@@ -116,6 +116,7 @@ from app.market.indicators.adx import calculate_adx
 from app.market.indicators.rsi_indicator import calculate_rsi
 from app.market.indicators.basis_service import basis_for_ticker
 from app.tech_analysis.service import has_active, list_analyses, retry_analysis, start_analysis
+from app.tech_analysis.confirmation import build_confirmation_chart, closed_candles_label, plans_from_json
 from app.news.service import load_security_news
 from app.presentation.factories import WebContextFactory
 from app.presentation.markdown_renderer import render_markdown
@@ -1639,13 +1640,27 @@ async def tech_analysis_page(
     if row.scenario_json:
         try:
             data = _json.loads(row.scenario_json)
-            scenarios = {
-                "a": data.get("scenario_a") or {},
-                "b": data.get("scenario_b") or {},
-                "c": data.get("scenario_c") or {},
-            }
+            if isinstance(data, dict):
+                for key in ("a", "b", "c"):
+                    value = data.get(f"scenario_{key}")
+                    scenarios[key] = value if isinstance(value, dict) else {}
         except (ValueError, TypeError):
             scenarios = {"a": {}, "b": {}, "c": {}}
+    confirmation_plans = plans_from_json(row.scenario_json)
+    if row.verdict in ("BUY", "SELL", "WAIT") and "a" in confirmation_plans:
+        if confirmation_plans["a"]["direction"] != row.verdict.lower():
+            confirmation_plans.pop("a")
+    confirmation_views = [
+        {
+            "key": key,
+            "letter": key.upper(),
+            "plan": confirmation_plans[key],
+            "chart": build_confirmation_chart(confirmation_plans[key]),
+            "closed_candles_label": closed_candles_label(confirmation_plans[key]["closed_candles"]),
+        }
+        for key in ("a", "b", "c")
+        if key in confirmation_plans
+    ]
     provider = (row.provider or "").lower()
     model = row.model or ""
     llm_name = (
@@ -1658,6 +1673,7 @@ async def tech_analysis_page(
             "analysis": row,
             "security_name": security.name if security else row.ticker,
             "scenarios": scenarios,
+            "confirmation_views": confirmation_views,
             "llm_name": llm_name,
             "response_html": render_markdown(row.response_md),
         }

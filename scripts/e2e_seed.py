@@ -9,6 +9,7 @@
 """
 
 import asyncio
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -104,6 +105,24 @@ async def seed(db_url: str) -> None:
         ta = await session.scalar(
             select(TechAnalysis).where(TechAnalysis.ticker == "SBER", TechAnalysis.batch_id.isnot(None))
         )
+        confirmation_data = {
+            "scenario_a": {"title": "A", "entry": "100-105", "stop": "98", "targets": "115", "why": "ok", "probability": 0.65, "rr": 2.5},
+            "scenario_b": {"title": "B", "entry": "98", "stop": "105", "targets": "90", "why": "альтернатива", "probability": 0.25, "rr": 1.5},
+            "scenario_c": {},
+            "confirmation_plans": {
+                "a": {"direction": "buy", "timeframe": "1ч", "level_label": "зона 100–105", "steps": [
+                    {"kind": "approach", "label": "Подход", "detail": "Цена подходит к зоне"},
+                    {"kind": "close", "label": "Закрытие", "detail": "Свеча закрывается выше зоны"},
+                    {"kind": "entry", "label": "Вход", "detail": "После подтверждения"},
+                ], "closed_candles": 1, "wait_minutes": None, "confirmations": ["объём растёт"], "cancellations": ["закрытие ниже зоны"]},
+                "b": {"direction": "sell", "timeframe": None, "level_label": "зона 98", "steps": [
+                    {"kind": "approach", "label": "Подход", "detail": "Цена подходит к зоне"},
+                    {"kind": "breakout", "label": "Пробой", "detail": "Цена уходит ниже зоны"},
+                    {"kind": "entry", "label": "Вход", "detail": "После пробоя"},
+                ], "closed_candles": None, "wait_minutes": None, "confirmations": [], "cancellations": ["возврат выше зоны"]},
+            },
+        }
+        confirmation_response = "## 1. Рынок\nКонтекст.\n\n## 10. Что должно подтвердить сделку\nЖдать закрытия свечи выше зоны.\n\n## 10. Риски\nУчитывать риск."
         if ta is None:
             batch = await session.scalar(
                 select(TechAnalysisBatch).where(TechAnalysisBatch.template_id == tpl.id)
@@ -121,14 +140,32 @@ async def seed(db_url: str) -> None:
                     entry="100-105",
                     tp="115",
                     sl="98",
-                    scenario_json=(
-                        '{"scenario_a":{"title":"A","entry":"100-105","stop":"98",'
-                        '"targets":"115","why":"ok","probability":0.65,"rr":2.5},'
-                        '"scenario_b":{},"scenario_c":{}}'
-                    ),
+                    scenario_json=json.dumps(confirmation_data, ensure_ascii=False),
+                    response_md=confirmation_response,
+                    await_confirmation=True,
                     model="e2e",
                     finished_at=datetime.now(timezone.utc),
                     batch_id=batch.id,
+                )
+            )
+        else:
+            ta.scenario_json = json.dumps(confirmation_data, ensure_ascii=False)
+            ta.response_md = confirmation_response
+            ta.await_confirmation = True
+        legacy = await session.scalar(
+            select(TechAnalysis).where(TechAnalysis.ticker == "AFLT", TechAnalysis.model == "e2e-legacy")
+        )
+        if legacy is None:
+            session.add(
+                TechAnalysis(
+                    ticker="AFLT",
+                    status="success",
+                    stage="done",
+                    verdict="WAIT",
+                    scenario_json="[]",
+                    response_md="## 10. Что должно подтвердить сделку\nЖдать подтверждения без заданного срока.",
+                    model="e2e-legacy",
+                    finished_at=datetime.now(timezone.utc),
                 )
             )
         macro_seed = [

@@ -1,6 +1,6 @@
 # 07. Модель данных
 
-**Статус:** утверждено v1.26 (участники OI по направлениям)
+**Статус:** утверждено v1.27 (структурированные подтверждения теханализа)
 **Система:** NewsTrader Assistant
 
 Описание сущностей системы и их взаимосвязей. Модель представлена концептуально, без привязки к конкретной СУБД (см. [06-architecture.md](./06-architecture.md)).
@@ -541,7 +541,7 @@
 | request_md | text | Сформированный запрос (markdown) |
 | response_md | text, null | Ответ LLM |
 | verdict / entry / tp / sl | text, null | Карточка-результат из Сценария A ответа (buy / sell / wait) |
-| scenario_json | text, null | Полный JSON сценария |
+| scenario_json | text, null | JSON сценариев A/B/C; необязательный объект `confirmation_plans` с валидированными условиями подтверждения для каждого сценария. Старые записи без него остаются корректными |
 | await_confirmation | bool | Ожидает подтверждения пользователя |
 | batch_id | FK → tech_analysis_batches, null | Батч Top-5, частью которого является разбор |
 | model / provider | string, null | Модель и провайдер LLM |

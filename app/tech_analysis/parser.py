@@ -11,6 +11,8 @@ verdict/entry/tp/sl + scenario_json для карточек на страниц�
 import json
 import re
 
+from app.tech_analysis.confirmation import normalize_confirmation_plans
+
 _JSON_BLOCK_RE = re.compile(
     r"```json\s*(\{.*?\})\s*```", re.DOTALL
 )
@@ -108,14 +110,15 @@ def parse_response(response_md: str) -> dict:
         sc = parsed[key]
         e = expected_r(sc.get("probability"), sc.get("rr"))
         sc["expected_r"] = round(e, 3) if e is not None else None
-    parsed["scenario_json"] = json.dumps(
-        {
-            "scenario_a": parsed["scenario_a"],
-            "scenario_b": parsed["scenario_b"],
-            "scenario_c": parsed["scenario_c"],
-        },
-        ensure_ascii=False,
-    )
+    scenario_data = {
+        "scenario_a": parsed["scenario_a"],
+        "scenario_b": parsed["scenario_b"],
+        "scenario_c": parsed["scenario_c"],
+    }
+    plans = normalize_confirmation_plans(data.get("confirmation_plans"))
+    if plans:
+        scenario_data["confirmation_plans"] = plans
+    parsed["scenario_json"] = json.dumps(scenario_data, ensure_ascii=False)
     return parsed
 
 
