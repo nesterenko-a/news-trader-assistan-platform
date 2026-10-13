@@ -5,6 +5,7 @@
 (kind=stock) и API-маршрутов.
 """
 
+import asyncio
 import json
 
 import pytest
@@ -83,6 +84,39 @@ def test_best_strategy_carries_await_confirmation():
 def test_ticker_list():
     tpl = FuturesTemplate(name="t", tickers="AFLT; SBER, Gazp", kind="stock")
     assert set(_ticker_list(tpl)) == {"AFLT", "SBER", "GAZP"}
+
+
+async def test_batch_starts_all_thirty_tickers(session, monkeypatch):
+    from app.tech_analysis import batch as batch_module
+
+    tickers = [f"T{i:02d}" for i in range(30)]
+    template = FuturesTemplate(name="thirty", tickers=",".join(tickers), kind="stock")
+    session.add(template)
+    await session.flush()
+    captured = []
+
+    async def record_batch(batch_id, batch_tickers, user_id, provider, force):
+        captured.extend(batch_tickers)
+
+    monkeypatch.setattr(batch_module, "_run_batch", record_batch)
+    await batch_module.start_batch(session, template.id)
+    await asyncio.sleep(0)
+    assert captured == tickers
+
+
+async def test_batch_rejects_template_above_limit(session, monkeypatch):
+    from types import SimpleNamespace
+
+    from app.db.models import TechAnalysisBatch
+    from app.tech_analysis import batch as batch_module
+
+    template = FuturesTemplate(name="too many", tickers=",".join(f"T{i:02d}" for i in range(30)), kind="stock")
+    session.add(template)
+    await session.flush()
+    monkeypatch.setattr(batch_module, "get_settings", lambda: SimpleNamespace(top5_max_instruments=20))
+    with pytest.raises(batch_module.Top5InstrumentLimitError, match="30 акций, лимит запуска — 20"):
+        await batch_module.start_batch(session, template.id)
+    assert await session.scalar(select(TechAnalysisBatch).where(TechAnalysisBatch.template_id == template.id)) is None
 
 
 def test_compute_rr_fallback_from_levels():

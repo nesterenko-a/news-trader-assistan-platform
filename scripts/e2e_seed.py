@@ -157,6 +157,22 @@ async def seed(db_url: str) -> None:
         if filter_template is None:
             filter_template = FuturesTemplate(name="e2e_top5_filter", tickers="FILT1,FILT2,FILT3,FILT4,SBER,FILT5", kind="stock")
             session.add(filter_template)
+        thirty_tickers = [f"THIRTY{i:02d}" for i in range(30)]
+        thirty_template = await session.scalar(select(FuturesTemplate).where(FuturesTemplate.name == "e2e_top5_thirty"))
+        if thirty_template is None:
+            session.add(FuturesTemplate(name="e2e_top5_thirty", tickers=",".join(thirty_tickers), kind="stock"))
+        for ticker in thirty_tickers:
+            analysis = await session.scalar(
+                select(TechAnalysis).where(TechAnalysis.ticker == ticker, TechAnalysis.model == "e2e-thirty")
+            )
+            if analysis is None:
+                analysis = TechAnalysis(ticker=ticker, status="success", stage="done", verdict="BUY", model="e2e-thirty")
+                session.add(analysis)
+            analysis.scenario_json = json.dumps({
+                "scenario_a": {"entry": "100", "stop": "98", "targets": "108", "why": "тест", "probability": 0.6, "rr": 2.0},
+                "scenario_b": {}, "scenario_c": {},
+            }, ensure_ascii=False)
+            analysis.finished_at = datetime.now(timezone.utc)
         filter_cases = [
             ("FILT1", "BUY", 0.8, 4.0),
             ("FILT2", "BUY", 0.75, 3.5),

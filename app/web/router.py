@@ -1726,7 +1726,7 @@ async def top5_page(
     user = await _optional_user(request, session)
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
-    from app.tech_analysis.batch import _deal_qualified, list_batches, top5 as top5_service
+    from app.tech_analysis.batch import _deal_qualified, _ticker_list, list_batches, top5 as top5_service
 
     stock_templates = (
         await session.scalars(
@@ -1738,11 +1738,13 @@ async def top5_page(
     context = await _base_context(session, user)
     result = None
     selected = None
+    selected_ticker_count = 0
     batches = []
     if template_id is not None:
         try:
             selected = await session.get(FuturesTemplate, template_id)
-            result = await top5_service(session, template_id, limit=get_cfg().top5_max_instruments)
+            selected_ticker_count = len(_ticker_list(selected)) if selected else 0
+            result = await top5_service(session, template_id, limit=selected_ticker_count)
             batches = await list_batches(session, template_id)
             if result is not None and not result.get("items"):
                 for batch in batches:
@@ -1768,6 +1770,8 @@ async def top5_page(
             ],
             "selected_template_id": template_id,
             "selected_template": selected,
+            "selected_ticker_count": selected_ticker_count,
+            "top5_limit": get_cfg().top5_max_instruments,
             "result": result,
             "batches": batches,
         }

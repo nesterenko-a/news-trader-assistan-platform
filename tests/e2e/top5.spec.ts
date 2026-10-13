@@ -2,6 +2,17 @@ import { test, expect } from "@playwright/test";
 import { login, USER } from "./helpers";
 
 test.describe("Top-5: лучшая сделка из шаблона акций", () => {
+  test("шаблон из 30 акций доступен целиком для отбора", async ({ page }) => {
+    await login(page, USER.username, USER.password);
+    await page.goto("/top5");
+    await page.locator("a.top5-tpl-card", { hasText: "e2e_top5_thirty" }).click();
+    await expect(page.locator("body")).toContainText("Состав шаблона — 30 бумаг · Лимит запуска — 50 акций");
+    await expect(page.locator("#tpl-cloud .tpl-tag")).toHaveCount(30);
+    await expect(page.locator("#btn-run")).toBeEnabled();
+    await expect(page.locator("#top5-count")).toHaveText("30");
+    await expect(page.locator(".top5-row:visible")).toHaveCount(5);
+  });
+
   test("авторизованному: страница с шаблоном и подборкой Top-5", async ({ page }) => {
     await login(page, USER.username, USER.password);
     await page.goto("/top5");

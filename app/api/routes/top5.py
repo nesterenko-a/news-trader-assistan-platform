@@ -12,6 +12,7 @@ from app.tech_analysis.batch import (
     get_stock_template,
     start_batch,
     top5,
+    Top5InstrumentLimitError,
 )
 
 router = APIRouter(prefix="/top5", tags=["top5"])
@@ -40,6 +41,8 @@ async def top5_run(
 ) -> dict:
     try:
         batch = await start_batch(session, template_id, user_id=user.id, provider=provider, force=force)
+    except Top5InstrumentLimitError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except RuntimeError as exc:

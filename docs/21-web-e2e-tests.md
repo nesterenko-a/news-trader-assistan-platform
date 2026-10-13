@@ -1,6 +1,6 @@
 # 21. E2E-тесты веб-интерфейса (Playwright) — ТЗ и план тестирования
 
-**Статус:** утверждено v1.30 (фильтр качества Top-5)
+**Статус:** утверждено v1.31 (шаблон Top-5 из 30 акций)
 **Система:** NewsTrader Assistant  
 **Связанные документы:** [14-web-interface.md](./14-web-interface.md), [16-working-process.md](./16-working-process.md), [13-operations.md](./13-operations.md), [17-quickstart.md](./17-quickstart.md)
 
@@ -46,6 +46,7 @@
    - 3 макро-события (RU/US, high/medium/low) — фильтры на `/macro`;
    - `Strategy` для SBER (история стратегий);
    - шаблон `e2e_top5_filter` с шестью сценариями для проверки порогов и продвижения кандидата из-за пределов первой пятёрки;
+   - шаблон `e2e_top5_thirty` с 30 сценариями для проверки полного набора кандидатов и доступности запуска;
    - пользователи: `admin` / `admin123` (роль `admin`), `user` / `user123` (роль `user`).
 2. Запуск uvicorn-субпроцесса на `127.0.0.1:8765` с окружением `DATABASE_URL=sqlite+aiosqlite:///test-results/e2e.db` и `MOEX_BASE_URL=http://127.0.0.1:9` (внешние сети отключены).
 3. Ожидание готовности: poll `GET /v1/health` (fetch) до 200, таймаут ~60 с.

@@ -34,7 +34,7 @@
       <h2 style="margin:0">{{ selected_template.name }}</h2>
       <span class="badge">Все</span>
     </div>
-    <span class="muted small">Состав шаблона — {{ (selected_template.tickers.split(',') | reject('equalto','') | list | length) }} бумаг</span>
+    <span class="muted small">Состав шаблона — {{ selected_ticker_count }} бумаг · Лимит запуска — {{ top5_limit }} акций</span>
   </div>
 
   <div class="tpl-cloud-mask">
@@ -67,10 +67,10 @@
       </label>
     </div>
     <div style="margin-left:auto;display:flex;gap:8px">
-      <button class="btn active" id="btn-run" type="button" {% if result and result.get('running') %}disabled{% endif %}><span>📊</span>Теханализ в LLM</button>
+      <button class="btn active" id="btn-run" type="button" {% if (result and result.get('running')) or selected_ticker_count > top5_limit %}disabled{% endif %}><span>📊</span>Теханализ в LLM</button>
     </div>
   </div>
-  <div id="run-progress" class="muted small" style="margin-top:10px"></div>
+  <div id="run-progress" class="muted small" style="margin-top:10px">{% if selected_ticker_count > top5_limit %}Шаблон превышает лимит: уменьшите число акций или увеличьте TOP5_MAX_INSTRUMENTS в .env.{% endif %}</div>
 </section>
 {% endif %}
 

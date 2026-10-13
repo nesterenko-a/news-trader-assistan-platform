@@ -25,6 +25,10 @@ from app.tech_analysis.service import start_analysis
 FRESH_HOURS = get_settings().top5_fresh_hours
 
 
+class Top5InstrumentLimitError(ValueError):
+    pass
+
+
 def _ticker_list(template: FuturesTemplate) -> list[str]:
     return [
         t.strip().upper()
@@ -80,9 +84,15 @@ async def start_batch(
     if template is None:
         raise ValueError("Шаблон не найден или не является шаблоном акций (kind != stock)")
 
-    tickers = _ticker_list(template)[: get_settings().top5_max_instruments]
+    tickers = _ticker_list(template)
     if not tickers:
         raise ValueError("Шаблон пуст")
+    max_instruments = get_settings().top5_max_instruments
+    if len(tickers) > max_instruments:
+        raise Top5InstrumentLimitError(
+            f"В шаблоне {len(tickers)} акций, лимит запуска — {max_instruments}. "
+            "Уменьшите шаблон или увеличьте TOP5_MAX_INSTRUMENTS в .env."
+        )
 
     # Единовременный активный батч на шаблон
     active = await session.scalar(
@@ -582,7 +592,7 @@ async def top5(session, template_id: int, limit: int = 5) -> dict:
     template = await get_stock_template(session, template_id)
     if template is None:
         raise ValueError("Шаблон не найден или не является шаблоном акций")
-    tickers = _ticker_list(template)[: get_settings().top5_max_instruments]
+    tickers = _ticker_list(template)
     from app.db.models import Security
 
     names = {}
