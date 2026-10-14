@@ -156,8 +156,12 @@ def _patch_settings(monkeypatch, fake):
     monkeypatch.setattr("app.config.get_settings", lambda: fake)
 
 
+def _fake_key(provider):
+    return f"fake-{provider}"
+
+
 def test_resolve_llm_prefers_chatgpt(monkeypatch):
-    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="fake-chatgpt", llm_key="fake-deepseek"))  # pragma: allowlist secret
+    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key=_fake_key("chatgpt"), llm_key=_fake_key("deepseek")))
     r = resolve_llm()
     assert r.api_key == "fake-chatgpt"
     assert r.model == "gpt-4o"
@@ -166,7 +170,7 @@ def test_resolve_llm_prefers_chatgpt(monkeypatch):
 
 def test_resolve_llm_fallback_deepseek(monkeypatch):
     # CHATGPT_API_KEY пуст — берём LLM_API_KEY (DeepSeek)
-    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="", llm_key="fake-deepseek"))  # pragma: allowlist secret
+    _patch_settings(monkeypatch, _FakeSettings(chatgpt_key="", llm_key=_fake_key("deepseek")))
     r = resolve_llm()
     assert r.api_key == "fake-deepseek"
     assert r.model == "deepseek-reasoner"
