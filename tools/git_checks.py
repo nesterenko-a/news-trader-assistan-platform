@@ -45,14 +45,16 @@ def check_commit_message(filename: str) -> int:
     return 1
 
 
-def project_python() -> Path | None:
+def project_python(*, allow_ci_fallback: bool = False) -> Path | None:
     python = ROOT / ".venv" / (
         "Scripts/python.exe" if sys.platform == "win32" else "bin/python"
     )
-    if not python.is_file():
-        print("Не найден Python в .venv. Подготовьте окружение по docs/13-operations.md §7.")
-        return None
-    return python
+    if python.is_file():
+        return python
+    if allow_ci_fallback and sys.platform != "win32" and Path(sys.executable).is_file():
+        return Path(sys.executable)
+    print("Не найден Python в .venv. Подготовьте окружение по docs/13-operations.md §7.")
+    return None
 
 
 def check_python() -> int:
@@ -70,7 +72,7 @@ def check_python() -> int:
 
 
 def check_openapi_contract() -> int:
-    python = project_python()
+    python = project_python(allow_ci_fallback=True)
     if python is None:
         return 1
     return subprocess.run(

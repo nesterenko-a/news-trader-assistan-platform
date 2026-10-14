@@ -48,7 +48,7 @@ repos:
         language: python
         additional_dependencies: [detect-secrets==1.5.0]
         types: [text]
-        exclude: ^package-lock\.json$
+        exclude: ^(package-lock\.json|app/web/static/mermaid\.min\.js)$
       - id: ruff
         name: Ошибки корректности Python (Ruff)
         entry: ruff check
@@ -63,7 +63,7 @@ repos:
       - id: openapi-contract
         name: Синхронизация OpenAPI-контракта
         entry: python tools/git_checks.py openapi
-        language: python
+        language: system
         pass_filenames: false
         require_serial: true
         files: '(^app/api/|^app/(config|main)\.py$|^openapi/openapi\.json$|^tools/export_openapi\.py$)'

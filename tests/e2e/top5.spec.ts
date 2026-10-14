@@ -90,7 +90,7 @@ test.describe("Top-5: лучшая сделка из шаблона акций",
     expect(page.url()).toContain("/login");
   });
 
-  test("раскрытие сценариев по клику на строку", async ({ page }) => {
+  test("раскрытие уровней и условий по клику на строку", async ({ page }) => {
     await login(page, USER.username, USER.password);
     await page.goto("/top5");
     await page.locator("a.top5-tpl-card", { hasText: "e2e_top5" }).first().click();
@@ -101,8 +101,8 @@ test.describe("Top-5: лучшая сделка из шаблона акций",
       await expect(page.locator("#top5-table thead")).toContainText("Цель 1");
       await expect(page.locator("#top5-table thead")).not.toContainText("Стоп");
       await expect(row.locator(".top5-entry-reference")).not.toContainText(/[-–—]\s*\d/);
-      await expect(row.locator(".top5-expand-cell")).toBeVisible();
-      await expect(row.locator(".top5-expand-icon")).toHaveText("⌄");
+      await expect(page.locator("#top5-table thead th")).toHaveCount(9);
+      await expect(row.locator("td")).toHaveCount(9);
       await expect(row).toHaveAttribute("aria-expanded", "false");
       await row.click();
       await expect(page.locator(".top5-detail").first()).toBeVisible();
@@ -113,16 +113,18 @@ test.describe("Top-5: лучшая сделка из шаблона акций",
       await expect(detail.locator(".top5-level-stop strong")).not.toBeEmpty();
       await expect(detail.locator(".top5-level-target").first()).toBeVisible();
       await expect(detail.locator(".top5-deal-panel")).toBeVisible();
-      await expect(detail.locator(".top5-scenario-panel")).toBeVisible();
-      await expect(detail.locator(".top5-analysis-panel")).toBeVisible();
+      await expect(detail.locator(".top5-action-panel")).toBeVisible();
+      await expect(detail.locator(".top5-action-panel .top5-confirmation-card")).toContainText("Ждёт подтверждения");
       await expect(detail.locator(".top5-open-analysis")).toHaveText("Открыть разбор →");
       await expect(detail.locator(".top5-open-analysis")).toHaveAttribute("href", /\/tech_analysis\/\d+/);
-      await expect(detail.locator(".top5-scenario-panel h3")).toContainText(/^Сценарий [ABC]$/);
+      await expect(detail.locator(".top5-action-panel h3")).toHaveCount(0);
       await expect(detail.getByText("Итоговая оценка")).toHaveCount(0);
-      await expect(detail.getByText("Сценарий B")).toHaveCount(0);
-      await expect(detail.getByText("Сценарий C")).toHaveCount(0);
+      await expect(detail.getByText(/^Сценарий [ABC]$/)).toHaveCount(0);
       const columns = await detail.locator(".top5-deal-panel").evaluate(panel => getComputedStyle(panel).gridTemplateColumns.split(" ").map(parseFloat));
-      expect(columns[0]).toBeGreaterThan(columns[1] * 1.7);
+      expect(columns).toHaveLength(2);
+      expect(columns[0]).toBeGreaterThan(columns[1]);
+      const levelTrack = detail.locator(".top5-level-track");
+      expect(await levelTrack.evaluate(track => track.scrollWidth <= track.clientWidth + 1)).toBe(true);
       await row.focus();
       await page.keyboard.press("Enter");
       await expect(page.locator(".top5-detail").first()).toBeHidden();
