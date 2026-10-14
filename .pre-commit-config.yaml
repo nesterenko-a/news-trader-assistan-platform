@@ -63,7 +63,7 @@ repos:
       - id: openapi-contract
         name: Синхронизация OpenAPI-контракта
         entry: python tools/git_checks.py openapi
-        language: python
+        language: system
         pass_filenames: false
         require_serial: true
         files: '(^app/api/|^app/(config|main)\.py$|^openapi/openapi\.json$|^tools/export_openapi\.py$)'
