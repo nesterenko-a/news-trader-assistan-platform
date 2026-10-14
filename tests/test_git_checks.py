@@ -44,6 +44,20 @@ def test_python_checks_fail_without_project_venv(tmp_path, monkeypatch):
     assert git_checks.check_python() == 1
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="CI fallback uses Linux Python")
+def test_openapi_contract_uses_ci_python_without_project_venv(tmp_path, monkeypatch):
+    calls = []
+
+    def succeed(command, **kwargs):
+        calls.append(command)
+        return type("Result", (), {"returncode": 0})()
+
+    monkeypatch.setattr(git_checks, "ROOT", tmp_path)
+    monkeypatch.setattr(git_checks.subprocess, "run", succeed)
+    assert git_checks.check_openapi_contract() == 0
+    assert calls[0][0] == sys.executable
+
+
 def test_python_checks_stop_on_failure(tmp_path, monkeypatch):
     python = tmp_path / ".venv" / (
         "Scripts/python.exe" if sys.platform == "win32" else "bin/python"
