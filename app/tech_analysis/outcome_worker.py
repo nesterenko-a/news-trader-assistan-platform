@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from app.db.models import ScenarioCandle, ScenarioEvaluation, ScenarioEvent, ScenarioSnapshot
 from app.market.moex import MOEXClient
-from app.market.scenario_calendar import expected_hours, market_context, schedule
+from app.market.scenario_calendar import CalendarAuthorizationError, expected_hours, market_context, schedule
 from app.tech_analysis.outcomes import TERMINAL, transition, utc
 
 
@@ -37,10 +37,10 @@ async def evaluate_pending(session, limit=100, client=None, now=None):
                         calendar_cache[calendar_key] = await schedule(client.base_url, snapshot.ticker, snapshot.is_future, start.astimezone(zone), stop.astimezone(zone))
                     windows = calendar_cache[calendar_key]
                     evaluation.market_context = market_context(windows, now) if now.date() == stop.date() else {"session": "unknown"}
-                except Exception:
+                except Exception as exc:
                     evaluation.market_context = {"session": "unknown"}
                     complete = False
-                    evaluation.detail = "Календарь MOEX не подтверждён; полнота окна неизвестна"
+                    evaluation.detail = str(exc) if isinstance(exc, CalendarAuthorizationError) else "Календарь MOEX не подтверждён; полнота окна неизвестна"
                     evaluation.checked_at = now
                     evaluation.complete = False
                     continue

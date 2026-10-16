@@ -30,6 +30,8 @@ from app.db.models import (
     MarketOpenPosition,
     MarketOpenPositionClientGroup,
     RealtimeConfig,
+    ScenarioEvaluation,
+    ScenarioSnapshot,
     Security,
     Source,
     Strategy,
@@ -460,6 +462,8 @@ async def seed(db_url: str) -> None:
             session.add(analysis)
             await session.flush()
             await capture(session, analysis)
+        outcome = await session.scalar(select(ScenarioEvaluation).join(ScenarioSnapshot).where(ScenarioSnapshot.ticker == "OUTCOMEE2E", ScenarioSnapshot.scenario_key == "a"))
+        outcome.detail = "Календарь MOEX требует авторизации"
         await session.commit()
     await engine.dispose()
 

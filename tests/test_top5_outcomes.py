@@ -294,3 +294,55 @@ async def test_malformed_snapshot_is_excluded_not_failed(session):
     await session.commit()
     rows = (await session.scalars(select(ScenarioSnapshot).where(ScenarioSnapshot.analysis_id == new.id))).all()
     assert len(rows) == 3 and not any(row.eligible for row in rows)
+
+
+@pytest.mark.parametrize("status, body", [
+    (200, "<html>Информация доступна только подписчикам.</html>"),
+    (200, "<html>The information is available only to subscribers.</html>"),
+    (200, '<p>Информация доступна только <a href="/orders">подписчикам</a>.</p>'),
+    (200, '<p>The information is available only to <a href="/orders">subscribers</a>.</p>'),
+    (401, ""),
+    (403, ""),
+])
+def test_calendar_authorization_response(status, body):
+    from app.market.scenario_calendar import CalendarAuthorizationError, calendar_json
+    response = httpx.Response(status, text=body, request=httpx.Request("GET", "https://example.test/calendar"))
+    with pytest.raises(CalendarAuthorizationError, match="^Календарь MOEX требует авторизации$"):
+        calendar_json(response)
+
+
+def test_calendar_other_html_is_not_authorization():
+    from app.market.scenario_calendar import calendar_json
+    response = httpx.Response(200, text="<html>Maintenance</html>", request=httpx.Request("GET", "https://example.test/calendar"))
+    with pytest.raises(ValueError, match="^Календарь MOEX вернул некорректный JSON$"):
+        calendar_json(response)
+    assert calendar_json(httpx.Response(200, json={"off_days": {}}, request=response.request)) == {"off_days": {}}
+
+
+@pytest.mark.parametrize("restricted", ["off_days", "session_schedule"])
+async def test_worker_exposes_calendar_authorization_without_outcome(session, monkeypatch, restricted):
+    from app.market import scenario_calendar
+    from app.db.models import ScenarioCandle
+    user, _ = await seed(session)
+    class Client:
+        base_url = "https://example.test/iss"
+
+        async def fetch_candles(self, *args, **kwargs):
+            return [bar(1), bar(2, o=103, h=111, low=102, c=110)]
+
+    def respond(request):
+        block = "session_schedule" if "/session.json" in request.url.path else "off_days"
+        if block == restricted:
+            return httpx.Response(200, text="<html>Информация доступна только подписчикам.</html>")
+        return httpx.Response(200, json={"off_days": {"columns": ["tradedate", "is_traded"], "data": [["2026-10-01", 1]]}})
+
+    client_type = httpx.AsyncClient
+    monkeypatch.setattr(scenario_calendar.httpx, "AsyncClient", lambda **kwargs: client_type(transport=httpx.MockTransport(respond), **kwargs))
+    assert await evaluate_pending(session, client=Client(), now=T + timedelta(hours=4)) == 0
+    row = next(item for item in (await list_outcomes(session, user.id))["items"] if item["eligible"])
+    assert row["detail"] == "Календарь MOEX требует авторизации"
+    assert row["state"] == "pending"
+    assert not row["freshness"]["data_complete"]
+    assert row["freshness"]["market_session"] == "unknown"
+    assert await session.scalar(select(func.count()).select_from(ScenarioEvent)) == 0
+    assert await session.scalar(select(func.count()).select_from(ScenarioCandle)) == 0
