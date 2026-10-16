@@ -1,7 +1,7 @@
 import asyncio
 import base64
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
 import httpx
@@ -21,6 +21,7 @@ from app.db.models import (
 )
 
 BASE = "https://invest-public-api.tbank.ru/rest/tinkoff.public.invest.api.contract.v1"
+SANDBOX_BASE = "https://sandbox-invest-public-api.tbank.ru/rest/tinkoff.public.invest.api.contract.v1"
 READ_ONLY = "ACCOUNT_ACCESS_LEVEL_READ_ONLY"
 
 
@@ -48,13 +49,24 @@ def encryption_ready() -> bool:
         return False
 
 
-def encrypt_token(token: str, user_id: int) -> tuple[str, str, str]:
+def environment_base(environment: str) -> str:
+    if environment not in ("production", "sandbox"):
+        raise HTTPException(422, "Выберите рабочий контур или песочницу")
+    return SANDBOX_BASE if environment == "sandbox" else BASE
+
+
+def token_aad(user_id: int, environment: str) -> bytes:
+    environment_base(environment)
+    return f"t_invest:{user_id}:1{':sandbox' if environment == 'sandbox' else ''}".encode()
+
+
+def encrypt_token(token: str, user_id: int, environment: str = "production") -> tuple[str, str, str]:
     key_id = get_settings().broker_token_key_id
     key = _keys().get(key_id)
     if key is None:
         raise HTTPException(503, "Шифрование токена не настроено")
     nonce = os.urandom(12)
-    aad = f"t_invest:{user_id}:1".encode()
+    aad = token_aad(user_id, environment)
     ciphertext = AESGCM(key).encrypt(nonce, token.encode(), aad)
     return base64.b64encode(ciphertext).decode(), base64.b64encode(nonce).decode(), key_id
 
@@ -66,7 +78,7 @@ def decrypt_token(connection: BrokerConnection) -> str:
     try:
         nonce = base64.b64decode(connection.token_nonce, validate=True)
         ciphertext = base64.b64decode(connection.token_ciphertext, validate=True)
-        aad = f"t_invest:{connection.user_id}:1".encode()
+        aad = token_aad(connection.user_id, connection.environment)
         return AESGCM(key).decrypt(nonce, ciphertext, aad).decode()
     except Exception as exc:
         raise HTTPException(503, "Не удалось прочитать токен подключения") from exc
@@ -88,12 +100,14 @@ def money(value: dict | None) -> dict | None:
 
 
 class TInvestClient:
-    def __init__(self, token: str, transport: httpx.AsyncBaseTransport | None = None):
+    def __init__(self, token: str, transport: httpx.AsyncBaseTransport | None = None, *, environment: str = "production"):
         self.token = token
         self.transport = transport
+        self.environment = environment
+        self.base_url = environment_base(environment)
 
     async def _call(self, service: str, method: str, payload: dict) -> dict:
-        url = f"{BASE}.{service}/{method}"
+        url = f"{self.base_url}.{service}/{method}"
         headers = {"Authorization": f"Bearer {self.token}"}
         async with httpx.AsyncClient(timeout=15.0, transport=self.transport, verify=tls_context()) as client:
             for attempt in range(3):
@@ -123,18 +137,21 @@ class TInvestClient:
         raise HTTPException(503, "Т-Инвестиции временно недоступны")
 
     async def accounts(self) -> list[dict]:
-        data = await self._call("UsersService", "GetAccounts", {"status": "ACCOUNT_STATUS_OPEN"})
+        service, method = ("SandboxService", "GetSandboxAccounts") if self.environment == "sandbox" else ("UsersService", "GetAccounts")
+        data = await self._call(service, method, {"status": "ACCOUNT_STATUS_OPEN"})
         rows = data.get("accounts")
         if not isinstance(rows, list):
             raise HTTPException(502, "Нет списка счетов в ответе брокера")
-        if any(row.get("accessLevel") != READ_ONLY for row in rows):
+        if self.environment == "production" and any(row.get("accessLevel") != READ_ONLY for row in rows):
             raise HTTPException(422, "Нужен токен только для чтения для всех доступных счетов")
         return [row for row in rows if row.get("id") and row.get("type") != "ACCOUNT_TYPE_INVEST_BOX"]
 
     async def portfolio(self, account_id: str) -> tuple[dict, dict]:
+        service = "SandboxService" if self.environment == "sandbox" else "OperationsService"
+        prefix = "GetSandbox" if self.environment == "sandbox" else "Get"
         portfolio, positions = await asyncio.gather(
-            self._call("OperationsService", "GetPortfolio", {"accountId": account_id}),
-            self._call("OperationsService", "GetPositions", {"accountId": account_id}),
+            self._call(service, prefix + "Portfolio", {"accountId": account_id}),
+            self._call(service, prefix + "Positions", {"accountId": account_id}),
         )
         if not isinstance(portfolio.get("positions"), list) or not isinstance(positions.get("securities", []), list):
             raise HTTPException(502, "Неполный ответ брокера")
@@ -147,6 +164,20 @@ class TInvestClient:
             return None
         return data.get("instrument") if isinstance(data.get("instrument"), dict) else None
 
+    async def trading_calendar(self, ticker: str, is_future: bool, start: datetime, stop: datetime) -> tuple[dict, dict]:
+        data = await self._call("InstrumentsService", "GetInstrumentBy", {
+            "idType": "INSTRUMENT_ID_TYPE_TICKER", "classCode": "SPBFUT" if is_future else "TQBR", "id": ticker,
+        })
+        instrument = data.get("instrument") or {}
+        if instrument.get("realExchange") != "REAL_EXCHANGE_MOEX" or not instrument.get("exchange") or instrument.get("ticker") != ticker:
+            raise HTTPException(502, "Площадка инструмента MOEX не подтверждена Т-Инвестициями")
+        calendar = await self._call("InstrumentsService", "TradingSchedules", {
+            "exchange": instrument["exchange"],
+            "from": datetime.combine(start.date(), datetime.min.time(), timezone.utc).isoformat(),
+            "to": (datetime.combine(stop.date() + timedelta(days=1), datetime.min.time(), timezone.utc) - timedelta(microseconds=1)).isoformat(),
+        })
+        return instrument, calendar
+
 
 async def connection_for(session: AsyncSession, user_id: int) -> BrokerConnection | None:
     return await session.scalar(select(BrokerConnection).where(BrokerConnection.user_id == user_id, BrokerConnection.provider == "t_invest"))
@@ -156,20 +187,30 @@ def _event(session: AsyncSession, user_id: int, connection_id: int | None, actio
     session.add(BrokerConnectionEvent(user_id=user_id, connection_id=connection_id, action=action, result=result, error_code=code))
 
 
-async def connect(session: AsyncSession, user_id: int, token: str, client: TInvestClient | None = None) -> BrokerConnection:
+async def connect(session: AsyncSession, user_id: int, token: str, client: TInvestClient | None = None, *, environment: str = "production") -> BrokerConnection:
+    environment_base(environment)
     token = token.strip()
     if not token or len(token) > 4096:
         raise HTTPException(422, "Укажите токен Т-Инвестиций")
-    ciphertext, nonce, key_id = encrypt_token(token, user_id)
-    rows = await (client or TInvestClient(token)).accounts()
-    if not rows:
+    ciphertext, nonce, key_id = encrypt_token(token, user_id, environment)
+    rows = await (client or TInvestClient(token, environment=environment)).accounts()
+    if not rows and environment == "production":
         raise HTTPException(422, "Нет доступных брокерских счетов")
     connection = await connection_for(session, user_id)
     if connection is None:
-        connection = BrokerConnection(user_id=user_id, provider="t_invest", token_ciphertext=ciphertext, token_nonce=nonce, token_key_id=key_id)
+        connection = BrokerConnection(user_id=user_id, provider="t_invest", environment=environment, token_ciphertext=ciphertext, token_nonce=nonce, token_key_id=key_id)
         session.add(connection)
         await session.flush()
     else:
+        if connection.environment != environment:
+            accounts = (await session.scalars(select(BrokerAccount).where(BrokerAccount.connection_id == connection.id))).all()
+            for account in accounts:
+                await session.execute(delete(BrokerPortfolioSnapshot).where(BrokerPortfolioSnapshot.account_id == account.id))
+                await session.delete(account)
+            connection.selected_account_id = None
+            connection.last_refreshed_at = None
+            await session.flush()
+        connection.environment = environment
         connection.token_ciphertext = ciphertext
         connection.token_nonce = nonce
         connection.token_key_id = key_id
@@ -243,7 +284,7 @@ async def refresh(session: AsyncSession, user_id: int, account_id: str | None = 
     account = await session.scalar(select(BrokerAccount).where(BrokerAccount.connection_id == connection.id, BrokerAccount.external_id == target))
     if account is None:
         raise HTTPException(404, "Счёт недоступен")
-    broker = client or TInvestClient(decrypt_token(connection))
+    broker = client or TInvestClient(decrypt_token(connection), environment=connection.environment)
     version = connection.version
     started = await session.execute(update(BrokerConnection).where(BrokerConnection.id == connection.id, BrokerConnection.version == version, BrokerConnection.status != "refreshing").values(status="refreshing"))
     if not started.rowcount:
@@ -301,6 +342,7 @@ async def view(session: AsyncSession, user_id: int) -> dict:
     snapshot = await session.scalar(select(BrokerPortfolioSnapshot).where(BrokerPortfolioSnapshot.account_id == account.id)) if account else None
     return {
         "connected": True,
+        "environment": connection.environment,
         "status": connection.status,
         "last_error": connection.last_error,
         "last_refreshed_at": connection.last_refreshed_at,

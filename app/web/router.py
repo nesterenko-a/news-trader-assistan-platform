@@ -1969,10 +1969,12 @@ async def broker_connect(request: Request, session: AsyncSession = Depends(get_s
     if not _broker_form_origin(request):
         raise HTTPException(403, "Недопустимый источник запроса")
     form = await request.form()
+    environment = str(form.get("environment") or "production")
     try:
-        await t_invest.connect(session, user.id, str(form.get("token") or ""))
+        await t_invest.connect(session, user.id, str(form.get("token") or ""), environment=environment)
     except HTTPException as exc:
-        return RedirectResponse(url=f"/settings?broker_error={exc.status_code}#brokers", status_code=303)
+        environment = environment if environment in ("production", "sandbox") else "production"
+        return RedirectResponse(url=f"/settings?broker_error={exc.status_code}&environment={environment}#brokers", status_code=303)
     return RedirectResponse(url="/settings?broker=connected#brokers", status_code=303)
 
 

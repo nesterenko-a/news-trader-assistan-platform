@@ -21,6 +21,7 @@ from app.db.connection import Base
 from app.db.models import (
     Article,
     ArticleEntity,
+    BrokerConnection,
     Entity,
     FuturesTemplate,
     GraphCandidate,
@@ -454,6 +455,8 @@ async def seed(db_url: str) -> None:
                 )
         from app.tech_analysis.outcomes import capture
         owner = await session.scalar(select(User).where(User.username == USER_USERNAME))
+        if await session.scalar(select(BrokerConnection.id).where(BrokerConnection.user_id == owner.id)) is None:
+            session.add(BrokerConnection(user_id=owner.id, provider="t_invest", environment="sandbox", token_ciphertext="e2e-unused", token_nonce="e2e-unused", token_key_id="e2e-unused"))
         if await session.scalar(select(TechAnalysis.id).where(TechAnalysis.ticker == "OUTCOMEE2E")) is None:
             batch = TechAnalysisBatch(user_id=owner.id, status="success")
             session.add(batch)
@@ -464,6 +467,7 @@ async def seed(db_url: str) -> None:
             await capture(session, analysis)
         outcome = await session.scalar(select(ScenarioEvaluation).join(ScenarioSnapshot).where(ScenarioSnapshot.ticker == "OUTCOMEE2E", ScenarioSnapshot.scenario_key == "a"))
         outcome.detail = "Календарь MOEX требует авторизации"
+        outcome.market_context = {"calendar": {"provider": "t_invest", "environment": "sandbox"}}
         await session.commit()
     await engine.dispose()
 

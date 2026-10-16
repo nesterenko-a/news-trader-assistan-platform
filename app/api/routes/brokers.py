@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
+from typing import Literal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
@@ -12,6 +13,7 @@ router = APIRouter(prefix="/brokers/t-invest", tags=["brokers"])
 
 class ConnectIn(BaseModel):
     token: str = Field(min_length=1, max_length=4096, json_schema_extra={"writeOnly": True}, repr=False)
+    environment: Literal["production", "sandbox"] = "production"
 
 
 class SelectAccountIn(BaseModel):
@@ -35,7 +37,7 @@ async def status(response: Response, user: User = Depends(get_current_user), ses
 @router.post("/connect")
 async def connect(payload: ConnectIn, request: Request, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     _check_origin(request)
-    await t_invest.connect(session, user.id, payload.token)
+    await t_invest.connect(session, user.id, payload.token, environment=payload.environment)
     return await t_invest.view(session, user.id)
 
 

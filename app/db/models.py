@@ -4,6 +4,7 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    CheckConstraint,
     Column,
     Date,
     DateTime,
@@ -140,11 +141,15 @@ class PortfolioPosition(Base):
 
 class BrokerConnection(Base):
     __tablename__ = "broker_connections"
-    __table_args__ = (UniqueConstraint("user_id", "provider", name="uq_broker_connection_user_provider"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "provider", name="uq_broker_connection_user_provider"),
+        CheckConstraint("environment IN ('production', 'sandbox')", name="ck_broker_environment"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     provider: Mapped[str] = mapped_column(String(30))
+    environment: Mapped[str] = mapped_column(String(20), default="production", server_default="production")
     token_ciphertext: Mapped[str] = mapped_column(Text)
     token_nonce: Mapped[str] = mapped_column(String(40))
     token_key_id: Mapped[str] = mapped_column(String(40))

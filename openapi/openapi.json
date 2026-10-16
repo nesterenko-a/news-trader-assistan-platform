@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "NewsTrader Assistant",
-    "version": "0.30.0"
+    "version": "0.31.0"
   },
   "paths": {
     "/v1/health": {
@@ -3842,6 +3842,15 @@
             "minLength": 1,
             "title": "Token",
             "writeOnly": true
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "production",
+              "sandbox"
+            ],
+            "title": "Environment",
+            "default": "production"
           }
         },
         "type": "object",

@@ -243,6 +243,8 @@ def freshness(snapshot, evaluation, now=None):
         "market_data_fresh": market_fresh and session != "unknown" and not terminal,
         "market_note": notes.get(session if not delayed else "unknown", notes["unknown"]),
         "last_candle_at": evaluation.cursor_at,
+        "calendar_provider": (context.get("calendar") or {}).get("provider"),
+        "calendar_environment": (context.get("calendar") or {}).get("environment"),
     }
 
 

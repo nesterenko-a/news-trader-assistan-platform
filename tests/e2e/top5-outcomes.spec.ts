@@ -13,6 +13,7 @@ test("исходы: личная история, фильтры, актуаль�
   await row.locator("summary").click();
   await expect(row).toContainText("Наблюдение задерживается");
   await expect(row).toContainText("Календарь MOEX требует авторизации");
+  await expect(row).toContainText("Календарь: Т‑Инвестиции · Песочница");
   await expect(row).not.toContainText("JSONDecodeError");
   await expect(row).toContainText("Системный горизонт оценки — 7 календарных дней");
   await expect(row).toContainText("Событий пока нет");

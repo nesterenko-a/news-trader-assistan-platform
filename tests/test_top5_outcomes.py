@@ -346,3 +346,40 @@ async def test_worker_exposes_calendar_authorization_without_outcome(session, mo
     assert row["freshness"]["market_session"] == "unknown"
     assert await session.scalar(select(func.count()).select_from(ScenarioEvent)) == 0
     assert await session.scalar(select(func.count()).select_from(ScenarioCandle)) == 0
+
+
+@pytest.mark.parametrize("available", [True, False])
+async def test_worker_uses_owners_broker_calendar_and_records_source(session, monkeypatch, available):
+    from types import SimpleNamespace
+    from app.tech_analysis import outcome_worker
+    from app.market.t_invest_calendar import CalendarDataError
+    user, _ = await seed(session)
+    class Client:
+        base_url = "https://unused.test"
+        async def fetch_candles(self, *args, **kwargs):
+            return [bar(1), bar(2, o=103, h=111, low=102, c=110)]
+    async def connection_for(store, owner):
+        assert owner == user.id
+        return SimpleNamespace(id=1, environment="sandbox")
+    async def schedule(*args):
+        if not available:
+            raise CalendarDataError("Календарь Т-Инвестиций недоступен")
+        return [(T + timedelta(hours=1), T + timedelta(hours=3))], {"provider": "t_invest", "environment": "sandbox", "raw": {"test": True}}
+    async def moex(*args):
+        raise AssertionError("Не должен обращаться к календарю MOEX")
+    monkeypatch.setattr(outcome_worker, "connection_for", connection_for)
+    monkeypatch.setattr(outcome_worker.t_invest_calendar, "schedule", schedule)
+    monkeypatch.setattr(outcome_worker, "schedule", moex)
+    await evaluate_pending(session, client=Client(), now=T + timedelta(hours=4))
+    row = next(item for item in (await list_outcomes(session, user.id))["items"] if item["eligible"])
+    if not available:
+        assert row["state"] == "pending"
+        assert row["detail"] == "Календарь Т-Инвестиций недоступен"
+        assert not row["freshness"]["data_complete"]
+        assert await session.scalar(select(func.count()).select_from(ScenarioEvent)) == 0
+        return
+    assert row["state"] == "target" and row["result_r"] == 2
+    assert row["freshness"]["calendar_provider"] == "t_invest"
+    event = await session.scalar(select(ScenarioEvent).where(ScenarioEvent.kind == "target"))
+    assert event.data["calendar"]["environment"] == "sandbox"
+    assert event.data["calendar"]["raw"] == {"test": True}

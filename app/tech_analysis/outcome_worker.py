@@ -2,9 +2,11 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
-from app.db.models import ScenarioCandle, ScenarioEvaluation, ScenarioEvent, ScenarioSnapshot
+from app.db.models import ScenarioCandle, ScenarioEvaluation, ScenarioEvent, ScenarioSnapshot, TechAnalysis
+from app.brokers.t_invest import connection_for
 from app.market.moex import MOEXClient
 from app.market.scenario_calendar import CalendarAuthorizationError, expected_hours, market_context, schedule
+from app.market import t_invest_calendar
 from app.tech_analysis.outcomes import TERMINAL, transition, utc
 
 
@@ -32,15 +34,21 @@ async def evaluate_pending(session, limit=100, client=None, now=None):
             windows = None
             if hasattr(client, "base_url"):
                 try:
-                    calendar_key = (snapshot.ticker, snapshot.is_future, start.astimezone(zone).date(), stop.astimezone(zone).date())
+                    owner = await session.scalar(select(TechAnalysis.user_id).where(TechAnalysis.id == snapshot.analysis_id))
+                    connection = await connection_for(session, owner) if owner is not None else None
+                    calendar_key = (connection.id if connection else None, snapshot.ticker, snapshot.is_future, start.astimezone(zone).date(), stop.astimezone(zone).date())
                     if calendar_key not in calendar_cache:
-                        calendar_cache[calendar_key] = await schedule(client.base_url, snapshot.ticker, snapshot.is_future, start.astimezone(zone), stop.astimezone(zone))
-                    windows = calendar_cache[calendar_key]
+                        if connection:
+                            calendar_cache[calendar_key] = await t_invest_calendar.schedule(connection, snapshot.ticker, snapshot.is_future, start.astimezone(zone), stop.astimezone(zone), now)
+                        else:
+                            calendar_cache[calendar_key] = (await schedule(client.base_url, snapshot.ticker, snapshot.is_future, start.astimezone(zone), stop.astimezone(zone)), {"provider": "moex"})
+                    windows, calendar_metadata = calendar_cache[calendar_key]
                     evaluation.market_context = market_context(windows, now) if now.date() == stop.date() else {"session": "unknown"}
+                    evaluation.market_context = {**evaluation.market_context, "calendar": calendar_metadata}
                 except Exception as exc:
                     evaluation.market_context = {"session": "unknown"}
                     complete = False
-                    evaluation.detail = str(exc) if isinstance(exc, CalendarAuthorizationError) else "Календарь MOEX не подтверждён; полнота окна неизвестна"
+                    evaluation.detail = str(exc) if isinstance(exc, (CalendarAuthorizationError, t_invest_calendar.CalendarDataError)) else "Календарь не подтверждён; полнота окна неизвестна"
                     evaluation.checked_at = now
                     evaluation.complete = False
                     continue
@@ -84,7 +92,7 @@ async def evaluate_pending(session, limit=100, client=None, now=None):
             for kind, at, data in events:
                 exists = await session.scalar(select(ScenarioEvent.id).where(ScenarioEvent.snapshot_id == snapshot.id, ScenarioEvent.kind == kind))
                 if exists is None:
-                    session.add(ScenarioEvent(snapshot_id=snapshot.id, kind=kind, occurred_at=at, recorded_at=now, data=data))
+                    session.add(ScenarioEvent(snapshot_id=snapshot.id, kind=kind, occurred_at=at, recorded_at=now, data={**data, "calendar": (evaluation.market_context or {}).get("calendar")}))
             evaluation.checked_at = now
             done += 1
         except Exception as exc:
