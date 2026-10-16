@@ -25,7 +25,9 @@
         {% if s.params %}
         {% for p in s.params %}
         <label class="muted small" style="display:block;margin-top:8px">{{ p[1] }}</label>
-        {% if p|length > 3 and p[3] == "text" %}
+        {% if p|length > 3 and p[3] == "bool" %}
+        <input type="checkbox" name="param_{{ p[0][2:] }}" value="1" {% if p[2] %}checked{% endif %} aria-label="{{ p[1] }}">
+        {% elif p|length > 3 and p[3] == "text" %}
         <input type="text" name="param_{{ p[0][2:] }}" value="{{ p[2] }}"
           {% if p[0] == "--ticker" %}id="oi-ticker" list="futures-datalist" autocomplete="off"{% endif %} style="width:100%">
         {% if p[0] == "--ticker" %}<span class="muted small">Подсказка — список всех фьючерсов MOEX</span>{% endif %}
@@ -38,7 +40,7 @@
         </select>
         {% if not templates %}<span class="muted small">Шаблонов нет — создайте в карточке ниже</span>{% endif %}
         {% else %}
-        <input type="number" name="param_{{ p[0][2:] }}" min="1" value="{{ p[2] }}">
+        <input type="number" name="param_{{ p[0][2:] }}" min="{{ p[4] if p|length > 4 else 1 }}" {% if p|length > 5 %}max="{{ p[5] }}"{% endif %} value="{{ p[2] }}">
         {% endif %}
         {% endfor %}
         {% elif s.param %}
@@ -55,7 +57,7 @@
           <input type="checkbox" id="oi-all" name="param_all" value="1"> Скачать OI по всем фьючерсам (--all)
         </label>
         {% endif %}
-        {% if not running_by_script.get(s.key) %}<button class="admin-task-toggle is-off" type="submit" {% if (s.get('no_timeout') and daemon_busy) or (not s.get('no_timeout') and busy) %}disabled{% endif %} style="margin-top:8px"><b>OFF</b><span>Запустить</span></button>{% endif %}
+        {% if not running_by_script.get(s.key) %}<button class="admin-task-toggle is-off" type="submit" {% if busy_by_script.get(s.key) %}disabled{% endif %} style="margin-top:8px"><b>OFF</b><span>Запустить</span></button>{% endif %}
       </form>
       {% if running_by_script.get(s.key) %}<div class="admin-task-actions"><form method="post" action="/admin/scripts/{{ running_by_script[s.key].id }}/stop" data-task-form><input type="hidden" name="return_to" value="/admin"><button class="admin-task-toggle is-on" type="submit"><b>ON</b><span>Остановить</span></button></form><a class="admin-task-run-link" href="/admin/runs/{{ running_by_script[s.key].id }}">Открыть задачу →</a></div>{% endif %}
     </div>
@@ -228,7 +230,7 @@ fetch('/v1/indicators/futures')
           <div class="muted small" style="color:#c0392b">Упал на фазе {{ r.failed_phase }}</div>
           {% endif %}
         </td>
-        <td><span class="run-status run-{{ r.status }}">{{ {'running': 'выполняется', 'success': 'успех', 'failed': 'ошибка'}[r.status] }}</span></td>
+        <td><span class="run-status run-{{ r.status }}">{{ {'running': 'выполняется', 'success': 'успех', 'failed': 'ошибка', 'stopped': 'остановлен'}[r.status] }}</span></td>
         <td>{{ r.exit_code if r.exit_code is not none else "—" }}</td>
         <td>{{ r.user }}</td>
         <td>{{ r.started_at.strftime("%d.%m.%Y %H:%M:%S") }}</td>

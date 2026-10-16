@@ -14,6 +14,8 @@ async def main():
     args = parser.parse_args()
     if args.interval < 30 or not 1 <= args.limit <= 1000:
         parser.error("Интервал — от 30 секунд, лимит — 1–1000")
+    mode = f"непрерывно, пауза между проходами {args.interval} сек" if args.loop else "один проход; интервал не применяется"
+    print(f"Режим: {mode}. Сценариев за проход: {args.limit}", flush=True)
     while True:
         try:
             async with SessionLocal() as session:

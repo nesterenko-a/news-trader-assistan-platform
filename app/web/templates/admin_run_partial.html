@@ -1,4 +1,4 @@
-<span class="run-status run-{{ run.status }}">{{ {'running': 'выполняется…', 'success': 'успех', 'failed': 'ошибка'}[run.status] }}</span>
+<span class="run-status run-{{ run.status }}">{{ {'running': 'выполняется…', 'success': 'успех', 'failed': 'ошибка', 'stopped': 'остановлен'}[run.status] }}</span>
 {% if pipeline %}
 <div class="dash" style="margin-top:14px">
   <header class="dash-head">

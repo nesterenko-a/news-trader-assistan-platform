@@ -94,6 +94,33 @@ test.describe("News manager и админка", () => {
     await expect(page.locator("body")).toContainText("Добавлено стандартных сайтов");
   });
 
+  test("admin: интервал и непрерывная проверка исходов Top-5 с остановкой", async ({ page }) => {
+    await login(page, ADMIN.username, ADMIN.password);
+    await page.goto("/admin");
+    const form = page.locator('form[action="/admin/scripts/run"]:has(input[name="script"][value="evaluate_top5"])');
+    await expect(form.locator('input[name="param_limit"]')).toHaveValue("100");
+    await expect(form.locator('input[name="param_interval"]')).toHaveValue("300");
+    await expect(form.locator('input[name="param_interval"]')).toHaveAttribute("min", "30");
+    await expect(form.locator('input[name="param_loop"]')).not.toBeChecked();
+    await form.locator('input[name="param_interval"]').fill("60");
+    await form.locator('input[name="param_limit"]').fill("25");
+    await form.locator('input[name="param_loop"]').check();
+    await form.getByRole("button", { name: /Запустить/ }).click();
+    const card = page.locator('.mini').filter({ has: page.locator('input[name="script"][value="evaluate_top5"]') });
+    await expect(card.getByRole("button", { name: /Остановить/ })).toBeVisible();
+    const link = card.getByRole("link", { name: "Открыть задачу →" });
+    const runUrl = await link.getAttribute("href");
+    await page.goto(runUrl!);
+    await expect(page.locator("pre.run-output")).toContainText("непрерывно, пауза между проходами 60 сек", { timeout: 15000 });
+    await page.goto("/admin");
+    await card.getByRole("button", { name: /Остановить/ }).click();
+    await expect(form.getByRole("button", { name: /Запустить/ })).toBeVisible({ timeout: 15000 });
+    await page.reload();
+    await expect(page.locator(".run-status.run-stopped").first()).toHaveText("остановлен");
+    await page.goto(runUrl!);
+    await expect(page.locator(".run-status")).toHaveText(/остановлен/);
+  });
+
   test("admin: запуск скрипта, статус и вывод по AJAX", async ({ page }) => {
     await login(page, ADMIN.username, ADMIN.password);
     await page.goto("/admin");

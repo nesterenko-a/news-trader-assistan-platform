@@ -37,7 +37,7 @@ from app.auth import (
 )
 from app.bot.linking import consume_link_code, set_user_chat, unlink_telegram
 from app.bot.push import get_bot_username
-from app.admin.runner import SCRIPTS, _pipeline_failed_phase, active_run_id, get_script, is_busy, is_daemon_busy, launch, stop
+from app.admin.runner import SCRIPTS, _pipeline_failed_phase, active_run_id, build_argv, get_script, is_busy, is_daemon_busy, launch, stop
 from app.api.routes.indicators import _calculate_oi
 from app.feedback.service import (
     get_rating,
@@ -2455,6 +2455,7 @@ async def admin_page(
             "templates": futures_templates,
             "busy": is_busy(),
             "daemon_busy": is_daemon_busy(),
+            "busy_by_script": {script["key"]: active_run_id(script["key"]) is not None for script in SCRIPTS},
             "error": request.query_params.get("error") == "1",
             "param_error": request.query_params.get("error") == "2",
             "tpl_name_error": request.query_params.get("error") == "3",
@@ -2601,7 +2602,9 @@ async def admin_run_script(
             flag, label, default, *rest = p
             ptype = rest[0] if rest else "int"
             raw = str(form.get(f"param_{flag[2:]}") or "").strip()
-            if ptype == "templates":
+            if ptype == "bool":
+                param_values[flag] = raw in ("1", "true", "on")
+            elif ptype == "templates":
                 # Выбранный шаблон фьючерсов -> список SECID из сохранённого шаблона
                 if raw:
                     template = await session.get(FuturesTemplate, int(raw)) if raw.isdigit() else None
@@ -2643,6 +2646,12 @@ async def admin_run_script(
                     return RedirectResponse(url="/admin?error=2", status_code=303)
         run_params = {"params": param_values} if param_values else {}
 
+    try:
+        build_argv(script_key, param_values)
+    except (ValueError, TypeError):
+        return RedirectResponse(url="/admin?error=2", status_code=303)
+    if active_run_id(script_key) is not None:
+        return RedirectResponse(url="/admin?busy=1", status_code=303)
     run = ScriptRun(
         script_name=script_key,
         params=run_params,
