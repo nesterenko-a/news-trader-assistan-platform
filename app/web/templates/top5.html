@@ -4,6 +4,7 @@
 
 {% block content %}
 <style>@keyframes top5-spin{to{transform:rotate(360deg)}}.top5-spinner{display:inline-block;width:13px;height:13px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;vertical-align:middle;animation:top5-spin .8s linear infinite}</style>
+<nav aria-label="Разделы Top-5"><a href="/top5" aria-current="page">Рейтинг</a> · <a href="/top5?tab=outcomes">Исходы</a></nav>
 <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
   <h1 style="margin:0">Отбор сделок — Top 5</h1>
   <p class="muted small" style="margin:0">Все стратегии по бумагам шаблона (Теханализ в LLM) → ранжирование → 5 лучших входов</p>
@@ -175,6 +176,7 @@
               </div>
               <div class="top5-action-panel">
                 <div class="top5-confirmation-card"><strong>{% if r.dir == 'WAIT' %}Выжидать{% elif r.await_confirmation %}Ждёт подтверждения{% elif r.has_confirmation_plan %}План подтверждения{% else %}Условия входа не заданы{% endif %}</strong><p>{% if r.confirmation_entry_detail %}{{ r.confirmation_entry_detail }}{% elif r.has_confirmation_plan %}Условия входа указаны в полном разборе.{% else %}Проверьте условия в полном разборе.{% endif %}{% if r.confirmation_signal %}<br>Сигнал: {{ r.confirmation_signal }}{% endif %}</p></div>
+                {% if r.get('observation') %}<p class="small scenario-freshness">{{ r.observation.label }} · Возраст {{ r.observation.freshness.age_hours }} ч{% if r.observation.freshness.expired %} · Срок истёк{% endif %}{% if r.observation.freshness.observation_delayed %} · Наблюдение задерживается{% endif %} · <a href="/top5?tab=outcomes&ticker={{ r.ticker }}">История сценария</a></p>{% endif %}
                 <a class="btn active top5-open-analysis" href="/tech_analysis/{{ r.analysis_id }}">Открыть разбор →</a>
               </div>
             </div>

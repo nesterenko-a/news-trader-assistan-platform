@@ -118,6 +118,8 @@ def parse_response(response_md: str) -> dict:
     plans = normalize_confirmation_plans(data.get("confirmation_plans"))
     if plans:
         scenario_data["confirmation_plans"] = plans
+    if isinstance(data.get("execution_plans"), dict):
+        scenario_data["execution_plans"] = data["execution_plans"]
     parsed["scenario_json"] = json.dumps(scenario_data, ensure_ascii=False)
     return parsed
 

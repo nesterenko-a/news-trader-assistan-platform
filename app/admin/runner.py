@@ -20,6 +20,19 @@ LOG_FLUSH_LINES = 25
 
 SCRIPTS: list[dict] = [
     {
+        "key": "evaluate_top5", "module": "scripts.evaluate_top5",
+        "title": "Проверить исходы Top-5",
+        "description": "Проверяет модельные входы, цели, стопы и сроки сценариев Top-5. По умолчанию — один проход. Для повторных проверок включите непрерывный режим: следующий проход начнётся через выбранный интервал после завершения предыдущего. Остановка — кнопкой «Остановить».",
+        "param": None,
+        "params": [
+            ("--limit", "Сценариев за проход", 100, "int", 1, 1000),
+            ("--interval", "Интервал между проходами, сек (для непрерывного режима)", 300, "int", 30),
+            ("--loop", "Проверять непрерывно", False, "bool"),
+        ],
+        "slot": "top5",
+        "loop_flag": "--loop",
+    },
+    {
         "key": "repair_t_invest_certificate",
         "module": "scripts.repair_t_invest_certificate",
         "title": "Проверить сертификат Т-Инвестиций",
@@ -263,13 +276,15 @@ SCRIPTS: list[dict] = [
 
 SCRIPTS_BY_KEY = {s["key"]: s for s in SCRIPTS}
 
-_active_run_ids: dict[str, int | None] = {"regular": None, "daemon": None}
+_active_run_ids: dict[str, int | None] = {"regular": None, "daemon": None, "top5": None}
 _active_processes: dict[int, asyncio.subprocess.Process] = {}
 _stop_requests: dict[int, int] = {}
 
 
 def _run_slot(script_key: str) -> str:
     script = get_script(script_key)
+    if script is not None and script.get("slot"):
+        return script["slot"]
     return "daemon" if script is not None and script.get("no_timeout") else "regular"
 
 
@@ -277,7 +292,7 @@ def get_script(key: str) -> dict | None:
     return SCRIPTS_BY_KEY.get(key)
 
 
-def script_timeout_seconds(script_key: str) -> int | None:
+def script_timeout_seconds(script_key: str, param_values: dict | None = None) -> int | None:
     """Таймаут запуска скрипта (сек).
 
     Приоритет: env `SCRIPT_TIMEOUT_SECONDS_<KEY>` (например
@@ -286,6 +301,9 @@ def script_timeout_seconds(script_key: str) -> int | None:
     Для демонов (realtime_updater) при `no_timeout: True` возвращается None —
     asyncio.timeout(None) отменяет таймаут (демон живёт до остановки).
     """
+    script = get_script(script_key)
+    if script and script.get("loop_flag") and (param_values or {}).get(script["loop_flag"]) is True:
+        return None
     if get_script(script_key) is not None and get_script(script_key).get("no_timeout"):
         env_value = os.getenv(f"SCRIPT_TIMEOUT_SECONDS_{script_key.upper()}")
         if env_value:
@@ -322,12 +340,21 @@ def build_argv(script_key: str, param_values: dict | None = None) -> list[str]:
             ptype = rest[0] if rest else "int"
             value = param_values.get(flag, default)
             handled.add(flag)
-            if ptype in ("text", "templates"):
+            if ptype == "bool":
+                if not isinstance(value, bool):
+                    raise ValueError("Ожидается переключатель режима")
+                if value:
+                    argv.append(flag)
+            elif ptype in ("text", "templates"):
                 argv += [flag, str(value) if value not in (None, "") else ""]
             else:
                 value = int(value) if value is not None else int(default)
                 if value <= 0:
                     raise ValueError("Параметр должен быть положительным числом")
+                if len(p) > 4 and value < p[4]:
+                    raise ValueError(f"{label}: минимум {p[4]}")
+                if len(p) > 5 and value > p[5]:
+                    raise ValueError(f"{label}: максимум {p[5]}")
                 argv += [flag, str(value)]
         # Дополнительные параметры из param_values, не объявленные в SCRIPTS
         # (например --tickers для daily_pipeline, подставляемые сервером)
@@ -394,10 +421,17 @@ async def _execute(run_id: int, script_key: str, param_values: dict | None) -> t
         )
 
     try:
-        async with asyncio.timeout(script_timeout_seconds(script_key)):
+        async with asyncio.timeout(script_timeout_seconds(script_key, param_values)):
             assert proc.stdout is not None
             while True:
-                chunk = await proc.stdout.readline()
+                try:
+                    chunk = await asyncio.wait_for(proc.stdout.readline(), timeout=LOG_FLUSH_INTERVAL)
+                except TimeoutError:
+                    if pending:
+                        await _append_output(run_id, "".join(pending))
+                        pending = []
+                        last_flush = time.monotonic()
+                    continue
                 if not chunk:
                     break
                 decoded = chunk.decode("utf-8", errors="replace")

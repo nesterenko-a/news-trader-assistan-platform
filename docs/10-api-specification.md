@@ -1,6 +1,6 @@
 # 10. Спецификация API
 
-**Статус:** утверждено v1.41 (группы и повтор Top-5)
+**Статус:** утверждено v1.43 (чтение настроек подписки Top-5)
 **Система:** NewsTrader Assistant
 
 Программный интерфейс системы. Фактический машиночитаемый контракт — [openapi/openapi.json](../openapi/openapi.json): он генерируется из API-маршрутов FastAPI, версионируется вместе с кодом и проверяется автоматически. Этот документ описывает назначение и правила API; изменения реализации и OpenAPI должны соответствовать ему.
@@ -367,3 +367,19 @@ POST {callback_url}
 ## Т-Инвестиции: портфель только для чтения
 
 Авторизованные маршруты `/v1/brokers/t-invest`: `GET /` — статус и счета без токена; `POST /connect` — проверить и сохранить токен только для чтения (`token`, writeOnly); `POST /select-account` (`account_id`) — выбрать счёт и обновить снимок; `POST /refresh` — обновить выбранный счёт; `GET /portfolio` — последний снимок; `DELETE /` — отключить и удалить данные. При cookie-аутентификации изменяющие запросы требуют заголовок Origin того же сайта. Формат полей и ошибок — в версионируемом [OpenAPI-контракте](../openapi/openapi.json). В ответах нет токена.
+
+## Исходы и подписки Top-5
+
+Все маршруты требуют текущего пользователя; выборки ограничены `scenario_watches` этого пользователя, включая администратора. Неизвестный или чужой снимок возвращает 404. Операции с cookie-сессией дополнительно проверяют Origin; Bearer-запросы используют авторизацию API.
+
+| Метод и путь | Назначение |
+|---|---|
+| `GET /v1/top5/outcomes` | История; фильтры ticker, state, model, since/until (datetime публикации), hide_finished; offset >= 0, limit 1–200 (по умолчанию 50). Ответ items, total, offset, limit. |
+| `GET /v1/top5/outcomes/summary` | Агрегаты тех же фильтров, кроме пагинации и hide_finished: состояния, причины исключений, завершённые, entered, entry_rate, target_rate, result_count, mean_r, версия правил. |
+| `GET /v1/top5/outcomes/items/{snapshot_id}` | Исходный JSON, машинный план и история событий с временем рынка и регистрации. Сегмент items предотвращает неоднозначность с маршрутом статуса батча. |
+| `POST /v1/top5/outcomes/items/{snapshot_id}/subscription` | Включить/обновить подписку: JSON channels (web/telegram), kinds (zone, confirmed, open, target, stop, cancelled, expired_pending, expired_open). По умолчанию web и все поддерживаемые события. |
+| `DELETE /v1/top5/outcomes/items/{snapshot_id}/subscription` | Выключить подписку. |
+
+Элемент истории содержит id, analysis_id, ticker, scenario, model, published_at, expires_at, plan, eligible/reason, rules_version, state/label, entry_price, exit_price, result_r, detail, subscribed, subscription_channels, subscription_kinds и freshness. В freshness: возраст, срок, завершённость, время проверки, задержка наблюдений, полнота, market_session (open/closed/unknown), market_data_fresh, пояснение и последняя свеча. Для недоступной статистики возвращается null. POST/DELETE возвращают active, channels, kinds; неподдерживаемый сценарий или непривязанный Telegram — 409.
+
+`GET /v1/top5` дополнен необязательным observation у кандидата: id снимка, состояние, подпись и freshness. Отсутствие наблюдения — null. Правила интерпретации и метрик — [09-strategy-engine.md](./09-strategy-engine.md#наблюдение-за-сценариями-top-5).

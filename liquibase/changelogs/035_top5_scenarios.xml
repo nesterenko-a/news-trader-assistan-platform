@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.31.xsd">
+  <changeSet id="0350-scenario_snapshots" author="newstrader">
+    <preConditions onFail="MARK_RAN"><not><tableExists tableName="scenario_snapshots"/></not></preConditions>
+    <sql><![CDATA[CREATE TABLE scenario_snapshots (
+	id SERIAL NOT NULL,
+	analysis_id INTEGER NOT NULL,
+	scenario_key VARCHAR(1) NOT NULL,
+	ticker VARCHAR(50) NOT NULL,
+	is_future BOOLEAN NOT NULL,
+	published_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	model VARCHAR(100) NOT NULL,
+	provider VARCHAR(30) NOT NULL,
+	rules_version VARCHAR(30) NOT NULL,
+	raw JSON NOT NULL,
+	plan JSON NOT NULL,
+	eligible BOOLEAN NOT NULL,
+	reason TEXT NOT NULL,
+	PRIMARY KEY (id),
+	UNIQUE (analysis_id, scenario_key)
+);
+CREATE INDEX ix_scenario_snapshots_analysis_id ON scenario_snapshots (analysis_id);]]></sql>
+    <rollback><dropTable tableName="scenario_snapshots"/></rollback>
+  </changeSet>
+  <changeSet id="0351-scenario_watches" author="newstrader">
+    <preConditions onFail="MARK_RAN"><not><tableExists tableName="scenario_watches"/></not></preConditions>
+    <sql><![CDATA[CREATE TABLE scenario_watches (
+	id SERIAL NOT NULL,
+	user_id INTEGER NOT NULL,
+	snapshot_id INTEGER NOT NULL,
+	PRIMARY KEY (id),
+	UNIQUE (user_id, snapshot_id),
+	FOREIGN KEY(user_id) REFERENCES users (id),
+	FOREIGN KEY(snapshot_id) REFERENCES scenario_snapshots (id)
+);
+CREATE INDEX ix_scenario_watches_snapshot_id ON scenario_watches (snapshot_id);
+CREATE INDEX ix_scenario_watches_user_id ON scenario_watches (user_id);]]></sql>
+    <rollback><dropTable tableName="scenario_watches"/></rollback>
+  </changeSet>
+  <changeSet id="0352-scenario_evaluations" author="newstrader">
+    <preConditions onFail="MARK_RAN"><not><tableExists tableName="scenario_evaluations"/></not></preConditions>
+    <sql><![CDATA[CREATE TABLE scenario_evaluations (
+	snapshot_id INTEGER NOT NULL,
+	state VARCHAR(30) NOT NULL,
+	complete BOOLEAN NOT NULL,
+	checked_at TIMESTAMP WITH TIME ZONE,
+	cursor_at TIMESTAMP WITH TIME ZONE,
+	entry_at TIMESTAMP WITH TIME ZONE,
+	entry_price FLOAT,
+	exit_at TIMESTAMP WITH TIME ZONE,
+	exit_price FLOAT,
+	result_r FLOAT,
+	detail TEXT NOT NULL,
+	confirmed BOOLEAN NOT NULL,
+	market_context JSON NOT NULL,
+	PRIMARY KEY (snapshot_id),
+	FOREIGN KEY(snapshot_id) REFERENCES scenario_snapshots (id)
+);]]></sql>
+    <rollback><dropTable tableName="scenario_evaluations"/></rollback>
+  </changeSet>
+  <changeSet id="0353-scenario_events" author="newstrader">
+    <preConditions onFail="MARK_RAN"><not><tableExists tableName="scenario_events"/></not></preConditions>
+    <sql><![CDATA[CREATE TABLE scenario_events (
+	id SERIAL NOT NULL,
+	snapshot_id INTEGER NOT NULL,
+	kind VARCHAR(30) NOT NULL,
+	occurred_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	recorded_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	data JSON NOT NULL,
+	PRIMARY KEY (id),
+	UNIQUE (snapshot_id, kind),
+	FOREIGN KEY(snapshot_id) REFERENCES scenario_snapshots (id)
+);
+CREATE INDEX ix_scenario_events_snapshot_id ON scenario_events (snapshot_id);]]></sql>
+    <rollback><dropTable tableName="scenario_events"/></rollback>
+  </changeSet>
+  <changeSet id="0354-scenario_candles" author="newstrader">
+    <preConditions onFail="MARK_RAN"><not><tableExists tableName="scenario_candles"/></not></preConditions>
+    <sql><![CDATA[CREATE TABLE scenario_candles (
+	id SERIAL NOT NULL,
+	ticker VARCHAR(50) NOT NULL,
+	is_future BOOLEAN NOT NULL,
+	begin_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	end_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	data JSON NOT NULL,
+	source VARCHAR(30) NOT NULL,
+	fetched_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	PRIMARY KEY (id),
+	UNIQUE (ticker, is_future, begin_at)
+);]]></sql>
+    <rollback><dropTable tableName="scenario_candles"/></rollback>
+  </changeSet>
+  <changeSet id="0355-scenario_subscriptions" author="newstrader">
+    <preConditions onFail="MARK_RAN"><not><tableExists tableName="scenario_subscriptions"/></not></preConditions>
+    <sql><![CDATA[CREATE TABLE scenario_subscriptions (
+	id SERIAL NOT NULL,
+	user_id INTEGER NOT NULL,
+	snapshot_id INTEGER NOT NULL,
+	channels JSON NOT NULL,
+	kinds JSON NOT NULL,
+	active BOOLEAN NOT NULL,
+	created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	after_event_id INTEGER NOT NULL,
+	PRIMARY KEY (id),
+	UNIQUE (user_id, snapshot_id),
+	FOREIGN KEY(user_id) REFERENCES users (id),
+	FOREIGN KEY(snapshot_id) REFERENCES scenario_snapshots (id)
+);
+CREATE INDEX ix_scenario_subscriptions_user_id ON scenario_subscriptions (user_id);]]></sql>
+    <rollback><dropTable tableName="scenario_subscriptions"/></rollback>
+  </changeSet>
+  <changeSet id="0356-scenario_deliveries" author="newstrader">
+    <preConditions onFail="MARK_RAN"><not><tableExists tableName="scenario_deliveries"/></not></preConditions>
+    <sql><![CDATA[CREATE TABLE scenario_deliveries (
+	id SERIAL NOT NULL,
+	subscription_id INTEGER NOT NULL,
+	event_id INTEGER NOT NULL,
+	channel VARCHAR(20) NOT NULL,
+	status VARCHAR(20) NOT NULL,
+	attempts INTEGER NOT NULL,
+	next_attempt_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	sent_at TIMESTAMP WITH TIME ZONE,
+	error TEXT NOT NULL,
+	PRIMARY KEY (id),
+	UNIQUE (subscription_id, event_id, channel),
+	FOREIGN KEY(subscription_id) REFERENCES scenario_subscriptions (id),
+	FOREIGN KEY(event_id) REFERENCES scenario_events (id)
+);]]></sql>
+    <rollback><dropTable tableName="scenario_deliveries"/></rollback>
+  </changeSet>
+  <changeSet id="0357-outcome-source" author="newstrader">
+    <preConditions onFail="MARK_RAN"><not><columnExists tableName="tech_analyses" columnName="outcome_source_id"/></not></preConditions>
+    <addColumn tableName="tech_analyses"><column name="outcome_source_id" type="int"/></addColumn>
+    <rollback><dropColumn tableName="tech_analyses" columnName="outcome_source_id"/></rollback>
+  </changeSet>
+</databaseChangeLog>

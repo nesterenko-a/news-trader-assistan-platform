@@ -37,7 +37,7 @@ from app.auth import (
 )
 from app.bot.linking import consume_link_code, set_user_chat, unlink_telegram
 from app.bot.push import get_bot_username
-from app.admin.runner import SCRIPTS, _pipeline_failed_phase, active_run_id, get_script, is_busy, is_daemon_busy, launch, stop
+from app.admin.runner import SCRIPTS, _pipeline_failed_phase, active_run_id, build_argv, get_script, is_busy, is_daemon_busy, launch, stop
 from app.api.routes.indicators import _calculate_oi
 from app.feedback.service import (
     get_rating,
@@ -1722,6 +1722,14 @@ async def top5_page(
     request: Request,
     session: AsyncSession = Depends(get_session),
     template_id: int | None = None,
+    tab: str = "rating",
+    ticker: str | None = None,
+    state: str | None = None,
+    model: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    page: int = Query(1, ge=1),
+    hide_finished: bool = False,
 ):
     user = await _optional_user(request, session)
     if user is None:
@@ -1736,6 +1744,26 @@ async def top5_page(
         )
     ).all()
     context = await _base_context(session, user)
+    if tab == "outcomes":
+        from app.tech_analysis.outcomes import LABELS, list_outcomes, summary
+        try:
+            filters = {"ticker": ticker, "state": state, "model": model,
+                       "since": datetime.combine(date.fromisoformat(since), datetime.min.time(), timezone(timedelta(hours=3))) if since else None,
+                       "until": datetime.combine(date.fromisoformat(until), datetime.max.time(), timezone(timedelta(hours=3))) if until else None}
+        except ValueError as exc:
+            raise HTTPException(422, "Некорректный период") from exc
+        if filters["since"] and filters["until"] and filters["since"] > filters["until"]:
+            raise HTTPException(422, "Начало периода позже окончания")
+        report = await list_outcomes(session, user.id, **filters, offset=(page - 1) * 50, hide_finished=hide_finished)
+        stats = await summary(session, user.id, **filters)
+        from app.db.models import ScenarioEvent, ScenarioWatch
+        events = (await session.execute(select(ScenarioEvent).join(ScenarioWatch, ScenarioWatch.snapshot_id == ScenarioEvent.snapshot_id).where(ScenarioWatch.user_id == user.id, ScenarioEvent.snapshot_id.in_([item["id"] for item in report["items"]])).order_by(ScenarioEvent.id))).scalars().all()
+        context.update({"report": report, "stats": stats, "labels": LABELS, "outcome_events": events, "outcome_page": page})
+        from app.tech_analysis.outcome_alerts import web_notifications
+        context["scenario_notifications"] = await web_notifications(session, user.id)
+        from app.presentation.scenario import scenario_time
+        context["scenario_time"] = scenario_time
+        return templates.TemplateResponse(request, "top5_outcomes.html", context)
     result = None
     selected = None
     selected_ticker_count = 0
@@ -1762,6 +1790,9 @@ async def top5_page(
                         break
         except ValueError:
             result = None
+    if result:
+        from app.tech_analysis.outcomes import attach_outcomes
+        await attach_outcomes(session, result.get("items", []), user.id)
     context.update(
         {
             "templates": [
@@ -2424,6 +2455,7 @@ async def admin_page(
             "templates": futures_templates,
             "busy": is_busy(),
             "daemon_busy": is_daemon_busy(),
+            "busy_by_script": {script["key"]: active_run_id(script["key"]) is not None for script in SCRIPTS},
             "error": request.query_params.get("error") == "1",
             "param_error": request.query_params.get("error") == "2",
             "tpl_name_error": request.query_params.get("error") == "3",
@@ -2570,7 +2602,9 @@ async def admin_run_script(
             flag, label, default, *rest = p
             ptype = rest[0] if rest else "int"
             raw = str(form.get(f"param_{flag[2:]}") or "").strip()
-            if ptype == "templates":
+            if ptype == "bool":
+                param_values[flag] = raw in ("1", "true", "on")
+            elif ptype == "templates":
                 # Выбранный шаблон фьючерсов -> список SECID из сохранённого шаблона
                 if raw:
                     template = await session.get(FuturesTemplate, int(raw)) if raw.isdigit() else None
@@ -2612,6 +2646,12 @@ async def admin_run_script(
                     return RedirectResponse(url="/admin?error=2", status_code=303)
         run_params = {"params": param_values} if param_values else {}
 
+    try:
+        build_argv(script_key, param_values)
+    except (ValueError, TypeError):
+        return RedirectResponse(url="/admin?error=2", status_code=303)
+    if active_run_id(script_key) is not None:
+        return RedirectResponse(url="/admin?busy=1", status_code=303)
     run = ScriptRun(
         script_name=script_key,
         params=run_params,

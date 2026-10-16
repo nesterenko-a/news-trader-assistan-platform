@@ -21,10 +21,13 @@ async def top5_list(
     template_id: int,
     limit: int = Query(5, ge=1, le=10),
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> dict:
     try:
-        return await top5(session, template_id, limit=limit)
+        result = await top5(session, template_id, limit=limit)
+        from app.tech_analysis.outcomes import attach_outcomes
+        await attach_outcomes(session, result.get("items", []), user.id)
+        return result
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 

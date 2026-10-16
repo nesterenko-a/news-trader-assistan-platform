@@ -234,6 +234,14 @@ try:
         paper_reset = client.post("/v1/paper/reset", headers=headers)
         print("paper reset:", paper_reset.status_code)
 
+        outcomes = client.get("/v1/top5/outcomes", headers=headers)
+        assert outcomes.status_code == 200 and outcomes.json()["total"] == 0
+        outcome_summary = client.get("/v1/top5/outcomes/summary", headers=headers)
+        assert outcome_summary.status_code == 200 and outcome_summary.json()["mean_r"] is None
+        outcomes_page = client.get("/top5?tab=outcomes", headers=headers)
+        assert outcomes_page.status_code == 200 and "Исходы сценариев Top-5" in outcomes_page.text
+        print("top5 outcomes API, summary, web:", outcomes.status_code, outcome_summary.status_code, outcomes_page.status_code)
+
         notices = client.get("/api/notices")
         n_body = notices.json() if notices.status_code == 200 else {}
         print("notices api:", notices.status_code, "state" in n_body, n_body.get("state"))
