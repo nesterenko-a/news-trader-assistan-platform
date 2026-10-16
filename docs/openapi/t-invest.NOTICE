@@ -1,6 +1,6 @@
-T-Invest API — профиль REST-песочницы для NewsTrader Assistant.
+T-Invest API — REST-профили рабочего контура и песочницы для NewsTrader Assistant.
 Источник: RussianInvestments/investAPI, официальный OpenAPI T-Invest API.
 Исходный контракт объявляет лицензию Apache License 2.0; текст — t-invest.LICENSE.
-Изменения NewsTrader Assistant (2026): sandbox-only сервер, фильтрация REST-методов, удаление недостижимых схем, описание групп и сведения о происхождении.
+Изменения NewsTrader Assistant (2026): явный сервер каждого контура, фильтрация REST-методов, удаление недостижимых схем, описание групп и сведения о происхождении.
 Полный источник и перечень изменений: x-news-trader-source в YAML.
 Исходные схемы и описания сохранены для включённых методов.
