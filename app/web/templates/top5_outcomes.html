@@ -41,8 +41,8 @@
     <ul>{% for event in outcome_events if event.snapshot_id == item.id %}<li>{{ scenario_time(event.occurred_at) }} · {{ labels.get(event.kind, event.kind) }}{% if event.data.get('price') is not none %} · {{ event.data.price }}{% endif %} (по часовой свече)</li>{% else %}<li>Событий пока нет</li>{% endfor %}</ul>
     {% if item.eligible %}
     <div class="scenario-subscription">
-      <label><input type="checkbox" class="scenario-telegram"> Telegram</label>
-      <fieldset><legend>События подписки</legend>{% for kind in ['zone', 'confirmed', 'open', 'target', 'stop', 'cancelled', 'expired_pending', 'expired_open'] %}<label style="display:inline-block;margin:4px"><input type="checkbox" class="scenario-event-kind" value="{{ kind }}" checked> {{ labels[kind] }}</label>{% endfor %}</fieldset>
+      <label><input type="checkbox" class="scenario-telegram" {% if 'telegram' in item.subscription_channels %}checked{% endif %}> Telegram</label>
+      <fieldset><legend>События подписки</legend>{% for kind in ['zone', 'confirmed', 'open', 'target', 'stop', 'cancelled', 'expired_pending', 'expired_open'] %}<label style="display:inline-block;margin:4px"><input type="checkbox" class="scenario-event-kind" value="{{ kind }}" {% if not item.subscribed or kind in item.subscription_kinds %}checked{% endif %}> {{ labels[kind] }}</label>{% endfor %}</fieldset>
       <button type="button" class="btn scenario-subscribe" data-active="{{ 'true' if item.subscribed else 'false' }}">{{ 'Отключить уведомления' if item.subscribed else 'Уведомлять в вебе' }}</button>
       <span role="status" class="subscription-status"></span>
     </div>

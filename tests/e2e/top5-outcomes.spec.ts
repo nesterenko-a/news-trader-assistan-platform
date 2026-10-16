@@ -14,11 +14,14 @@ test("исходы: личная история, фильтры, актуаль�
   await expect(row).toContainText("Наблюдение задерживается");
   await expect(row).toContainText("Системный горизонт оценки — 7 календарных дней");
   await expect(row).toContainText("Событий пока нет");
+  await row.locator('.scenario-event-kind[value="zone"]').uncheck();
   await row.getByRole("button", { name: "Уведомлять в вебе" }).click();
   await expect(row.locator(".subscription-status")).toHaveText("Сохранено");
   await expect(row.getByRole("button", { name: "Отключить уведомления" })).toBeVisible();
   await page.reload();
   await row.locator("summary").click();
+  await expect(row.locator('.scenario-event-kind[value="zone"]')).not.toBeChecked();
+  await expect(row.locator('.scenario-event-kind[value="open"]')).toBeChecked();
   await row.getByRole("button", { name: "Отключить уведомления" }).click();
   await expect(row.locator(".subscription-status")).toHaveText("Сохранено");
   await row.locator(".scenario-telegram").check();

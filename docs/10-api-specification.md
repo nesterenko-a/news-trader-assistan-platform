@@ -1,6 +1,6 @@
 # 10. Спецификация API
 
-**Статус:** утверждено v1.42 (исходы и подписки Top-5)
+**Статус:** утверждено v1.43 (чтение настроек подписки Top-5)
 **Система:** NewsTrader Assistant
 
 Программный интерфейс системы. Фактический машиночитаемый контракт — [openapi/openapi.json](../openapi/openapi.json): он генерируется из API-маршрутов FastAPI, версионируется вместе с кодом и проверяется автоматически. Этот документ описывает назначение и правила API; изменения реализации и OpenAPI должны соответствовать ему.
@@ -380,6 +380,6 @@ POST {callback_url}
 | `POST /v1/top5/outcomes/items/{snapshot_id}/subscription` | Включить/обновить подписку: JSON channels (web/telegram), kinds (zone, confirmed, open, target, stop, cancelled, expired_pending, expired_open). По умолчанию web и все поддерживаемые события. |
 | `DELETE /v1/top5/outcomes/items/{snapshot_id}/subscription` | Выключить подписку. |
 
-Элемент истории содержит id, analysis_id, ticker, scenario, model, published_at, expires_at, plan, eligible/reason, rules_version, state/label, entry_price, exit_price, result_r, detail, subscribed и freshness. В freshness: возраст, срок, завершённость, время проверки, задержка наблюдений, полнота, market_session (open/closed/unknown), market_data_fresh, пояснение и последняя свеча. Для недоступной статистики возвращается null. POST/DELETE возвращают active, channels, kinds; неподдерживаемый сценарий или непривязанный Telegram — 409.
+Элемент истории содержит id, analysis_id, ticker, scenario, model, published_at, expires_at, plan, eligible/reason, rules_version, state/label, entry_price, exit_price, result_r, detail, subscribed, subscription_channels, subscription_kinds и freshness. В freshness: возраст, срок, завершённость, время проверки, задержка наблюдений, полнота, market_session (open/closed/unknown), market_data_fresh, пояснение и последняя свеча. Для недоступной статистики возвращается null. POST/DELETE возвращают active, channels, kinds; неподдерживаемый сценарий или непривязанный Telegram — 409.
 
 `GET /v1/top5` дополнен необязательным observation у кандидата: id снимка, состояние, подпись и freshness. Отсутствие наблюдения — null. Правила интерпретации и метрик — [09-strategy-engine.md](./09-strategy-engine.md#наблюдение-за-сценариями-top-5).

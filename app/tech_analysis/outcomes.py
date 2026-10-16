@@ -268,9 +268,10 @@ async def list_outcomes(session, user_id, ticker=None, state=None, model=None, s
     total = await session.scalar(select(func.count()).select_from(query.subquery()))
     rows = (await session.execute(query.order_by(ScenarioSnapshot.id.desc()).offset(offset).limit(limit))).all()
     subscriptions = (await session.scalars(select(ScenarioSubscription).where(ScenarioSubscription.user_id == user_id, ScenarioSubscription.snapshot_id.in_([snapshot.id for snapshot, evaluation in rows])))).all()
-    subscribed = {row.snapshot_id: row.active for row in subscriptions}
+    subscribed = {row.snapshot_id: row for row in subscriptions}
     items = []
     for snapshot, evaluation in rows:
+        subscription = subscribed.get(snapshot.id)
         items.append({
             "id": snapshot.id, "analysis_id": snapshot.analysis_id, "ticker": snapshot.ticker,
             "scenario": snapshot.scenario_key.upper(), "model": snapshot.model, "published_at": snapshot.published_at,
@@ -280,7 +281,9 @@ async def list_outcomes(session, user_id, ticker=None, state=None, model=None, s
             "entry_price": evaluation.entry_price, "exit_price": evaluation.exit_price,
             "result_r": evaluation.result_r, "detail": evaluation.detail,
             "freshness": freshness(snapshot, evaluation),
-            "subscribed": bool(subscribed.get(snapshot.id)),
+            "subscribed": bool(subscription and subscription.active),
+            "subscription_channels": subscription.channels if subscription and subscription.active else [],
+            "subscription_kinds": subscription.kinds if subscription and subscription.active else [],
         })
     return {"items": items, "total": total or 0, "offset": offset, "limit": limit}
 

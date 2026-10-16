@@ -197,6 +197,10 @@ async def test_subscriptions_no_history_and_delivery_retry(session):
     session.add(old)
     await session.commit()
     await set_subscription(session, user, snapshot.id, ["web"], ["confirmed", "open"])
+    report = await list_outcomes(session, user.id)
+    item = next(row for row in report["items"] if row["id"] == snapshot.id)
+    assert item["subscription_channels"] == ["web"]
+    assert item["subscription_kinds"] == ["confirmed", "open"]
     now = datetime.now(timezone.utc) + timedelta(seconds=1)
     session.add(ScenarioEvent(snapshot_id=snapshot.id, kind="open", occurred_at=now, recorded_at=now, data={"price": 100}))
     await session.commit()
