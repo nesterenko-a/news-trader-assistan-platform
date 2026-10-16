@@ -384,7 +384,8 @@ async def view(session: AsyncSession, user_id: int) -> dict:
         return {"connected": False, "accounts": [], "selected_account_id": None, "snapshot": None}
     accounts = (await session.scalars(select(BrokerAccount).where(BrokerAccount.connection_id == connection.id).order_by(BrokerAccount.id))).all()
     account = next((row for row in accounts if row.external_id == connection.selected_account_id), None)
-    snapshot = await session.scalar(select(BrokerPortfolioSnapshot).where(BrokerPortfolioSnapshot.account_id == account.id)) if account else None
+    snapshots = {row.account_id: row for row in (await session.scalars(select(BrokerPortfolioSnapshot).join(BrokerAccount).where(BrokerAccount.connection_id == connection.id))).all()}
+    snapshot = snapshots.get(account.id) if account else None
     return {
         "connected": True,
         "environment": connection.environment,
@@ -392,6 +393,6 @@ async def view(session: AsyncSession, user_id: int) -> dict:
         "last_error": connection.last_error,
         "last_refreshed_at": connection.last_refreshed_at,
         "selected_account_id": connection.selected_account_id,
-        "accounts": [{"id": a.external_id, "masked_id": "••••" + a.external_id[-4:], "name": a.name, "type": a.account_type, "status": a.status} for a in accounts],
+        "accounts": [{"id": a.external_id, "masked_id": "••••" + a.external_id[-4:], "name": a.name, "type": a.account_type, "status": a.status, "balance": snapshots[a.id].data.get("cash", []) if a.id in snapshots else None, "balance_fetched_at": snapshots[a.id].fetched_at if a.id in snapshots else None} for a in accounts],
         "snapshot": {"fetched_at": snapshot.fetched_at, **snapshot.data} if snapshot else None,
     }

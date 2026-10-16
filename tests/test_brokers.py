@@ -94,8 +94,12 @@ async def test_broker_connection_roundtrip_and_isolation(monkeypatch):
         with pytest.raises(HTTPException) as denied:
             await t_invest.refresh(session, other.id, "12345678", FakeBroker())
         assert denied.value.status_code == 404
+        assert (await t_invest.view(session, owner.id))["accounts"][0]["balance"] is None
         data = await t_invest.refresh(session, owner.id, "12345678", FakeBroker())
         assert data["total"] == {"amount": "100.5", "currency": "rub"}
+        account_view = (await t_invest.view(session, owner.id))["accounts"][0]
+        assert account_view["balance"] == [{"amount": "10", "currency": "rub"}]
+        assert account_view["balance_fetched_at"] is not None
         assert (await t_invest.view(session, owner.id))["snapshot"]["positions"][0]["quantity"] == "2"
         stored = await t_invest.connection_for(session, owner.id)
         stored.user_id = other.id
@@ -236,3 +240,7 @@ def test_embedded_broker_panels_gate_controls_by_connection(environment, connect
     assert ('src="/static/broker-sandbox.js"' in sandbox) == (connected and environment == "sandbox")
     assert ('broker-panel-disabled' in portfolio) == (not connected)
     assert ('broker-panel-disabled' in sandbox) == (not connected or environment != "sandbox")
+
+    accounts = web_router.templates.env.get_template("broker_accounts.html").render(context)
+    assert ('action="/broker/t-invest/select"' in accounts) == (connected and environment == "production")
+    assert ('broker-panel-disabled' in accounts) == (not connected or environment != "production")

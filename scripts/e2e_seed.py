@@ -22,6 +22,8 @@ from app.db.models import (
     Article,
     ArticleEntity,
     BrokerConnection,
+    BrokerAccount,
+    BrokerPortfolioSnapshot,
     Entity,
     FuturesTemplate,
     GraphCandidate,
@@ -457,6 +459,22 @@ async def seed(db_url: str) -> None:
         owner = await session.scalar(select(User).where(User.username == USER_USERNAME))
         if await session.scalar(select(BrokerConnection.id).where(BrokerConnection.user_id == owner.id)) is None:
             session.add(BrokerConnection(user_id=owner.id, provider="t_invest", environment="sandbox", token_ciphertext="e2e-unused", token_nonce="e2e-unused", token_key_id="e2e-unused"))
+        production_user = await session.scalar(select(User).where(User.username == "broker-production"))
+        if production_user is None:
+            production_user = User(username="broker-production", password_hash=hash_password(USER_PASSWORD), role="user")
+            session.add(production_user)
+            await session.flush()
+        production = await session.scalar(select(BrokerConnection).where(BrokerConnection.user_id == production_user.id))
+        if production is None:
+            production = BrokerConnection(user_id=production_user.id, provider="t_invest", environment="production", token_ciphertext="e2e-unused", token_nonce="e2e-unused", token_key_id="e2e-unused", selected_account_id="production-1234")
+            session.add(production)
+            await session.flush()
+            for external_id, account_name in [("production-1234", "Основной"), ("production-5678", "Второй")]:
+                account = BrokerAccount(connection_id=production.id, external_id=external_id, name=account_name, status="ACCOUNT_STATUS_OPEN", access_level="ACCOUNT_ACCESS_LEVEL_READ_ONLY")
+                session.add(account)
+                await session.flush()
+                if external_id == "production-1234":
+                    session.add(BrokerPortfolioSnapshot(account_id=account.id, fetched_at=datetime.now(timezone.utc), data={"cash": [{"amount": "1500.50", "currency": "rub"}], "positions": [], "total": {"amount": "2500.50", "currency": "rub"}}))
         if await session.scalar(select(TechAnalysis.id).where(TechAnalysis.ticker == "OUTCOMEE2E")) is None:
             batch = TechAnalysisBatch(user_id=owner.id, status="success")
             session.add(batch)

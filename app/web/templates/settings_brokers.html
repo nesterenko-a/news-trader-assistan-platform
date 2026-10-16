@@ -25,6 +25,7 @@
             <option value="sandbox" {% if selected_environment == 'sandbox' %}selected{% endif %}>Песочница</option>
           </select></label>
           <label>{{ 'Новый токен' if broker.connected else 'Токен' }} <input type="password" name="token" autocomplete="off" required></label>
+          {% if broker.connected and broker.environment == 'production' %}<a class="btn" href="#broker-accounts">Управление рабочими счетами</a>{% endif %}
           <a class="btn" href="#broker-sandbox">Управление песочницей</a>
           <button class="btn" type="submit">{{ 'Заменить токен' if broker.connected else 'Подключить' }}</button>
         </form>
@@ -37,5 +38,6 @@
       {% endif %}
     </section>
     {% include "broker_portfolio.html" %}
+    {% include "broker_accounts.html" %}
     {% include "broker_sandbox.html" %}
 {% endblock %}

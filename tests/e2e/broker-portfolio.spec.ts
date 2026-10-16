@@ -12,7 +12,7 @@ test("Брокеры вынесены в отдельное тело с обще
   await expect(page.locator('.settings-head')).toHaveText(heading);
   expect(await page.locator('.settings-nav a').evaluateAll(items => items.map(item => [item.textContent, item.getAttribute('href')]))).toEqual(links);
   await expect(page.locator('.settings-nav [aria-current="page"]')).toHaveText('Брокеры и торговля');
-  await expect(page.locator('.settings-content > section')).toHaveCount(3);
+  await expect(page.locator('.settings-content > section')).toHaveCount(4);
   await expect(page.locator('#brokers')).toBeVisible();
   await expect(page.locator('#profile')).toHaveCount(0);
   await page.screenshot({path: 'test-results/broker-settings-desktop.png', fullPage: true});
@@ -35,7 +35,7 @@ test("Т-Инвестиции: доступ к подключению и пус�
   await page.goto("/settings/brokers");
   await expect(page.locator("#brokers")).toContainText("Т‑Инвестиции");
   await expect(page.locator("#brokers")).toContainText("только для чтения");
-  for (const id of ['broker-portfolio', 'broker-sandbox']) {
+  for (const id of ['broker-portfolio', 'broker-accounts', 'broker-sandbox']) {
     await expect(page.locator('#' + id)).toHaveAttribute('aria-disabled', 'true');
     await expect(page.locator('#' + id)).toHaveClass(/broker-panel-disabled/);
     await expect(page.locator('#' + id + ' form')).toHaveCount(0);
@@ -76,4 +76,43 @@ test("Обычный пользователь видит восстановле�
   await page.goto("/settings/brokers?broker_error=502");
   await expect(page.locator("#brokers")).toContainText("Проверьте сертификат");
   await expect(page.locator('#brokers form[action="/broker/t-invest/repair-certificate"] button')).toBeVisible();
+});
+
+
+test("Рабочий контур: управление счетами, баланс и загрузка портфеля", async ({page}) => {
+  const calls: string[] = [];
+  await page.route('**/v1/brokers/t-invest/sandbox/accounts', route => {
+    calls.push('sandbox');
+    return route.abort();
+  });
+  await login(page, 'broker-production', USER.password);
+  await page.goto('/settings/brokers');
+  await page.locator('#brokers').getByRole('link', {name: 'Управление рабочими счетами'}).click();
+  await expect(page).toHaveURL(/settings\/brokers#broker-accounts$/);
+  const panel = page.locator('#broker-accounts');
+  await expect(panel).toHaveAttribute('aria-disabled', 'false');
+  await expect(panel.locator('.broker-account')).toHaveCount(2);
+  const first = panel.locator('.broker-account').filter({has: page.getByRole('heading', {name: 'Основной', exact: true})});
+  await expect(first).toContainText('••••1234');
+  await expect(first).toContainText('Выбран для портфеля');
+  await expect(first).toContainText('1500.50 rub');
+  await expect(first).toContainText('Получено:');
+  const second = panel.locator('.broker-account').filter({has: page.getByRole('heading', {name: 'Второй', exact: true})});
+  await expect(second).toContainText('Баланс ещё не загружен');
+  await expect(page.locator('#broker-sandbox')).toHaveAttribute('aria-disabled', 'true');
+  await expect(page.locator('#sandbox-create')).toHaveCount(0);
+  await page.route('**/broker/t-invest/select', async route => {
+    const body = new URLSearchParams(route.request().postData() || '');
+    calls.push(body.get('account_id')!);
+    await route.fulfill({status: 303, headers: {location: '/settings/brokers#broker-portfolio'}});
+  });
+  await first.getByRole('button', {name: 'Обновить портфель', exact: true}).click();
+  await expect(page).toHaveURL(/settings\/brokers#broker-portfolio$/);
+  await second.getByRole('button', {name: 'Выбрать и загрузить портфель', exact: true}).click();
+  await expect(page).toHaveURL(/settings\/brokers#broker-portfolio$/);
+  expect(calls).toEqual(['production-1234', 'production-5678']);
+  await page.setViewportSize({width: 390, height: 844});
+  await page.goto('/settings/brokers#broker-accounts');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBeTruthy();
+  await page.screenshot({path: 'test-results/broker-production-mobile.png', fullPage: true});
 });
