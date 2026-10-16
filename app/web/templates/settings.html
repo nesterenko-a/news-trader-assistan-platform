@@ -99,7 +99,7 @@
       {% endif %}
       {% if broker.connected %}
         <p>Подключено: {{ 'Песочница' if broker.environment == 'sandbox' else 'Рабочий контур' }}. <a class="btn" href="/portfolio/brokers/t-invest">Открыть портфель Т‑Инвестиций</a></p>
-        {% if broker.environment == 'sandbox' and not broker.accounts %}<p>В песочнице пока нет счетов. Создайте тестовый счёт средствами Т‑Инвестиций, затем подключите токен повторно.</p>{% endif %}
+        {% if broker.environment == 'sandbox' and not broker.accounts %}<p>В песочнице пока нет счетов. Создайте первый счёт на странице управления песочницей.</p>{% endif %}
       {% endif %}
       {% if broker.connected or broker_ready %}
         {% set selected_environment = request.query_params.get('environment') if request.query_params.get('environment') in ('production', 'sandbox') else broker.environment|default('production') %}
@@ -109,10 +109,12 @@
             <option value="sandbox" {% if selected_environment == 'sandbox' %}selected{% endif %}>Песочница</option>
           </select></label>
           <label>{{ 'Новый токен' if broker.connected else 'Токен' }} <input type="password" name="token" autocomplete="off" required></label>
+          <a class="btn" href="/broker/t-invest/sandbox">Управление песочницей</a>
           <button class="btn" type="submit">{{ 'Заменить токен' if broker.connected else 'Подключить' }}</button>
         </form>
       {% else %}
         <p class="muted">Подключение недоступно: ключ шифрования не настроен на сервере.</p>
+        <a class="btn" href="/broker/t-invest/sandbox">Управление песочницей</a>
       {% endif %}
       {% if broker.connected %}
         <form method="post" action="/broker/t-invest/disconnect" onsubmit="return confirm('Отключить Т‑Инвестиции и удалить снимки портфеля?')"><button class="btn" type="submit">Отключить</button></form>

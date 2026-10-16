@@ -17,6 +17,7 @@ from app.db.models import (
     BrokerConnection,
     BrokerConnectionEvent,
     BrokerPortfolioSnapshot,
+    BrokerSandboxAction,
     Security,
 )
 
@@ -178,9 +179,52 @@ class TInvestClient:
         })
         return instrument, calendar
 
+    async def sandbox_positions(self, account_id: str) -> dict:
+        if self.environment != "sandbox":
+            raise HTTPException(409, "Выберите подключение песочницы")
+        return await self._call("SandboxService", "GetSandboxPositions", {"accountId": account_id})
 
-async def connection_for(session: AsyncSession, user_id: int) -> BrokerConnection | None:
-    return await session.scalar(select(BrokerConnection).where(BrokerConnection.user_id == user_id, BrokerConnection.provider == "t_invest"))
+    async def sandbox_change(self, method: str, payload: dict) -> dict:
+        if self.environment != "sandbox" or method not in ("OpenSandboxAccount", "SandboxPayIn", "CloseSandboxAccount"):
+            raise HTTPException(409, "Операция доступна только в песочнице")
+        try:
+            async with httpx.AsyncClient(timeout=15, transport=self.transport, verify=tls_context()) as client:
+                response = await client.post(f"{SANDBOX_BASE}.SandboxService/{method}", json=payload, headers={"Authorization": f"Bearer {self.token}"})
+        except httpx.HTTPError as exc:
+            raise SandboxUnknown() from exc
+        if response.status_code >= 500 or response.status_code == 408:
+            raise SandboxUnknown()
+        if response.is_error:
+            raise HTTPException(422, "Брокер отклонил действие. Проверьте токен, счёт и сумму")
+        try:
+            result = response.json()
+            if not isinstance(result, dict):
+                raise ValueError()
+            return result
+        except ValueError as exc:
+            raise SandboxUnknown() from exc
+
+
+class SandboxUnknown(Exception):
+    pass
+
+
+async def connection_for(session: AsyncSession, user_id: int, *, lock=False) -> BrokerConnection | None:
+    query = select(BrokerConnection).where(BrokerConnection.user_id == user_id, BrokerConnection.provider == "t_invest")
+    return await session.scalar(query.with_for_update().execution_options(populate_existing=True) if lock else query)
+
+
+async def ensure_available(session, connection):
+    if connection.status == "sandbox_busy":
+        now = datetime.now(timezone.utc)
+        pending = (await session.scalars(select(BrokerSandboxAction).where(BrokerSandboxAction.connection_id == connection.id, BrokerSandboxAction.status == "pending"))).all()
+        if any((now - row.started_at.replace(tzinfo=timezone.utc)).total_seconds() < 120 for row in pending):
+            raise HTTPException(409, "Действие песочницы ещё выполняется")
+        for row in pending:
+            row.status, row.finished_at, row.error_code = "unknown", now, "interrupted"
+        connection.status = "connected"
+    if connection.status == "refreshing":
+        raise HTTPException(409, "Обновление уже выполняется")
 
 
 def _event(session: AsyncSession, user_id: int, connection_id: int | None, action: str, result: str, code: str | None = None) -> None:
@@ -196,12 +240,13 @@ async def connect(session: AsyncSession, user_id: int, token: str, client: TInve
     rows = await (client or TInvestClient(token, environment=environment)).accounts()
     if not rows and environment == "production":
         raise HTTPException(422, "Нет доступных брокерских счетов")
-    connection = await connection_for(session, user_id)
+    connection = await connection_for(session, user_id, lock=True)
     if connection is None:
         connection = BrokerConnection(user_id=user_id, provider="t_invest", environment=environment, token_ciphertext=ciphertext, token_nonce=nonce, token_key_id=key_id)
         session.add(connection)
         await session.flush()
     else:
+        await ensure_available(session, connection)
         if connection.environment != environment:
             accounts = (await session.scalars(select(BrokerAccount).where(BrokerAccount.connection_id == connection.id))).all()
             for account in accounts:
@@ -275,11 +320,10 @@ async def _snapshot(session: AsyncSession, client: TInvestClient, account: Broke
 
 
 async def refresh(session: AsyncSession, user_id: int, account_id: str | None = None, client: TInvestClient | None = None) -> dict:
-    connection = await connection_for(session, user_id)
+    connection = await connection_for(session, user_id, lock=True)
     if connection is None:
         raise HTTPException(404, "Подключение не найдено")
-    if connection.status == "refreshing":
-        raise HTTPException(409, "Обновление уже выполняется")
+    await ensure_available(session, connection)
     target = account_id or connection.selected_account_id
     account = await session.scalar(select(BrokerAccount).where(BrokerAccount.connection_id == connection.id, BrokerAccount.external_id == target))
     if account is None:
@@ -320,9 +364,10 @@ async def refresh(session: AsyncSession, user_id: int, account_id: str | None = 
 
 
 async def disconnect(session: AsyncSession, user_id: int) -> None:
-    connection = await connection_for(session, user_id)
+    connection = await connection_for(session, user_id, lock=True)
     if connection is None:
         raise HTTPException(404, "Подключение не найдено")
+    await ensure_available(session, connection)
     connection_id = connection.id
     accounts = (await session.scalars(select(BrokerAccount).where(BrokerAccount.connection_id == connection_id))).all()
     for account in accounts:

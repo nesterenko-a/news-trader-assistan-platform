@@ -1,6 +1,6 @@
 # 07. Модель данных
 
-**Статус:** утверждено v1.30 (контур брокера и происхождение календаря)
+**Статус:** утверждено v1.31 (журнал действий песочницы)
 **Система:** NewsTrader Assistant
 
 Описание сущностей системы и их взаимосвязей. Модель представлена концептуально, без привязки к конкретной СУБД (см. [06-architecture.md](./06-architecture.md)).
@@ -657,3 +657,11 @@ Singleton-строка настроек реалтайм-актуализаци�
 `tech_analyses.outcome_source_id` указывает на исходный расчёт при повторном использовании. Время хранится в UTC, в вебе показывается по Москве. Изменение оценки блокирует её строку в PostgreSQL через FOR UPDATE SKIP LOCKED; кэш свечей записывается с ON CONFLICT DO NOTHING. Правила переходов — [09-strategy-engine.md](./09-strategy-engine.md#наблюдение-за-сценариями-top-5).
 
 В `scenario_evaluations.market_context.calendar` и `scenario_events.data.calendar` для Т-Инвестиций сохраняются provider, environment, exchange, fetched_at, sha256 и raw (снимок ответа TradingSchedules без секретов). Эти поля используют существующий JSON, отдельной миграции не требуют. В API доступны безопасные признаки происхождения — см. [10](./10-api-specification.md).
+
+## Действия песочницы
+
+Миграция `037_broker_sandbox_actions.xml` добавляет `broker_sandbox_actions`: UUID id, user_id, nullable connection_id (ON DELETE SET NULL), версия подключения, operation_key, kind (create/pay_in/close), SHA-256 нормализованного запроса, payload JSON без токена, status (pending/success/failed/unknown), result JSON, безопасный error_code, started_at/finished_at. Уникальность `(user_id, operation_key)` обеспечивает повторное получение результата; индексы по user_id и connection_id. Payload содержит только параметры операции: имя или accountId/сумму, без заголовков и секретов.
+
+Pending фиксируется до внешнего вызова. Блокировка строки подключения и статус sandbox_busy сериализуют действия; версия подключения увеличивается при резервировании. Запоздавший ответ не освобождает блокировку другой версии. Подключение, смена токена, отключение и обновление портфеля проверяют занятость. BrokerConnectionEvent получает sandbox_create/sandbox_pay_in/sandbox_close с результатом и безопасным кодом. При отключении журнал сохраняется с connection_id=null. Регламент зависшего pending — [13](./13-operations.md#управление-счетами-песочницы).
+
+После успеха список BrokerAccount синхронизируется. Пополнение инвалидирует снимок счёта, закрытие удаляет локальный счёт и снимок; если он был выбран, очищаются selected_account_id и last_refreshed_at. Создание не меняет текущий выбор. Ошибка чтения списка после успешного RPC отмечается sync_failed без повторного внешнего действия.

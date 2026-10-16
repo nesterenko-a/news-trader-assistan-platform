@@ -197,6 +197,25 @@ class BrokerConnectionEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class BrokerSandboxAction(Base):
+    __tablename__ = "broker_sandbox_actions"
+    __table_args__ = (UniqueConstraint("user_id", "operation_key", name="uq_sandbox_action_key"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    connection_id: Mapped[int | None] = mapped_column(ForeignKey("broker_connections.id", ondelete="SET NULL"), index=True)
+    connection_version: Mapped[int] = mapped_column(Integer)
+    operation_key: Mapped[str] = mapped_column(String(36))
+    kind: Mapped[str] = mapped_column(String(20))
+    request_hash: Mapped[str] = mapped_column(String(64))
+    payload: Mapped[dict] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    result: Mapped[dict] = mapped_column(JSON, default=dict)
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class Alert(Base):
     __tablename__ = "alerts"
 

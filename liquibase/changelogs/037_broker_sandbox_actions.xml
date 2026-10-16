@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+    <changeSet id="037-broker-sandbox-actions" author="newstrader">
+        <preConditions onFail="MARK_RAN"><not><tableExists tableName="broker_sandbox_actions"/></not></preConditions>
+        <createTable tableName="broker_sandbox_actions">
+            <column name="id" type="varchar(36)"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="user_id" type="integer"><constraints nullable="false" references="users(id)" foreignKeyName="fk_sandbox_action_user"/></column>
+            <column name="connection_id" type="integer"/>
+            <column name="connection_version" type="integer"><constraints nullable="false"/></column>
+            <column name="operation_key" type="varchar(36)"><constraints nullable="false"/></column>
+            <column name="kind" type="varchar(20)"><constraints nullable="false"/></column>
+            <column name="request_hash" type="varchar(64)"><constraints nullable="false"/></column>
+            <column name="payload" type="json"><constraints nullable="false"/></column>
+            <column name="status" type="varchar(20)"><constraints nullable="false"/></column>
+            <column name="result" type="json"><constraints nullable="false"/></column>
+            <column name="error_code" type="varchar(80)"/>
+            <column name="started_at" type="timestamptz"><constraints nullable="false"/></column>
+            <column name="finished_at" type="timestamptz"/>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="broker_sandbox_actions" baseColumnNames="connection_id" referencedTableName="broker_connections" referencedColumnNames="id" constraintName="fk_sandbox_action_connection" onDelete="SET NULL"/>
+        <addUniqueConstraint tableName="broker_sandbox_actions" columnNames="user_id,operation_key" constraintName="uq_sandbox_action_key"/>
+        <createIndex tableName="broker_sandbox_actions" indexName="ix_broker_sandbox_actions_user_id"><column name="user_id"/></createIndex>
+        <createIndex tableName="broker_sandbox_actions" indexName="ix_broker_sandbox_actions_connection_id"><column name="connection_id"/></createIndex>
+        <rollback><dropTable tableName="broker_sandbox_actions"/></rollback>
+    </changeSet>
+</databaseChangeLog>

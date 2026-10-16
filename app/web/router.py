@@ -6,11 +6,13 @@ import os
 import re
 import uuid
 import json
+from urllib.parse import urlencode
 
 import httpx
 
 from app.config import get_settings as get_cfg
 from app.brokers import t_invest
+from app.brokers import sandbox as broker_sandbox
 from app.brokers import certificates as broker_certificates
 from app.market.oi_chart import build_net_chart, prepare_group_chart
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -2029,6 +2031,41 @@ async def broker_portfolio_page(request: Request, session: AsyncSession = Depend
     response = templates.TemplateResponse(request, "broker_portfolio.html", context)
     response.headers["Cache-Control"] = "no-store"
     return response
+
+
+@router.get("/broker/t-invest/sandbox")
+async def sandbox_page(request: Request, session: AsyncSession = Depends(get_session)):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    context = await _base_context(session, user)
+    context["broker"] = await t_invest.view(session, user.id)
+    context["operation_key"] = str(uuid.uuid4())
+    response = templates.TemplateResponse(request, "broker_sandbox.html", context)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@router.post("/broker/t-invest/sandbox/{action}")
+async def sandbox_form(action: str, request: Request, session: AsyncSession = Depends(get_session)):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _broker_form_origin(request):
+        raise HTTPException(403, "Недопустимый источник запроса")
+    form = await request.form()
+    try:
+        if action == "sync":
+            await broker_sandbox.sync(session, user.id)
+        elif action in ("create", "pay-in", "close"):
+            await broker_sandbox.execute(session, user.id, action.replace("-", "_"), str(form.get("operation_key") or ""), name=str(form.get("name") or ""), account_id=str(form.get("account_id") or ""), amount=str(form.get("amount") or ""), confirmed=form.get("confirmed") == "true")
+        else:
+            raise HTTPException(404, "Действие не найдено")
+        location = "/broker/t-invest/sandbox"
+    except HTTPException as exc:
+        await session.rollback()
+        location = "/broker/t-invest/sandbox?" + urlencode({"error": str(exc.detail)})
+    return RedirectResponse(url=location, status_code=303, headers={"Cache-Control": "no-store"})
 
 
 @router.post("/settings/profile")
