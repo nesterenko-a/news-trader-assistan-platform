@@ -4,11 +4,11 @@
 <section class="card">
   <h1>Песочница Т‑Инвестиций</h1>
   <p><strong>Тестовые счета и виртуальные средства</strong></p>
-  <p><a href="/settings?environment=sandbox#brokers">Настройки подключения</a> · <a href="/portfolio/brokers/t-invest">Открыть портфель</a></p>
+  <p><a href="/settings/brokers?environment=sandbox">Настройки подключения</a> · <a href="/portfolio/brokers/t-invest">Открыть портфель</a></p>
   {% if request.query_params.get('error') %}<p role="alert">{{ request.query_params.get('error') }}</p>{% endif %}
   {% if not broker.connected or broker.environment != 'sandbox' %}
     <p>Сначала сохраните Sandbox token в Настройках. Для рабочего контура управление тестовыми счетами недоступно.</p>
-    <a class="btn" href="/settings?environment=sandbox#brokers">Подключить песочницу</a>
+    <a class="btn" href="/settings/brokers?environment=sandbox">Подключить песочницу</a>
   {% else %}
     <form method="post" action="/broker/t-invest/sandbox/create" id="sandbox-create">
       <h2>Создать счёт</h2>

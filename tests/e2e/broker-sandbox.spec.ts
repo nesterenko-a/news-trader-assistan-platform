@@ -28,7 +28,7 @@ test("песочница: создать, пополнить, отменить �
     await route.fulfill({status: 303, headers: {location: "/broker/t-invest/sandbox"}});
   });
   await login(page, USER.username, USER.password);
-  await page.goto("/settings#brokers");
+  await page.goto("/settings/brokers");
   await page.locator('#brokers a[href="/broker/t-invest/sandbox"]').click();
   await expect(page.getByRole("heading", {name: "Песочница Т‑Инвестиций"})).toBeVisible();
   await expect(page.locator("#sandbox-empty")).toBeVisible();

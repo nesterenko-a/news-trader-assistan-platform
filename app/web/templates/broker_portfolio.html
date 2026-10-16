@@ -3,9 +3,9 @@
 {% block content %}
 <section class="card">
   <h1>Портфель Т‑Инвестиций</h1>
-  <p class="muted">Данные брокера только для чтения. <a href="/settings#brokers">Настройки подключения</a></p>
+  <p class="muted">Данные брокера только для чтения. <a href="/settings/brokers">Настройки подключения</a></p>
   {% if not broker.connected %}
-    <p>Счёт ещё не подключён. <a class="btn" href="/settings#brokers">Подключить</a></p>
+    <p>Счёт ещё не подключён. <a class="btn" href="/settings/brokers">Подключить</a></p>
   {% else %}
     <p><strong>{{ 'Песочница · тестовые средства' if broker.environment == 'sandbox' else 'Рабочий контур' }}</strong></p>
     {% if broker.environment == 'sandbox' %}<p><a class="btn" href="/broker/t-invest/sandbox">Управление песочницей</a></p>{% endif %}

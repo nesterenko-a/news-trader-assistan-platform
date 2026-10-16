@@ -5,6 +5,7 @@ test.describe("Контроль доступа", () => {
   const PROTECTED = [
     "/watchlist",
     "/settings",
+    "/settings/brokers",
     "/portfolio",
     "/alerts",
     "/history",

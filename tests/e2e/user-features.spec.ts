@@ -109,6 +109,9 @@ test.describe("Приватные функции", () => {
     await expect(page.getByText("Профиль сохранён.")).toBeVisible();
     await expect(form.locator('input[name="full_name"]')).toHaveValue("Иванов Иван Иванович");
     await expect(page.locator('a[href="/watchlist"]')).toContainText("Watchlist");
+    await expect(page.locator('#brokers')).toHaveCount(0);
+    await page.locator('.settings-nav').getByRole("link", {name: "Брокеры и торговля"}).click();
+    await expect(page).toHaveURL(/\/settings\/brokers$/);
     await expect(page.getByRole("heading", { name: "Брокеры и торговля" })).toBeVisible();
     await expect(page.locator('#brokers')).toContainText("Т‑Инвестиции");
     await expect(page.locator('#brokers')).toContainText("только для чтения");

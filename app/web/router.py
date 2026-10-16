@@ -1896,6 +1896,8 @@ async def settings_page(
     user = await _optional_user(request, session)
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
+    if any(key in request.query_params for key in ("broker", "broker_error", "certificate", "environment")):
+        return RedirectResponse(url="/settings/brokers?" + str(request.query_params), status_code=303)
     profile = await _profile_for_user(session, user.id)
     favorite_rows = (await session.execute(select(UserFavorite, Security).join(Security).where(UserFavorite.user_id == user.id).order_by(UserFavorite.created_at.desc()))).all()
     watchlist_count = await session.scalar(
@@ -1926,8 +1928,6 @@ async def settings_page(
     context = await _base_context(session, user)
     context.update(
         {
-            "broker": await t_invest.view(session, user.id),
-            "broker_ready": t_invest.encryption_ready(),
             "profile": profile,
             "watchlist_count": watchlist_count or 0,
             "portfolio_count": portfolio_count or 0,
@@ -1939,6 +1939,23 @@ async def settings_page(
         }
     )
     response = templates.TemplateResponse(request, "settings.html", context)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@router.get("/settings/brokers")
+async def broker_settings_page(request: Request, session: AsyncSession = Depends(get_session)):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    context = await _base_context(session, user)
+    context.update({
+        "profile": await _profile_for_user(session, user.id),
+        "broker": await t_invest.view(session, user.id),
+        "broker_ready": t_invest.encryption_ready(),
+        "settings_section": "brokers",
+    })
+    response = templates.TemplateResponse(request, "settings_brokers.html", context)
     response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -1959,8 +1976,8 @@ async def broker_repair_certificate(request: Request, session: AsyncSession = De
     try:
         await asyncio.to_thread(broker_certificates.repair_and_check, t_invest.BASE)
     except (OSError, ValueError, httpx.HTTPError):
-        return RedirectResponse(url="/settings?broker_error=502&certificate=failed#brokers", status_code=303)
-    return RedirectResponse(url="/settings?broker_error=502&certificate=ok#brokers", status_code=303)
+        return RedirectResponse(url="/settings/brokers?broker_error=502&certificate=failed", status_code=303)
+    return RedirectResponse(url="/settings/brokers?broker_error=502&certificate=ok", status_code=303)
 
 
 @router.post("/broker/t-invest/connect")
@@ -1976,8 +1993,8 @@ async def broker_connect(request: Request, session: AsyncSession = Depends(get_s
         await t_invest.connect(session, user.id, str(form.get("token") or ""), environment=environment)
     except HTTPException as exc:
         environment = environment if environment in ("production", "sandbox") else "production"
-        return RedirectResponse(url=f"/settings?broker_error={exc.status_code}&environment={environment}#brokers", status_code=303)
-    return RedirectResponse(url="/settings?broker=connected#brokers", status_code=303)
+        return RedirectResponse(url=f"/settings/brokers?broker_error={exc.status_code}&environment={environment}", status_code=303)
+    return RedirectResponse(url="/settings/brokers?broker=connected", status_code=303)
 
 
 @router.post("/broker/t-invest/select")
@@ -2017,7 +2034,7 @@ async def broker_disconnect(request: Request, session: AsyncSession = Depends(ge
     if not _broker_form_origin(request):
         raise HTTPException(403, "Недопустимый источник запроса")
     await t_invest.disconnect(session, user.id)
-    return RedirectResponse(url="/settings?broker=disconnected#brokers", status_code=303)
+    return RedirectResponse(url="/settings/brokers?broker=disconnected", status_code=303)
 
 
 @router.get("/portfolio/brokers/t-invest")

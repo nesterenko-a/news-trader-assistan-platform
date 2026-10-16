@@ -249,6 +249,11 @@ try:
         sandbox_create = client.post("/v1/brokers/t-invest/sandbox/accounts", headers=headers, json={"operation_key": "00000000-0000-0000-0000-000000000001"})
         assert sandbox_create.status_code == 409
         print("sandbox web, disconnected accounts/create:", sandbox_page.status_code, sandbox_accounts.status_code, sandbox_create.status_code)
+        broker_settings = client.get("/settings/brokers", headers=headers)
+        assert broker_settings.status_code == 200 and 'id="brokers"' in broker_settings.text and 'id="profile"' not in broker_settings.text
+        settings_page = client.get("/settings", headers=headers)
+        assert settings_page.status_code == 200 and 'id="brokers"' not in settings_page.text
+        print("separate broker settings and general settings:", broker_settings.status_code, settings_page.status_code)
 
         notices = client.get("/api/notices")
         n_body = notices.json() if notices.status_code == 200 else {}

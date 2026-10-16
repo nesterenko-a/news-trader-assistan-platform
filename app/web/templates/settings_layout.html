@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Настройки пользователя — NewsTrader Assistant{% endblock %}
+
+{% block content %}
+<section class="card settings-head">
+  <div>
+    <h1>Настройки пользователя</h1>
+    <p class="muted">Управляйте профилем и быстро переходите к своим инвестиционным спискам.</p>
+  </div>
+  {% if profile and profile.avatar_path %}
+  <img class="profile-avatar" src="/uploads/{{ profile.avatar_path }}" alt="Аватар пользователя">
+  {% else %}
+  <div class="profile-avatar profile-avatar-placeholder" aria-hidden="true">{{ user.username[:1]|upper }}</div>
+  {% endif %}
+</section>
+
+{% if profile_updated %}<p class="form-success" role="status">Профиль сохранён.</p>{% endif %}
+{% if profile_error == "avatar" %}<p class="form-error" role="alert">Загрузите изображение JPEG, PNG или WebP не более 5 МБ.</p>{% endif %}
+{% if profile_error == "profile" %}<p class="form-error" role="alert">Проверьте длину полей профиля.</p>{% endif %}
+
+<div class="settings-layout">
+  <aside class="settings-nav" aria-label="Разделы настроек">
+    <a href="/settings#profile">Профиль</a>
+    <a href="/settings#favorites">Избранное</a>
+    <a href="/settings#investments">Мои инвестиции</a>
+    <a href="/settings#notifications">Уведомления</a>
+    <a href="/settings#subscription">Подписка</a>
+    <a href="/settings/brokers" {% if settings_section == "brokers" %}class="active" aria-current="page"{% endif %}>Брокеры и торговля</a>
+    <a href="/settings#security">Безопасность</a>
+    <a href="/settings#privacy">Данные и приватность</a>
+    {% if is_admin %}<a href="/settings#administration">Администрирование</a>{% endif %}
+  </aside>
+
+  <div class="settings-content">
+    {% block settings_content %}{% endblock %}
+  </div>
+</div>
+{% endblock %}

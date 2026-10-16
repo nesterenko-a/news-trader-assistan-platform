@@ -638,7 +638,7 @@ main { padding: 24px 16px 40px; }
 .settings-layout { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 16px; align-items: start; }
 .settings-nav { position: sticky; top: 16px; display: grid; gap: 4px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
 .settings-nav a { padding: 7px 9px; border-radius: 6px; color: var(--muted); font-size: 14px; }
-.settings-nav a:hover { background: var(--panel-2); color: var(--text); text-decoration: none; }
+.settings-nav a:hover, .settings-nav a.active { background: var(--panel-2); color: var(--text); text-decoration: none; }
 .settings-content { display: grid; gap: 16px; }
 .settings-content .card { margin: 0; }
 .settings-form { display: grid; gap: 14px; max-width: 560px; }

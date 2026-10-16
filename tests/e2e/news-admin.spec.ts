@@ -195,7 +195,7 @@ test.describe("News manager и админка", () => {
     await expect(page.locator('.topbar form[action="/admin/realtime/toggle"]')).toHaveCount(0);
     await login(page, ADMIN.username, ADMIN.password);
     await page.goto("/settings");
-    await expect(page.locator('.settings-nav a[href="#administration"]')).toHaveCount(1);
+    await expect(page.locator('.settings-nav a[href="/settings#administration"]')).toHaveCount(1);
     await expect(page.locator('#user-menu a[href="/settings/admin"]')).toHaveCount(0);
     await expect(page.locator('.topbar form[action="/admin/realtime/toggle"]')).toHaveCount(0);
     await expect(page.locator("#administration")).toContainText(/Выполняется|Активных задач нет/);
