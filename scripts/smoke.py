@@ -243,7 +243,7 @@ try:
         print("top5 outcomes API, summary, web:", outcomes.status_code, outcome_summary.status_code, outcomes_page.status_code)
 
         sandbox_page = client.get("/broker/t-invest/sandbox", headers=headers)
-        assert sandbox_page.status_code == 200 and "Подключить песочницу" in sandbox_page.text
+        assert sandbox_page.status_code == 200 and 'id="broker-sandbox" aria-disabled="true"' in sandbox_page.text and 'id="sandbox-create"' not in sandbox_page.text
         sandbox_accounts = client.get("/v1/brokers/t-invest/sandbox/accounts", headers=headers)
         assert sandbox_accounts.status_code == 409
         sandbox_create = client.post("/v1/brokers/t-invest/sandbox/accounts", headers=headers, json={"operation_key": "00000000-0000-0000-0000-000000000001"})

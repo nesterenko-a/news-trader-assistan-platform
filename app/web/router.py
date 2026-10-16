@@ -1954,6 +1954,8 @@ async def broker_settings_page(request: Request, session: AsyncSession = Depends
         "broker": await t_invest.view(session, user.id),
         "broker_ready": t_invest.encryption_ready(),
         "settings_section": "brokers",
+        "operation_key": str(uuid.uuid4()),
+        "broker_error": request.query_params.get("portfolio_error"),
     })
     response = templates.TemplateResponse(request, "settings_brokers.html", context)
     response.headers["Cache-Control"] = "no-store"
@@ -2008,8 +2010,8 @@ async def broker_select(request: Request, session: AsyncSession = Depends(get_se
     try:
         await t_invest.refresh(session, user.id, str(form.get("account_id") or ""))
     except HTTPException as exc:
-        return RedirectResponse(url=f"/portfolio/brokers/t-invest?error={exc.status_code}", status_code=303)
-    return RedirectResponse(url="/portfolio/brokers/t-invest", status_code=303)
+        return RedirectResponse(url=f"/settings/brokers?portfolio_error={exc.status_code}#broker-portfolio", status_code=303)
+    return RedirectResponse(url="/settings/brokers#broker-portfolio", status_code=303)
 
 
 @router.post("/broker/t-invest/refresh")
@@ -2022,8 +2024,8 @@ async def broker_refresh(request: Request, session: AsyncSession = Depends(get_s
     try:
         await t_invest.refresh(session, user.id)
     except HTTPException as exc:
-        return RedirectResponse(url=f"/portfolio/brokers/t-invest?error={exc.status_code}", status_code=303)
-    return RedirectResponse(url="/portfolio/brokers/t-invest", status_code=303)
+        return RedirectResponse(url=f"/settings/brokers?portfolio_error={exc.status_code}#broker-portfolio", status_code=303)
+    return RedirectResponse(url="/settings/brokers#broker-portfolio", status_code=303)
 
 
 @router.post("/broker/t-invest/disconnect")
@@ -2042,12 +2044,8 @@ async def broker_portfolio_page(request: Request, session: AsyncSession = Depend
     user = await _optional_user(request, session)
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
-    context = await _base_context(session, user)
-    context["broker"] = await t_invest.view(session, user.id)
-    context["broker_error"] = request.query_params.get("error")
-    response = templates.TemplateResponse(request, "broker_portfolio.html", context)
-    response.headers["Cache-Control"] = "no-store"
-    return response
+    query = urlencode({"portfolio_error": request.query_params["error"]}) if "error" in request.query_params else ""
+    return RedirectResponse(url="/settings/brokers" + ("?" + query if query else "") + "#broker-portfolio", status_code=303, headers={"Cache-Control": "no-store"})
 
 
 @router.get("/broker/t-invest/sandbox")
@@ -2055,12 +2053,8 @@ async def sandbox_page(request: Request, session: AsyncSession = Depends(get_ses
     user = await _optional_user(request, session)
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
-    context = await _base_context(session, user)
-    context["broker"] = await t_invest.view(session, user.id)
-    context["operation_key"] = str(uuid.uuid4())
-    response = templates.TemplateResponse(request, "broker_sandbox.html", context)
-    response.headers["Cache-Control"] = "no-store"
-    return response
+    query = urlencode({"sandbox_error": request.query_params["error"]}) if "error" in request.query_params else ""
+    return RedirectResponse(url="/settings/brokers" + ("?" + query if query else "") + "#broker-sandbox", status_code=303, headers={"Cache-Control": "no-store"})
 
 
 @router.post("/broker/t-invest/sandbox/{action}")
@@ -2078,10 +2072,10 @@ async def sandbox_form(action: str, request: Request, session: AsyncSession = De
             await broker_sandbox.execute(session, user.id, action.replace("-", "_"), str(form.get("operation_key") or ""), name=str(form.get("name") or ""), account_id=str(form.get("account_id") or ""), amount=str(form.get("amount") or ""), confirmed=form.get("confirmed") == "true")
         else:
             raise HTTPException(404, "Действие не найдено")
-        location = "/broker/t-invest/sandbox"
+        location = "/settings/brokers#broker-sandbox"
     except HTTPException as exc:
         await session.rollback()
-        location = "/broker/t-invest/sandbox?" + urlencode({"error": str(exc.detail)})
+        location = "/settings/brokers?" + urlencode({"sandbox_error": str(exc.detail)}) + "#broker-sandbox"
     return RedirectResponse(url=location, status_code=303, headers={"Cache-Control": "no-store"})
 
 

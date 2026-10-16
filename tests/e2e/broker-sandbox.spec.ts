@@ -25,11 +25,12 @@ test("песочница: создать, пополнить, отменить �
       accounts = [];
     }
     actions = [{kind: kind.replace("-", "_"), message: "Действие выполнено", error_code: null}];
-    await route.fulfill({status: 303, headers: {location: "/broker/t-invest/sandbox"}});
+    await route.fulfill({status: 303, headers: {location: "/settings/brokers#broker-sandbox"}});
   });
   await login(page, USER.username, USER.password);
   await page.goto("/settings/brokers");
-  await page.locator('#brokers a[href="/broker/t-invest/sandbox"]').click();
+  await page.locator('#brokers a[href="#broker-sandbox"]').click();
+  await expect(page).toHaveURL(/settings\/brokers#broker-sandbox$/);
   await expect(page.getByRole("heading", {name: "Песочница Т‑Инвестиций"})).toBeVisible();
   await expect(page.locator("#sandbox-empty")).toBeVisible();
   await page.locator('#sandbox-create input[name="name"]').fill("Учебный");

@@ -1309,3 +1309,7 @@ th.sortable .isort-tip:hover { display: block; }
 
 /* Top-5: значок «ожидание подтверждения точки входа» */
 .await-conf { cursor: help; font-size: 13px; }
+
+.broker-panel { scroll-margin-top: 80px; }
+.broker-panel-disabled { background: #20232b; border-color: #454953; color: var(--muted); }
+.broker-panel-disabled h2, .broker-panel-disabled strong { color: var(--muted); }

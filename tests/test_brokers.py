@@ -220,3 +220,19 @@ async def test_broker_form_forwards_sandbox_and_keeps_it_on_error(monkeypatch):
     response = await web_router.broker_connect(request, None)
     assert "environment=sandbox" in response.headers["location"]
     assert "token" not in response.headers["location"]
+
+
+@pytest.mark.parametrize("environment,connected", [("production", True), ("sandbox", True), ("production", False)])
+def test_embedded_broker_panels_gate_controls_by_connection(environment, connected):
+    web_router = import_module("app.web.router")
+    request = Request({"type": "http", "method": "GET", "path": "/settings/brokers", "headers": [], "query_string": b""})
+    broker = {"connected": connected, "environment": environment, "accounts": [{"id": "1", "name": "Основной", "masked_id": "••••1"}], "selected_account_id": "1", "snapshot": None, "last_error": None}
+    context = {"request": request, "broker": broker, "operation_key": "test-key"}
+    portfolio = web_router.templates.env.get_template("broker_portfolio.html").render(context)
+    sandbox = web_router.templates.env.get_template("broker_sandbox.html").render(context)
+    assert ('action="/broker/t-invest/select"' in portfolio) == connected
+    assert ('action="/broker/t-invest/refresh"' in portfolio) == connected
+    assert ('id="sandbox-create"' in sandbox) == (connected and environment == "sandbox")
+    assert ('src="/static/broker-sandbox.js"' in sandbox) == (connected and environment == "sandbox")
+    assert ('broker-panel-disabled' in portfolio) == (not connected)
+    assert ('broker-panel-disabled' in sandbox) == (not connected or environment != "sandbox")
