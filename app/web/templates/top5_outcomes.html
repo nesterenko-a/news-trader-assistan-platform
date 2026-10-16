@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Исходы Top-5 — NewsTrader Assistant{% endblock %}
+{% block content %}
+<nav aria-label="Разделы Top-5"><a href="/top5">Рейтинг</a> · <a href="/top5?tab=outcomes" aria-current="page">Исходы</a></nav>
+<h1>Исходы сценариев Top-5</h1>
+{% if scenario_notifications %}<section class="card"><h2>Уведомления по подпискам</h2><ul>{% for notification in scenario_notifications %}<li>{{ notification.ticker }} · {{ labels.get(notification.kind, 'Вход в диапазон') }} · {{ scenario_time(notification.occurred_at) }}</li>{% endfor %}</ul></section>{% endif %}
+<p class="muted">Модельные сценарии всех кандидатов. A/B/C — зависимые альтернативы. Комиссии и проскальзывание не учтены.</p>
+<section class="card">
+  <form method="get" action="/top5" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end">
+    <input type="hidden" name="tab" value="outcomes">
+    <label>Тикер <input name="ticker" value="{{ request.query_params.get('ticker', '') }}" size="10"></label>
+    <label>Состояние <select name="state"><option value="">Все</option>{% for key, label in labels.items() %}<option value="{{ key }}" {% if request.query_params.get('state') == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <label>Модель <input name="model" value="{{ request.query_params.get('model', '') }}" size="15"></label>
+    <label>Публикация с <input type="date" name="since" value="{{ request.query_params.get('since', '') }}"></label>
+    <label>по <input type="date" name="until" value="{{ request.query_params.get('until', '') }}"></label>
+    <label><input type="checkbox" name="hide_finished" value="true" {% if request.query_params.get('hide_finished') == 'true' %}checked{% endif %}> Скрыть завершённые и истёкшие</label>
+    <button class="btn" type="submit">Применить</button>
+  </form>
+</section>
+<section class="card" id="outcome-summary">
+  <h2>Статистика</h2>
+  <p>Всего: {{ stats.total }} · Завершено с определённым исходом: {{ stats.completed_denominator }} · С входом: {{ stats.entered }} · Измерений R: {{ stats.result_count }}</p>
+  <p>Доля входов: {{ '%.1f%%'|format(stats.entry_rate * 100) if stats.entry_rate is not none else '—' }} · Первая цель среди завершённых с входом: {{ '%.1f%%'|format(stats.target_rate * 100) if stats.target_rate is not none else '—' }} · Средний R: {{ '%.2f'|format(stats.mean_r) if stats.mean_r is not none else '—' }}</p>
+  <p class="muted">Версия правил: {{ stats.rules_version }}. Знаменатели: {{ stats.completed_denominator }} для входов; {{ stats.entered }} для первой цели.</p>
+  {% for key, count in stats.states.items() %}<span class="badge">{{ labels.get(key, key) }}: {{ count }}</span> {% endfor %}
+  {% for reason, count in stats.excluded_reasons.items() %}<p class="small">{{ reason }}: {{ count }}</p>{% endfor %}
+</section>
+<section class="card" style="overflow-x:auto">
+  <h2>История сценариев</h2>
+  {% if not report['items'] %}<p id="outcomes-empty">Наблюдений пока нет. История начнёт накапливаться после нового запуска Top-5. Старые анализы автоматически не оцениваются.</p>{% endif %}
+  {% for item in report['items'] %}
+  <details class="mini outcome-row" data-snapshot-id="{{ item.id }}" style="margin-bottom:12px">
+    <summary><strong>{{ item.ticker }} · {{ item.scenario }}</strong> · {{ item.label }} · R: {{ '%.2f'|format(item.result_r) if item.result_r is not none else '—' }} · {{ item.model }}</summary>
+    <p>Возраст: {{ item.freshness.age_hours }} ч · {% if item.freshness.expired %}Срок истёк{% else %}Срок действует{% endif %} · {% if item.freshness.observation_delayed %}Наблюдение задерживается{% else %}Наблюдение обновляется{% endif %}</p>
+    <p>Публикация: {{ scenario_time(item.published_at) }} · Срок: {{ scenario_time(item.expires_at) }} · {% if not item.plan.get('valid_days') %}Системный горизонт оценки — 7 календарных дней{% endif %}</p>
+    <p>Вход: {{ item.entry_price if item.entry_price is not none else '—' }} · Выход: {{ item.exit_price if item.exit_price is not none else '—' }} · Данные: {{ 'получены' if item.freshness.data_complete else 'неполные или ещё не проверены' }}</p>
+    <p class="muted">Последняя проверка: {{ scenario_time(item.freshness.checked_at) }} · Свеча: {{ scenario_time(item.freshness.last_candle_at) }}. {{ item.freshness.market_note }}{% if item.freshness.market_data_fresh %} · Последняя ожидаемая часовая свеча получена{% endif %}</p>
+    {% if item.reason %}<p>{{ item.reason }}</p>{% endif %}{% if item.detail %}<p>{{ item.detail }}</p>{% endif %}
+    <a href="/tech_analysis/{{ item.analysis_id }}">Полный разбор</a> · <a href="/top5">Пересчитать через запуск Top-5</a>
+    <h3>События</h3>
+    <ul>{% for event in outcome_events if event.snapshot_id == item.id %}<li>{{ scenario_time(event.occurred_at) }} · {{ labels.get(event.kind, event.kind) }}{% if event.data.get('price') is not none %} · {{ event.data.price }}{% endif %} (по часовой свече)</li>{% else %}<li>Событий пока нет</li>{% endfor %}</ul>
+    {% if item.eligible %}
+    <div class="scenario-subscription">
+      <label><input type="checkbox" class="scenario-telegram"> Telegram</label>
+      <fieldset><legend>События подписки</legend>{% for kind in ['zone', 'confirmed', 'open', 'target', 'stop', 'cancelled', 'expired_pending', 'expired_open'] %}<label style="display:inline-block;margin:4px"><input type="checkbox" class="scenario-event-kind" value="{{ kind }}" checked> {{ labels[kind] }}</label>{% endfor %}</fieldset>
+      <button type="button" class="btn scenario-subscribe" data-active="{{ 'true' if item.subscribed else 'false' }}">{{ 'Отключить уведомления' if item.subscribed else 'Уведомлять в вебе' }}</button>
+      <span role="status" class="subscription-status"></span>
+    </div>
+    {% endif %}
+  </details>
+  {% endfor %}
+  <p>Показано {{ report['items']|length }} из {{ report.total }}</p>
+  {% if outcome_page > 1 %}<a href="{{ request.url.include_query_params(page=outcome_page - 1) }}">← Назад</a>{% endif %}
+  {% if report.offset + report.limit < report.total %}<a href="{{ request.url.include_query_params(page=outcome_page + 1) }}">Далее →</a>{% endif %}
+</section>
+<script>
+document.querySelectorAll('.scenario-subscribe').forEach(button => {
+  button.addEventListener('click', async () => {
+    const row = button.closest('[data-snapshot-id]');
+    const status = row.querySelector('.subscription-status');
+    const active = button.dataset.active === 'true';
+    button.disabled = true;
+    try {
+      const response = await fetch('/v1/top5/outcomes/items/' + row.dataset.snapshotId + '/subscription', {
+        method: active ? 'DELETE' : 'POST', headers: {'Content-Type': 'application/json'},
+        ...(active ? {} : {body: JSON.stringify({channels: row.querySelector('.scenario-telegram').checked ? ['web', 'telegram'] : ['web'], kinds: [...row.querySelectorAll('.scenario-event-kind:checked')].map(input => input.value)})})
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Ошибка сохранения');
+      button.dataset.active = active ? 'false' : 'true';
+      button.textContent = active ? 'Уведомлять в вебе' : 'Отключить уведомления';
+      status.textContent = 'Сохранено';
+    } catch (error) { status.textContent = error.message; }
+    finally { button.disabled = false; }
+  });
+});
+</script>
+{% endblock %}

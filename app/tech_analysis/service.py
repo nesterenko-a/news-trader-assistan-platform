@@ -21,6 +21,7 @@ from app.market.prices import sync_security_prices
 from app.notices.service import add_notice
 from app.tech_analysis.llm import ChatGPTClient, resolve_llm
 from app.tech_analysis.parser import parse_response
+from app.tech_analysis.outcomes import capture
 from app.tech_analysis.request_builder import build_analysis_request
 
 SOURCE_NOTICE = "tech_analysis_llm"
@@ -257,6 +258,7 @@ async def _analyze(analysis_id: int, ticker: str) -> None:
             row.status = "success"
             row.stage = "done"
             row.finished_at = datetime.utcnow()
+            await capture(session, row)
             await session.commit()
     except Exception as exc:  # noqa: BLE001
         try:
@@ -365,6 +367,7 @@ async def _analyze_retry(analysis_id: int, ticker: str) -> None:
             row.status = "success"
             row.stage = "done"
             row.finished_at = datetime.utcnow()
+            await capture(session, row)
             await session.commit()
     except Exception as exc:  # noqa: BLE001
         try:

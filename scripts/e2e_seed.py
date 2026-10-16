@@ -450,6 +450,16 @@ async def seed(db_url: str) -> None:
                         strength="medium",
                     )
                 )
+        from app.tech_analysis.outcomes import capture
+        owner = await session.scalar(select(User).where(User.username == USER_USERNAME))
+        if await session.scalar(select(TechAnalysis.id).where(TechAnalysis.ticker == "OUTCOMEE2E")) is None:
+            batch = TechAnalysisBatch(user_id=owner.id, status="success")
+            session.add(batch)
+            await session.flush()
+            analysis = TechAnalysis(user_id=owner.id, batch_id=batch.id, ticker="OUTCOMEE2E", status="success", is_future=False, finished_at=datetime.now(timezone.utc), model="e2e-outcomes", scenario_json=json.dumps({"scenario_a": {"entry": "100", "stop": "95", "targets": "110"}, "execution_plans": {"a": {"direction": "buy", "kind": "touch", "entry": 100, "stop": 95, "target": 110}}}))
+            session.add(analysis)
+            await session.flush()
+            await capture(session, analysis)
         await session.commit()
     await engine.dispose()
 

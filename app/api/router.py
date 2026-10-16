@@ -18,6 +18,7 @@ from app.api.routes import (
     strategy,
     tech_analysis,
     top5,
+    outcomes,
     watchlist,
 )
 
@@ -39,4 +40,5 @@ api_router.include_router(realtime.router)
 api_router.include_router(indicators.router)
 api_router.include_router(sources.router)
 api_router.include_router(tech_analysis.router)
+api_router.include_router(outcomes.router)
 api_router.include_router(top5.router)

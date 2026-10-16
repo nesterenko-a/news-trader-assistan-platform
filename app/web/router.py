@@ -1722,6 +1722,14 @@ async def top5_page(
     request: Request,
     session: AsyncSession = Depends(get_session),
     template_id: int | None = None,
+    tab: str = "rating",
+    ticker: str | None = None,
+    state: str | None = None,
+    model: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    page: int = Query(1, ge=1),
+    hide_finished: bool = False,
 ):
     user = await _optional_user(request, session)
     if user is None:
@@ -1736,6 +1744,26 @@ async def top5_page(
         )
     ).all()
     context = await _base_context(session, user)
+    if tab == "outcomes":
+        from app.tech_analysis.outcomes import LABELS, list_outcomes, summary
+        try:
+            filters = {"ticker": ticker, "state": state, "model": model,
+                       "since": datetime.combine(date.fromisoformat(since), datetime.min.time(), timezone(timedelta(hours=3))) if since else None,
+                       "until": datetime.combine(date.fromisoformat(until), datetime.max.time(), timezone(timedelta(hours=3))) if until else None}
+        except ValueError as exc:
+            raise HTTPException(422, "Некорректный период") from exc
+        if filters["since"] and filters["until"] and filters["since"] > filters["until"]:
+            raise HTTPException(422, "Начало периода позже окончания")
+        report = await list_outcomes(session, user.id, **filters, offset=(page - 1) * 50, hide_finished=hide_finished)
+        stats = await summary(session, user.id, **filters)
+        from app.db.models import ScenarioEvent, ScenarioWatch
+        events = (await session.execute(select(ScenarioEvent).join(ScenarioWatch, ScenarioWatch.snapshot_id == ScenarioEvent.snapshot_id).where(ScenarioWatch.user_id == user.id, ScenarioEvent.snapshot_id.in_([item["id"] for item in report["items"]])).order_by(ScenarioEvent.id))).scalars().all()
+        context.update({"report": report, "stats": stats, "labels": LABELS, "outcome_events": events, "outcome_page": page})
+        from app.tech_analysis.outcome_alerts import web_notifications
+        context["scenario_notifications"] = await web_notifications(session, user.id)
+        from app.presentation.scenario import scenario_time
+        context["scenario_time"] = scenario_time
+        return templates.TemplateResponse(request, "top5_outcomes.html", context)
     result = None
     selected = None
     selected_ticker_count = 0
@@ -1762,6 +1790,9 @@ async def top5_page(
                         break
         except ValueError:
             result = None
+    if result:
+        from app.tech_analysis.outcomes import attach_outcomes
+        await attach_outcomes(session, result.get("items", []), user.id)
     context.update(
         {
             "templates": [

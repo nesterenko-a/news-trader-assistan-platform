@@ -20,6 +20,12 @@ LOG_FLUSH_LINES = 25
 
 SCRIPTS: list[dict] = [
     {
+        "key": "evaluate_top5", "module": "scripts.evaluate_top5",
+        "title": "Проверить исходы Top-5",
+        "description": "Проверяет модельные входы, цели, стопы и сроки новых сценариев Top-5. Однократно вручную или каждые 5 минут; отдельный процесс с --loop поддерживает непрерывную проверку.",
+        "param": ("--limit", "Сценариев за проход", 100),
+    },
+    {
         "key": "repair_t_invest_certificate",
         "module": "scripts.repair_t_invest_certificate",
         "title": "Проверить сертификат Т-Инвестиций",

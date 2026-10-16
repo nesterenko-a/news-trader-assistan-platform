@@ -649,6 +649,7 @@ class TechAnalysis(Base):
     tp: Mapped[str | None] = mapped_column(Text, nullable=True)
     sl: Mapped[str | None] = mapped_column(Text, nullable=True)
     scenario_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    outcome_source_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     await_confirmation: Mapped[bool] = mapped_column(Boolean, default=False)
     batch_id: Mapped[int | None] = mapped_column(
         ForeignKey("tech_analysis_batches.id"), nullable=True, index=True
@@ -661,6 +662,108 @@ class TechAnalysis(Base):
         DateTime(timezone=True), default=datetime.utcnow, server_default=func.now()
     )
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ScenarioSnapshot(Base):
+    __tablename__ = "scenario_snapshots"
+    __table_args__ = (UniqueConstraint("analysis_id", "scenario_key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    analysis_id: Mapped[int] = mapped_column(Integer, index=True)
+    scenario_key: Mapped[str] = mapped_column(String(1))
+    ticker: Mapped[str] = mapped_column(String(50))
+    is_future: Mapped[bool] = mapped_column(Boolean)
+    published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    model: Mapped[str] = mapped_column(String(100))
+    provider: Mapped[str] = mapped_column(String(30))
+    rules_version: Mapped[str] = mapped_column(String(30), default="1")
+    raw: Mapped[dict] = mapped_column(JSON)
+    plan: Mapped[dict] = mapped_column(JSON)
+    eligible: Mapped[bool] = mapped_column(Boolean)
+    reason: Mapped[str] = mapped_column(Text, default="")
+
+
+class ScenarioWatch(Base):
+    __tablename__ = "scenario_watches"
+    __table_args__ = (UniqueConstraint("user_id", "snapshot_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    snapshot_id: Mapped[int] = mapped_column(ForeignKey("scenario_snapshots.id"), index=True)
+
+
+class ScenarioEvaluation(Base):
+    __tablename__ = "scenario_evaluations"
+
+    snapshot_id: Mapped[int] = mapped_column(ForeignKey("scenario_snapshots.id"), primary_key=True)
+    state: Mapped[str] = mapped_column(String(30), default="pending")
+    complete: Mapped[bool] = mapped_column(Boolean, default=False)
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cursor_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    entry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    entry_price: Mapped[float | None] = mapped_column(Float)
+    exit_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    exit_price: Mapped[float | None] = mapped_column(Float)
+    result_r: Mapped[float | None] = mapped_column(Float)
+    detail: Mapped[str] = mapped_column(Text, default="")
+    confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
+    market_context: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class ScenarioEvent(Base):
+    __tablename__ = "scenario_events"
+    __table_args__ = (UniqueConstraint("snapshot_id", "kind"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    snapshot_id: Mapped[int] = mapped_column(ForeignKey("scenario_snapshots.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(30))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    data: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class ScenarioCandle(Base):
+    __tablename__ = "scenario_candles"
+    __table_args__ = (UniqueConstraint("ticker", "is_future", "begin_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ticker: Mapped[str] = mapped_column(String(50))
+    is_future: Mapped[bool] = mapped_column(Boolean)
+    begin_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    data: Mapped[dict] = mapped_column(JSON)
+    source: Mapped[str] = mapped_column(String(30), default="MOEX ISS 60")
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class ScenarioSubscription(Base):
+    __tablename__ = "scenario_subscriptions"
+    __table_args__ = (UniqueConstraint("user_id", "snapshot_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    snapshot_id: Mapped[int] = mapped_column(ForeignKey("scenario_snapshots.id"))
+    channels: Mapped[list] = mapped_column(JSON, default=list)
+    kinds: Mapped[list] = mapped_column(JSON, default=list)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    after_event_id: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class ScenarioDelivery(Base):
+    __tablename__ = "scenario_deliveries"
+    __table_args__ = (UniqueConstraint("subscription_id", "event_id", "channel"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    subscription_id: Mapped[int] = mapped_column(ForeignKey("scenario_subscriptions.id"))
+    event_id: Mapped[int] = mapped_column(ForeignKey("scenario_events.id"))
+    channel: Mapped[str] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str] = mapped_column(Text, default="")
 
 
 class RealtimeConfig(Base):

@@ -40,4 +40,5 @@
     <include file="changelogs/033_broker_connections.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/034_oi_client_group_participants.xml" relativeToChangelogFile="true"/>
 
+    <include file="changelogs/035_top5_scenarios.xml" relativeToChangelogFile="true"/>
 </databaseChangeLog>

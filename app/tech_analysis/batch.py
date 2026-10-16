@@ -125,6 +125,9 @@ async def _run_batches(batch_ids: list[int], force: bool) -> None:
                             setattr(row, field, getattr(existing, field))
                         row.status = "success"
                         row.error = None
+                        row.outcome_source_id = existing.outcome_source_id or existing.id
+                        from app.tech_analysis.outcomes import watch_snapshots
+                        await watch_snapshots(session, row.outcome_source_id, row.user_id)
                         await session.commit()
                     else:
                         await restart_batch_analysis(session, row.id)

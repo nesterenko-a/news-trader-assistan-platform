@@ -1,5 +1,5 @@
 import asyncio
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import httpx
 
@@ -322,11 +322,12 @@ class MOEXClient:
         till_date: date,
         interval: int = 24,
         security_type: str = "stock",
+        include_time: bool = False,
     ) -> list[dict]:
         url = candles_url(ticker, security_type, self.base_url)
         params = {
             "iss.only": "candles",
-            "candles.columns": "begin,open,high,low,close,volume",
+            "candles.columns": "begin,end,open,high,low,close,volume" if include_time else "begin,open,high,low,close,volume",
             "interval": str(interval),
             "from": from_date.isoformat(),
             "till": till_date.isoformat(),
@@ -368,6 +369,8 @@ class MOEXClient:
                         continue
                     resp.raise_for_status()
                 if resp is None:
+                    if include_time:
+                        raise RuntimeError(f"{ticker}: не удалось загрузить полное окно свечей")
                     print(f"[moex] {ticker}: соединение не восстановилось — пропускаю")
                     return candles
                 if resp.status_code != 200:
@@ -386,9 +389,18 @@ class MOEXClient:
                     bar_date = date.fromisoformat(begin[:10])
                 except ValueError:
                     continue
+                if include_time:
+                    stamp = datetime.fromisoformat(begin).replace(tzinfo=timezone(timedelta(hours=3))).astimezone(timezone.utc)
+                    end = record.get("end")
+                    if not end:
+                        raise ValueError("MOEX не вернул время окончания свечи")
+                    finish = datetime.fromisoformat(end).replace(tzinfo=timezone(timedelta(hours=3))).astimezone(timezone.utc)
+                    if finish >= datetime.now(timezone.utc):
+                        continue
                 candles.append(
                     {
                         "date": bar_date,
+                        **({"begin_at": stamp, "end_at": finish} if include_time else {}),
                         "open": float(record["open"]) if record.get("open") is not None else None,
                         "high": float(record["high"]) if record.get("high") is not None else None,
                         "low": float(record["low"]) if record.get("low") is not None else None,
