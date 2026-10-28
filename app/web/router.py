@@ -16,7 +16,7 @@ from app.brokers import sandbox as broker_sandbox
 from app.brokers import certificates as broker_certificates
 from app.market.oi_chart import build_net_chart, prepare_group_chart
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -2035,38 +2035,61 @@ async def broker_connect(request: Request, session: AsyncSession = Depends(get_s
     return RedirectResponse(url=f"/settings/brokers?environment={environment}&broker=connected", status_code=303)
 
 
-@router.post("/broker/t-invest/select")
-async def broker_select(request: Request, session: AsyncSession = Depends(get_session)):
+def _broker_async(request: Request) -> bool:
+    return request.headers.get("x-requested-with") == "XMLHttpRequest"
+
+
+def _broker_update_error(status: int) -> str:
+    return {
+        401: "Сессия истекла. Войдите в приложение и повторите обновление.",
+        403: "Нет доступа к обновлению портфеля. Обновите страницу и войдите снова.",
+        404: "Счёт или подключение больше недоступны. Проверьте настройки брокера.",
+        409: "Обновление или действие со счётом уже выполняется. Повторите позже.",
+        422: "Не удалось обновить счёт. Проверьте подключение и выбранный счёт.",
+    }.get(status, "Не удалось обновить данные брокера. Сохранён предыдущий снимок. Повторите обновление.")
+
+
+async def _broker_portfolio_update(request: Request, session: AsyncSession, *, select_account: bool):
+    inline = _broker_async(request)
+    headers = {"Cache-Control": "no-store"}
     user = await _optional_user(request, session)
     if user is None:
+        if inline:
+            return JSONResponse({"detail": _broker_update_error(401)}, status_code=401, headers=headers)
         return RedirectResponse(url="/login", status_code=303)
-    if not _broker_form_origin(request):
-        raise HTTPException(403, "Недопустимый источник запроса")
-    form = await request.form()
-    environment = str(form.get("environment") or "production")
-    t_invest.environment_base(environment)
+    environment = "production"
     try:
-        await t_invest.refresh(session, user.id, str(form.get("account_id") or ""), environment=environment)
+        if not _broker_form_origin(request):
+            raise HTTPException(403, "Недопустимый источник запроса")
+        form = await request.form()
+        if inline and not form.get("environment"):
+            raise HTTPException(422, "Укажите контур")
+        environment = str(form.get("environment") or "production")
+        t_invest.environment_base(environment)
+        if select_account:
+            await t_invest.refresh(session, user.id, str(form.get("account_id") or ""), environment=environment)
+        else:
+            await t_invest.refresh(session, user.id, environment=environment)
     except HTTPException as exc:
+        if inline:
+            return JSONResponse({"detail": _broker_update_error(exc.status_code)}, status_code=exc.status_code, headers=headers)
+        if exc.status_code == 403 or environment not in ("production", "sandbox"):
+            raise
         return RedirectResponse(url=f"/settings/brokers?environment={environment}&portfolio_error={exc.status_code}#broker-portfolio", status_code=303)
+    if inline:
+        broker = await t_invest.view(session, user.id, environment=environment)
+        return templates.TemplateResponse(request, "broker_portfolio_fragment.html", {"broker": broker, "broker_error": None}, headers=headers)
     return RedirectResponse(url=f"/settings/brokers?environment={environment}#broker-portfolio", status_code=303)
+
+
+@router.post("/broker/t-invest/select")
+async def broker_select(request: Request, session: AsyncSession = Depends(get_session)):
+    return await _broker_portfolio_update(request, session, select_account=True)
 
 
 @router.post("/broker/t-invest/refresh")
 async def broker_refresh(request: Request, session: AsyncSession = Depends(get_session)):
-    user = await _optional_user(request, session)
-    if user is None:
-        return RedirectResponse(url="/login", status_code=303)
-    if not _broker_form_origin(request):
-        raise HTTPException(403, "Недопустимый источник запроса")
-    form = await request.form()
-    environment = str(form.get("environment") or "production")
-    t_invest.environment_base(environment)
-    try:
-        await t_invest.refresh(session, user.id, environment=environment)
-    except HTTPException as exc:
-        return RedirectResponse(url=f"/settings/brokers?environment={environment}&portfolio_error={exc.status_code}#broker-portfolio", status_code=303)
-    return RedirectResponse(url=f"/settings/brokers?environment={environment}#broker-portfolio", status_code=303)
+    return await _broker_portfolio_update(request, session, select_account=False)
 
 
 @router.post("/broker/t-invest/disconnect")

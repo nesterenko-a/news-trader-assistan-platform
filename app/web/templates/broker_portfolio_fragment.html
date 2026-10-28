@@ -1,0 +1,4 @@
+<div class="broker-portfolio-content" id="broker-content-{{ broker.environment }}" data-environment="{{ broker.environment }}" data-selected-account="{{ broker.selected_account_id or '' }}" aria-busy="false">
+  {% include "broker_accounts.html" %}
+  {% include "broker_portfolio.html" %}
+</div>

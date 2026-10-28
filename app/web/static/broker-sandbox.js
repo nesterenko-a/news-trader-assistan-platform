@@ -1,6 +1,11 @@
 (function () {
   const panel = document.querySelector("#broker-sandbox");
   let loaded = false;
+  function selectAccount() {
+    const accounts = [...panel.querySelectorAll('.sandbox-account')];
+    const selected = accounts.some(account => account.dataset.accountId === panel.dataset.selectedAccount) ? panel.dataset.selectedAccount : accounts[0]?.dataset.accountId;
+    accounts.forEach(account => { account.hidden = account.dataset.accountId !== selected; });
+  }
   async function load() {
   if (loaded) return;
   loaded = true;
@@ -11,17 +16,18 @@
     if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Не удалось получить счета');
     if (data.error) { error.textContent = data.error; error.hidden = false; }
     document.querySelector('#sandbox-empty').hidden = Boolean(data.error) || data.accounts.length !== 0;
-    const selected = panel.dataset.selectedAccount || data.accounts[0]?.id;
     for (const account of data.accounts) {
       const node = document.querySelector('#sandbox-account-template').content.cloneNode(true);
-      node.querySelector('.sandbox-account').hidden = account.id !== selected;
+      node.querySelector('.sandbox-account').dataset.accountId = account.id;
       node.querySelector('.sandbox-name').textContent = account.name;
+      node.querySelector('.sandbox-pay label').firstChild.textContent = 'Пополнить «' + account.name + '» ';
       node.querySelector('.sandbox-id').textContent = account.masked_id + ' · ' + ({ACCOUNT_STATUS_OPEN: 'Открыт', ACCOUNT_STATUS_CLOSED: 'Закрыт', ACCOUNT_STATUS_NEW: 'В процессе открытия'}[account.status] || account.status);
       node.querySelector('.sandbox-balance').textContent = account.rub_balance === null ? 'Остаток в рублях не получен' : 'Доступные рубли: ' + account.rub_balance + ' ₽';
       node.querySelectorAll('[name="account_id"]').forEach(input => { input.value = account.id; });
       node.querySelectorAll('[name="operation_key"]').forEach(input => { input.value = crypto.randomUUID(); });
       document.querySelector('#sandbox-accounts').append(node);
     }
+    selectAccount();
     for (const action of data.actions) {
       const p = document.createElement('p');
       p.textContent = ({create: 'Создание счёта', pay_in: 'Пополнение', close: 'Закрытие счёта'}[action.kind] || 'Действие') + ': ' + action.message + (action.error_code === 'sync_failed' ? '. Список не обновлён — нажмите «Обновить счета»' : '');
@@ -42,4 +48,9 @@
   });
   }
   document.addEventListener("broker:opened", event => { if (event.detail.environment === "sandbox") load(); });
+  document.addEventListener('broker:portfolio-updated', event => {
+    if (event.detail.environment !== 'sandbox') return;
+    panel.dataset.selectedAccount = event.detail.accountId;
+    selectAccount();
+  });
 }());
