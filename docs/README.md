@@ -34,8 +34,6 @@
 | [27-user-settings.md](./27-user-settings.md) | Настройки пользователя: профиль, аватар, Избранное, заглушки (частично реализовано) | Все |
 | [32-docs-architecture.md](./32-docs-architecture.md) | Архитектура документации: SSOT, карта владения фактами, жизненный цикл ТЗ, архив | Разработчики, AI-агенты |
 
-Утверждённая спецификация: [39-task-spec-workflow.md](./39-task-spec-workflow.md) — процесс task → spec → implementation и проектный навык; ожидает реализации.
-
 Вспомогательное: [promt_tech_analize.md](./promt_tech_analize.md) — промпт «Теханализ в LLM» (читается приложением при запуске разбора, остаётся в `docs/`).
 
 Внешние контракты Т-Инвестиций: [OpenAPI рабочего контура](./openapi/t-invest-production.openapi.yaml) и [OpenAPI песочницы](./openapi/t-invest-sandbox.openapi.yaml) — самостоятельный REST-профиль брокера; назначение и происхождение — [10-api-specification.md](./10-api-specification.md#внешний-rest-контракт-песочницы-т-инвестиций).
@@ -46,6 +44,7 @@
 
 | Документ | Решение |
 |---|---|
+| [archive/39-task-spec-workflow.md](./archive/39-task-spec-workflow.md) | Проектный навык согласования постановки, спецификации и реализации |
 | [archive/22-company-sites-source.md](./archive/22-company-sites-source.md) | Сайты компаний как источник новостей (`kind=website`) |
 | [archive/23-tech-analysis-llm.md](./archive/23-tech-analysis-llm.md) | Теханализ в LLM на карточке бумаги |
 | [archive/24-market-realtime.md](./archive/24-market-realtime.md) | Реальное время: демон `realtime_updater` + SSE |
@@ -70,4 +69,4 @@
 
 ## Статус документации
 
-Базовые разделы утверждены в **v1.0**. Текущая версия комплекта — **v1.226** (проект процесса task → spec → implementation). Изменения вносятся через новый релиз документа с фиксацией в истории репозитория.
+Базовые разделы утверждены в **v1.0**. Текущая версия комплекта — **v1.227** (реализован процесс task → spec → implementation). Изменения вносятся через новый релиз документа с фиксацией в истории репозитория.

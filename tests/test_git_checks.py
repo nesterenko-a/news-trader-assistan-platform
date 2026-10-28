@@ -26,11 +26,24 @@ def test_source_files_allowed(filename):
 
 @pytest.mark.parametrize("subject, expected", [
     ("infra(git): добавить hooks", 0),
+    ("tasks(process): define workflow", 0),
+    ("spec(process): document workflow", 0),
+    ("feat(api): добавить метод", 0),
+    ("refactor(core): упростить обработку", 0),
+    ("docs(process): обновить правила", 0),
+    ("test(git): проверить сообщения", 0),
+    ("chore(deps): обновить зависимости", 0),
     ("fix(admin): обновить карточку\n\nОписание изменения", 0),
     ("docs: обновить регламент", 1),
     ("feat(): новая функция", 1),
     ("fix(api): ", 1),
     ("unknown(api): описание", 1),
+    ("tasks: define workflow", 1),
+    ("spec(): document workflow", 1),
+    ("tasks(process): ", 1),
+    ("spec(process):\t", 1),
+    ("spec(process) document workflow", 1),
+    ("tasks(process):define workflow", 1),
     ("", 1),
 ])
 def test_commit_message(tmp_path, subject, expected):

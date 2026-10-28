@@ -7,7 +7,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 COMMIT_PATTERN = re.compile(
-    r"(?:feat|fix|refactor|docs|infra|test|chore)\([a-zA-Z0-9][a-zA-Z0-9._/-]*\): \S.*"
+    r"(?:feat|fix|refactor|docs|spec|tasks|infra|test|chore)\([a-zA-Z0-9][a-zA-Z0-9._/-]*\): \S.*"
 )
 FORBIDDEN_DIRS = {
     ".venv", "venv", "__pycache__", "logs", "node_modules", ".pytest_cache",
@@ -41,7 +41,7 @@ def check_commit_message(filename: str) -> int:
     if COMMIT_PATTERN.fullmatch(subject):
         return 0
     print("Сообщение коммита должно иметь формат type(scope): summary.")
-    print("Типы: feat, fix, refactor, docs, infra, test, chore.")
+    print("Типы: feat, fix, refactor, docs, spec, tasks, infra, test, chore.")
     return 1
 
 
