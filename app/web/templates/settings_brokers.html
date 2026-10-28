@@ -1,0 +1,67 @@
+{% extends "settings_layout.html" %}
+{% block title %}Брокеры и торговля — NewsTrader Assistant{% endblock %}
+{% block settings_content %}
+<section class="card broker-hub" id="brokers" data-initial-environment="{{ request.query_params.get('environment', '') }}" data-initial-view="{{ request.query_params.get('view', '') }}" data-connected="{{ request.query_params.get('broker', '') }}">
+  <h2>Брокеры и торговля</h2>
+  <div class="broker-choices" aria-label="Выбор брокера">
+    {% for broker in brokers %}
+      {% set style = badge_styles[broker.environment] %}
+      {% set name = 'Т‑Инвестиции Sandbox' if broker.environment == 'sandbox' else 'Т‑Инвестиции' %}
+      <div class="broker-choice-wrap" style="--broker-color: {{ style.color if style else '#6897ff' }}">
+        <button type="button" class="broker-choice" data-broker="{{ broker.environment }}" aria-controls="broker-workspace-{{ broker.environment }}" aria-expanded="false" aria-pressed="false">
+          {% if style and style.image_data %}<img class="broker-cover" src="/broker/t-invest/badge-image?environment={{ broker.environment }}" alt="">{% endif %}
+          <span class="broker-logo" aria-hidden="true">Т</span>
+          <span class="broker-caption"><strong>{{ name }}</strong><span class="broker-state{% if broker.connected %} connected{% endif %}">{{ '● Подключено' if broker.connected else '○ Не подключено' }}</span></span>
+        </button>
+        <button type="button" class="broker-edit" data-appearance="{{ broker.environment }}" aria-label="Оформление {{ name }}" aria-controls="broker-appearance-{{ broker.environment }}" aria-expanded="false">✎</button>
+      </div>
+    {% endfor %}
+    <button type="button" class="broker-choice broker-add" disabled aria-label="Добавить своего брокера — скоро"><span class="broker-plus" aria-hidden="true">＋</span><span>Свой брокер</span><small>Скоро</small></button>
+  </div>
+  {% for broker in brokers %}
+    {% set style = badge_styles[broker.environment] %}
+    {% set name = 'Т‑Инвестиции Sandbox' if broker.environment == 'sandbox' else 'Т‑Инвестиции' %}
+    <section class="broker-appearance" id="broker-appearance-{{ broker.environment }}" hidden>
+      <div class="broker-heading"><h3>Оформление · {{ name }}</h3><button class="btn" type="button" data-close-appearance>Свернуть</button></div>
+      {% if request.query_params.get('environment') == broker.environment %}
+        {% if request.query_params.get('appearance') == 'saved' %}<p role="status">Оформление сохранено.</p>{% endif %}
+        {% if request.query_params.get('appearance_error') %}<p role="alert">{{ request.query_params.get('appearance_error') }}</p>{% endif %}
+      {% endif %}
+      <form method="post" action="/broker/t-invest/appearance" enctype="multipart/form-data" class="broker-style-form">
+        <input type="hidden" name="environment" value="{{ broker.environment }}">
+        <label>Цвет карточки<input type="color" name="color" value="{{ style.color if style else '#6897ff' }}"></label>
+        <label>Фоновая картинка<input type="file" name="image" accept="image/png,image/jpeg,image/webp"><span class="muted field-help">PNG, JPEG или WebP · до 3 МБ</span></label>
+        {% if style and style.image_data %}<label><input type="checkbox" name="remove_image" value="true"> Убрать картинку</label>{% endif %}
+        <div class="broker-actions"><button class="btn" type="submit">Сохранить оформление</button><button class="btn" type="submit" name="reset" value="true">Стандартный вид</button></div>
+      </form>
+    </section>
+    <section class="broker-workspace" id="broker-workspace-{{ broker.environment }}" data-environment="{{ broker.environment }}" data-connected="{{ 'true' if broker.connected else 'false' }}" data-form-error="{{ 'true' if request.query_params.get('broker_error') and request.query_params.get('environment', 'production') == broker.environment else 'false' }}" hidden>
+      <div class="broker-heading"><div><h3>{{ name }}</h3><p class="muted">{{ 'Тестовые средства' if broker.environment == 'sandbox' else 'Рабочий контур · только для чтения' }}</p></div>{% if broker.connected %}<button class="btn" type="button" data-connection-settings>Настройки подключения</button>{% endif %}</div>
+      <div class="broker-connect-panel" {% if broker.connected %}hidden{% endif %}>
+        <p class="muted">{{ 'Введите токен песочницы.' if broker.environment == 'sandbox' else 'Портфель только для чтения. Введите рабочий токен только для чтения.' }} <a href="https://developer.tbank.ru/invest/intro/intro/token" target="_blank" rel="noopener noreferrer">Как выпустить токен</a></p>
+        {% if request.query_params.get('environment', 'production') == broker.environment %}
+          {% if request.query_params.get('broker_error') %}<p role="alert">Не удалось подключить токен. Проверьте права токена и доступность брокера. Код: {{ request.query_params.get('broker_error') }}</p>{% endif %}
+          {% if request.query_params.get('broker_error') in ('502', '503') %}
+            <p class="muted">Проверьте сертификат соединения с Т‑Инвестициями. Проверка не использует ваш токен.</p>
+            <form method="post" action="/broker/t-invest/repair-certificate"><input type="hidden" name="environment" value="{{ broker.environment }}"><button class="btn" type="submit">Проверить и восстановить сертификат</button></form>
+            {% if request.query_params.get('certificate') == 'ok' %}<p role="status">Сертификат проверен, соединение с API работает. Повторите подключение токена.</p>{% endif %}
+            {% if request.query_params.get('certificate') == 'failed' %}<p role="alert">Не удалось восстановить соединение. Обратитесь к администратору приложения.</p>{% endif %}
+          {% endif %}
+        {% endif %}
+        {% if broker_ready %}
+          <form method="post" action="/broker/t-invest/connect" class="broker-token-form"><input type="hidden" name="environment" value="{{ broker.environment }}"><label>{{ 'Новый токен' if broker.connected else 'Токен' }}<input type="password" name="token" autocomplete="off" required maxlength="4096"></label><button class="btn" type="submit">{{ 'Заменить токен' if broker.connected else 'Подключить' }}</button></form>
+        {% else %}<p class="muted">Подключение недоступно: ключ шифрования не настроен на сервере.</p>{% endif %}
+        {% if broker.connected %}<form method="post" action="/broker/t-invest/disconnect" onsubmit="return confirm('Отключить это подключение Т‑Инвестиций и удалить его снимки портфеля?')"><input type="hidden" name="environment" value="{{ broker.environment }}"><button class="btn" type="submit">Отключить</button></form>{% endif %}
+      </div>
+      {% if broker.connected %}
+        <div class="broker-data">
+          {% include "broker_accounts.html" %}
+          {% include "broker_portfolio.html" %}
+          {% if broker.environment == 'sandbox' %}{% include "broker_sandbox.html" %}{% endif %}
+        </div>
+      {% endif %}
+    </section>
+  {% endfor %}
+</section>
+<script src="/static/broker-settings.js" defer></script>
+{% endblock %}

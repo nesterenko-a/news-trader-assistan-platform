@@ -1,38 +1,5 @@
-{% extends "base.html" %}
-
-{% block title %}Настройки пользователя — NewsTrader Assistant{% endblock %}
-
-{% block content %}
-<section class="card settings-head">
-  <div>
-    <h1>Настройки пользователя</h1>
-    <p class="muted">Управляйте профилем и быстро переходите к своим инвестиционным спискам.</p>
-  </div>
-  {% if profile and profile.avatar_path %}
-  <img class="profile-avatar" src="/uploads/{{ profile.avatar_path }}" alt="Аватар пользователя">
-  {% else %}
-  <div class="profile-avatar profile-avatar-placeholder" aria-hidden="true">{{ user.username[:1]|upper }}</div>
-  {% endif %}
-</section>
-
-{% if profile_updated %}<p class="form-success" role="status">Профиль сохранён.</p>{% endif %}
-{% if profile_error == "avatar" %}<p class="form-error" role="alert">Загрузите изображение JPEG, PNG или WebP не более 5 МБ.</p>{% endif %}
-{% if profile_error == "profile" %}<p class="form-error" role="alert">Проверьте длину полей профиля.</p>{% endif %}
-
-<div class="settings-layout">
-  <aside class="settings-nav" aria-label="Разделы настроек">
-    <a href="#profile">Профиль</a>
-    <a href="#favorites">Избранное</a>
-    <a href="#investments">Мои инвестиции</a>
-    <a href="#notifications">Уведомления</a>
-    <a href="#subscription">Подписка</a>
-    <a href="#brokers">Брокеры и торговля</a>
-    <a href="#security">Безопасность</a>
-    <a href="#privacy">Данные и приватность</a>
-    {% if is_admin %}<a href="#administration">Администрирование</a>{% endif %}
-  </aside>
-
-  <div class="settings-content">
+{% extends "settings_layout.html" %}
+{% block settings_content %}
     <section class="card" id="profile">
       <h2>Профиль</h2>
       <p class="muted">Личные данные необязательны и не используются в аналитике, Telegram или журналах.</p>
@@ -85,27 +52,6 @@
       <a class="btn" href="/pricing">Тарифы — в разработке</a>
     </section>
 
-    <section class="card" id="brokers">
-      <h2>Брокеры и торговля</h2>
-      <h3>Т‑Инвестиции</h3>
-      <p class="muted">Портфель только для чтения. <a href="https://developer.tbank.ru/invest/intro/intro/token" target="_blank" rel="noopener noreferrer">Как выпустить токен</a>. Выставление заявок пока недоступно.</p>
-      {% if request.query_params.get('broker_error') %}<p role="alert">Не удалось подключить токен. Проверьте его права и доступность брокера. Код: {{ request.query_params.get('broker_error') }}</p>{% endif %}
-      {% if request.query_params.get('broker_error') in ('502', '503') %}
-        <p class="muted">Проверьте сертификат соединения с Т‑Инвестициями. Проверка не использует ваш токен.</p>
-        <form method="post" action="/broker/t-invest/repair-certificate"><button class="btn" type="submit">Проверить и восстановить сертификат</button></form>
-        {% if request.query_params.get('certificate') == 'ok' %}<p role="status">Сертификат проверен, соединение с API работает. Повторите подключение токена.</p>{% endif %}
-        {% if request.query_params.get('certificate') == 'failed' %}<p role="alert">Не удалось восстановить соединение. Обратитесь к администратору приложения.</p>{% endif %}
-      {% endif %}
-      {% if broker.connected %}
-        <p>Подключено. <a class="btn" href="/portfolio/brokers/t-invest">Открыть портфель Т‑Инвестиций</a></p>
-        <form method="post" action="/broker/t-invest/connect"><label>Заменить токен только для чтения <input type="password" name="token" autocomplete="off" required></label><button class="btn" type="submit">Заменить токен</button></form>
-        <form method="post" action="/broker/t-invest/disconnect" onsubmit="return confirm('Отключить Т‑Инвестиции и удалить снимки портфеля?')"><button class="btn" type="submit">Отключить</button></form>
-      {% elif broker_ready %}
-        <form method="post" action="/broker/t-invest/connect"><label>Токен только для чтения <input type="password" name="token" autocomplete="off" required></label><button class="btn" type="submit">Подключить</button></form>
-      {% else %}
-        <p class="muted">Подключение недоступно: ключ шифрования не настроен на сервере.</p>
-      {% endif %}
-    </section>
     <section class="card" id="security"><h2>Безопасность</h2><p class="muted">Двухфакторная аутентификация, активные сессии и история входов — в разработке.</p></section>
     <section class="card" id="privacy"><h2>Данные и приватность</h2><p class="muted">Экспорт данных, удаление аккаунта и управление согласиями — в разработке.</p></section>
     {% if is_admin %}
@@ -120,6 +66,7 @@
       {% else %}<p class="muted">Активных задач нет.</p>{% endif %}
     </section>
     {% endif %}
-  </div>
-</div>
+<script>
+if (window.location.hash === '#brokers') window.location.replace('/settings/brokers' + window.location.search);
+</script>
 {% endblock %}

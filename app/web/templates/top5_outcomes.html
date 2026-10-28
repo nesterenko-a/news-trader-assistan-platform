@@ -36,6 +36,7 @@
     <p>Вход: {{ item.entry_price if item.entry_price is not none else '—' }} · Выход: {{ item.exit_price if item.exit_price is not none else '—' }} · Данные: {{ 'получены' if item.freshness.data_complete else 'неполные или ещё не проверены' }}</p>
     <p class="muted">Последняя проверка: {{ scenario_time(item.freshness.checked_at) }} · Свеча: {{ scenario_time(item.freshness.last_candle_at) }}. {{ item.freshness.market_note }}{% if item.freshness.market_data_fresh %} · Последняя ожидаемая часовая свеча получена{% endif %}</p>
     {% if item.reason %}<p>{{ item.reason }}</p>{% endif %}{% if item.detail %}<p>{{ item.detail }}</p>{% endif %}
+    {% if item.freshness.calendar_provider == 't_invest' %}<p class="muted">Календарь: Т‑Инвестиции · {{ 'Песочница' if item.freshness.calendar_environment == 'sandbox' else 'Рабочий контур' }}</p>{% endif %}
     <a href="/tech_analysis/{{ item.analysis_id }}">Полный разбор</a> · <a href="/top5">Пересчитать через запуск Top-5</a>
     <h3>События</h3>
     <ul>{% for event in outcome_events if event.snapshot_id == item.id %}<li>{{ scenario_time(event.occurred_at) }} · {{ labels.get(event.kind, event.kind) }}{% if event.data.get('price') is not none %} · {{ event.data.price }}{% endif %} (по часовой свече)</li>{% else %}<li>Событий пока нет</li>{% endfor %}</ul>

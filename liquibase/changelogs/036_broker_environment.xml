@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+    <changeSet id="036-broker-environment" author="newstrader">
+        <preConditions onFail="MARK_RAN">
+            <not><columnExists tableName="broker_connections" columnName="environment"/></not>
+        </preConditions>
+        <addColumn tableName="broker_connections">
+            <column name="environment" type="varchar(20)" defaultValue="production">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <sql>ALTER TABLE broker_connections ADD CONSTRAINT ck_broker_environment CHECK (environment IN ('production', 'sandbox'))</sql>
+        <rollback>
+            <sql>ALTER TABLE broker_connections DROP CONSTRAINT ck_broker_environment</sql>
+            <dropColumn tableName="broker_connections" columnName="environment"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

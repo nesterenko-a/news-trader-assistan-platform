@@ -1,8 +1,28 @@
 from datetime import datetime, time, timedelta, timezone
+from html import unescape
+import re
 
 import httpx
 
 MOSCOW = timezone(timedelta(hours=3))
+
+
+class CalendarAuthorizationError(ValueError):
+    def __init__(self):
+        super().__init__("Календарь MOEX требует авторизации")
+
+
+def calendar_json(response):
+    if response.status_code in (401, 403):
+        raise CalendarAuthorizationError()
+    response.raise_for_status()
+    try:
+        return response.json()
+    except ValueError as exc:
+        body = " ".join(unescape(re.sub(r"<[^>]*>", " ", response.text)).casefold().split())
+        if "информация доступна только подписчикам" in body or "the information is available only to subscribers" in body:
+            raise CalendarAuthorizationError() from exc
+        raise ValueError("Календарь MOEX вернул некорректный JSON") from exc
 
 
 def records(data, block):
@@ -26,14 +46,12 @@ async def _schedule_range(base_url, ticker, is_future, start, stop):
     base = f"{base_url.rstrip('/')}/calendars/{market}"
     async with httpx.AsyncClient(timeout=15) as client:
         days_response = await client.get(base + ".json", params={"from": start.date().isoformat(), "till": stop.date().isoformat(), "show_all_days": 1, "iss.only": "off_days"})
-        days_response.raise_for_status()
-        days = {row["tradedate"]: row.get("is_traded") for row in records(days_response.json(), "off_days")}
+        days = {row["tradedate"]: row.get("is_traded") for row in records(calendar_json(days_response), "off_days")}
         windows = []
         offset = 0
         while True:
             response = await client.get(base + "/session.json", params={"from": start.date().isoformat(), "till": stop.date().isoformat(), "iss.only": "session_schedule", "start": offset})
-            response.raise_for_status()
-            rows = records(response.json(), "session_schedule")
+            rows = records(calendar_json(response), "session_schedule")
             for row in rows:
                 if row.get("secid") not in (None, "", "-", ticker):
                     continue

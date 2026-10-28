@@ -1,9 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
+from typing import Literal
+from uuid import UUID
+from pydantic import StrictBool
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
 from app.brokers import t_invest
+from app.brokers import sandbox
 from app.db.connection import get_session
 from app.db.models import User
 
@@ -12,10 +16,27 @@ router = APIRouter(prefix="/brokers/t-invest", tags=["brokers"])
 
 class ConnectIn(BaseModel):
     token: str = Field(min_length=1, max_length=4096, json_schema_extra={"writeOnly": True}, repr=False)
+    environment: Literal["production", "sandbox"] = "production"
 
 
 class SelectAccountIn(BaseModel):
     account_id: str = Field(min_length=1, max_length=100)
+    environment: Literal["production", "sandbox"] | None = None
+
+
+class SandboxCreateIn(BaseModel):
+    operation_key: UUID
+    name: str = Field(default="", max_length=100)
+
+
+class SandboxPayIn(BaseModel):
+    operation_key: UUID
+    amount: str = Field(min_length=1, max_length=30)
+
+
+class SandboxCloseIn(BaseModel):
+    operation_key: UUID
+    confirmed: StrictBool
 
 
 def _check_origin(request: Request) -> None:
@@ -27,40 +48,67 @@ def _check_origin(request: Request) -> None:
 
 
 @router.get("")
-async def status(response: Response, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+async def status(response: Response, environment: Literal["production", "sandbox"] | None = None, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     response.headers["Cache-Control"] = "no-store"
-    return await t_invest.view(session, user.id)
+    return await t_invest.view(session, user.id, environment=environment)
 
 
 @router.post("/connect")
 async def connect(payload: ConnectIn, request: Request, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     _check_origin(request)
-    await t_invest.connect(session, user.id, payload.token)
-    return await t_invest.view(session, user.id)
+    await t_invest.connect(session, user.id, payload.token, environment=payload.environment)
+    return await t_invest.view(session, user.id, environment=payload.environment)
 
 
 @router.post("/select-account")
 async def select_account(payload: SelectAccountIn, request: Request, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     _check_origin(request)
-    await t_invest.refresh(session, user.id, payload.account_id)
-    return await t_invest.view(session, user.id)
+    await t_invest.refresh(session, user.id, payload.account_id, environment=payload.environment)
+    return await t_invest.view(session, user.id, environment=payload.environment)
 
 
 @router.post("/refresh")
-async def refresh(request: Request, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+async def refresh(request: Request, environment: Literal["production", "sandbox"] | None = None, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     _check_origin(request)
-    await t_invest.refresh(session, user.id)
-    return await t_invest.view(session, user.id)
+    await t_invest.refresh(session, user.id, environment=environment)
+    return await t_invest.view(session, user.id, environment=environment)
 
 
 @router.get("/portfolio")
-async def portfolio(response: Response, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+async def portfolio(response: Response, environment: Literal["production", "sandbox"] | None = None, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     response.headers["Cache-Control"] = "no-store"
-    return await t_invest.view(session, user.id)
+    return await t_invest.view(session, user.id, environment=environment)
 
 
 @router.delete("")
-async def disconnect(request: Request, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+async def disconnect(request: Request, environment: Literal["production", "sandbox"] | None = None, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     _check_origin(request)
-    await t_invest.disconnect(session, user.id)
+    await t_invest.disconnect(session, user.id, environment=environment)
     return {"connected": False}
+
+
+@router.get("/sandbox/accounts")
+async def sandbox_accounts(response: Response, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)) -> dict:
+    response.headers["Cache-Control"] = "no-store"
+    return await sandbox.list_accounts(session, user.id)
+
+
+@router.post("/sandbox/accounts")
+async def sandbox_create(payload: SandboxCreateIn, request: Request, response: Response, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)) -> dict:
+    _check_origin(request)
+    response.headers["Cache-Control"] = "no-store"
+    return await sandbox.execute(session, user.id, "create", payload.operation_key, name=payload.name)
+
+
+@router.post("/sandbox/accounts/{account_id}/pay-in")
+async def sandbox_pay_in(account_id: str, payload: SandboxPayIn, request: Request, response: Response, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)) -> dict:
+    _check_origin(request)
+    response.headers["Cache-Control"] = "no-store"
+    return await sandbox.execute(session, user.id, "pay_in", payload.operation_key, account_id=account_id, amount=payload.amount)
+
+
+@router.post("/sandbox/accounts/{account_id}/close")
+async def sandbox_close(account_id: str, payload: SandboxCloseIn, request: Request, response: Response, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)) -> dict:
+    _check_origin(request)
+    response.headers["Cache-Control"] = "no-store"
+    return await sandbox.execute(session, user.id, "close", payload.operation_key, account_id=account_id, confirmed=payload.confirmed)

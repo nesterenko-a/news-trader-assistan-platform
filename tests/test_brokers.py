@@ -52,6 +52,8 @@ async def test_broker_certificate_repair_available_to_regular_user(monkeypatch):
     monkeypatch.setattr(web_router, "_optional_user", regular_user)
     monkeypatch.setattr(web_router.broker_certificates, "repair_and_check", lambda base: certificates.LOCAL_CA)
     request = Request({"type": "http", "method": "POST", "path": "/broker/t-invest/repair-certificate", "headers": [(b"host", b"localhost"), (b"origin", b"http://localhost")]})
+    from starlette.datastructures import FormData
+    request._form = FormData({})
     response = await web_router.broker_repair_certificate(request, None)
     assert response.status_code == 303
     assert "certificate=ok" in response.headers["location"]
@@ -94,8 +96,12 @@ async def test_broker_connection_roundtrip_and_isolation(monkeypatch):
         with pytest.raises(HTTPException) as denied:
             await t_invest.refresh(session, other.id, "12345678", FakeBroker())
         assert denied.value.status_code == 404
+        assert (await t_invest.view(session, owner.id))["accounts"][0]["balance"] is None
         data = await t_invest.refresh(session, owner.id, "12345678", FakeBroker())
         assert data["total"] == {"amount": "100.5", "currency": "rub"}
+        account_view = (await t_invest.view(session, owner.id))["accounts"][0]
+        assert account_view["balance"] == [{"amount": "10", "currency": "rub"}]
+        assert account_view["balance_fetched_at"] is not None
         assert (await t_invest.view(session, owner.id))["snapshot"]["positions"][0]["quantity"] == "2"
         stored = await t_invest.connection_for(session, owner.id)
         stored.user_id = other.id
@@ -120,3 +126,126 @@ async def test_broker_rejects_full_access_and_bad_response():
     with pytest.raises(HTTPException) as error:
         await client.accounts()
     assert error.value.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_sandbox_routes_accounts_portfolio_and_instruments():
+    import httpx
+
+    calls = []
+    def handler(request):
+        assert request.url.host == "sandbox-invest-public-api.tbank.ru"
+        calls.append(request.url.path)
+        if request.url.path.endswith("GetSandboxAccounts"):
+            return httpx.Response(200, json={"accounts": [{"id": "sandbox-1", "accessLevel": "ACCOUNT_ACCESS_LEVEL_FULL_ACCESS"}]})
+        if request.url.path.endswith("GetSandboxPortfolio"):
+            return httpx.Response(200, json={"positions": []})
+        if request.url.path.endswith("GetSandboxPositions"):
+            return httpx.Response(200, json={"securities": []})
+        return httpx.Response(200, json={"instrument": {"ticker": "SBER"}})
+
+    client = t_invest.TInvestClient("test", httpx.MockTransport(handler), environment="sandbox")
+    assert (await client.accounts())[0]["id"] == "sandbox-1"
+    assert (await client.portfolio("sandbox-1"))[0]["positions"] == []
+    assert (await client.instrument("uid"))["ticker"] == "SBER"
+    assert all("SandboxService/GetSandbox" in path or "InstrumentsService/GetInstrumentBy" in path for path in calls)
+    with pytest.raises(HTTPException):
+        t_invest.TInvestClient("test", environment="https://other.test")
+
+
+@pytest.mark.asyncio
+async def test_independent_environments_preserve_snapshots_and_tokens(monkeypatch):
+    import httpx
+    settings = Settings(_env_file=None, broker_token_keys="v1:" + base64.b64encode(os.urandom(32)).decode())
+    monkeypatch.setattr(t_invest, "get_settings", lambda: settings)
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    async with async_sessionmaker(engine, expire_on_commit=False)() as session:
+        user = User(username="sandbox", password_hash="x")
+        session.add(user)
+        await session.commit()
+        await t_invest.connect(session, user.id, "production-test", FakeBroker())
+        await t_invest.refresh(session, user.id, "12345678", FakeBroker())
+        assert (await t_invest.view(session, user.id))["snapshot"]
+        empty = t_invest.TInvestClient("sandbox-test", httpx.MockTransport(lambda request: httpx.Response(200, json={"accounts": []})), environment="sandbox")
+        stored = await t_invest.connect(session, user.id, "sandbox-test", empty, environment="sandbox")
+        data = await t_invest.view(session, user.id, environment="sandbox")
+        assert data["connected"] and data["environment"] == "sandbox"
+        assert (await t_invest.view(session, user.id, environment="production"))["snapshot"]
+        assert (await t_invest.view(session, user.id))["environment"] == "production"
+        assert data["accounts"] == [] and data["snapshot"] is None
+        assert data["selected_account_id"] is None
+        assert stored.last_refreshed_at is None
+        assert t_invest.decrypt_token(stored) == "sandbox-test"
+        stored.environment = "production"
+        with pytest.raises(HTTPException):
+            t_invest.decrypt_token(stored)
+        stored.environment = "sandbox"
+        with pytest.raises(HTTPException):
+            await t_invest.connect(session, user.id, "empty-production", empty)
+        assert (await t_invest.view(session, user.id, environment="sandbox"))["environment"] == "sandbox"
+        await t_invest.connect(session, user.id, "production-test", FakeBroker())
+        assert t_invest.decrypt_token(await t_invest.connection_for(session, user.id)) == "production-test"
+        production = await t_invest.connection_for(session, user.id, environment="production")
+        production.status = "refreshing"
+        await session.commit()
+        await t_invest.disconnect(session, user.id, environment="sandbox")
+        assert (await t_invest.view(session, user.id, environment="production"))["snapshot"]
+        assert not (await t_invest.view(session, user.id, environment="sandbox"))["connected"]
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_refresh_uses_saved_environment(monkeypatch):
+    settings = Settings(_env_file=None, broker_token_keys="v1:" + base64.b64encode(os.urandom(32)).decode())
+    monkeypatch.setattr(t_invest, "get_settings", lambda: settings)
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    async with async_sessionmaker(engine, expire_on_commit=False)() as session:
+        user = User(username="saved-sandbox", password_hash="x")
+        session.add(user)
+        await session.commit()
+        await t_invest.connect(session, user.id, "sandbox-test", FakeBroker(), environment="sandbox")
+        def create_client(token, *, environment):
+            assert token == "sandbox-test" and environment == "sandbox"
+            return FakeBroker()
+        monkeypatch.setattr(t_invest, "TInvestClient", create_client)
+        assert (await t_invest.refresh(session, user.id, "12345678"))["total"]["amount"] == "100.5"
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_broker_form_forwards_sandbox_and_keeps_it_on_error(monkeypatch):
+    from starlette.datastructures import FormData
+    web_router = import_module("app.web.router")
+    async def regular_user(*args):
+        return SimpleNamespace(id=1)
+    async def form(request):
+        return FormData({"token": "test", "environment": "sandbox"})
+    async def connect(session, user_id, token, *, environment):
+        assert user_id == 1 and token == "test" and environment == "sandbox"
+        raise HTTPException(422, "test")
+    monkeypatch.setattr(web_router, "_optional_user", regular_user)
+    monkeypatch.setattr(Request, "form", form)
+    monkeypatch.setattr(t_invest, "connect", connect)
+    request = Request({"type": "http", "method": "POST", "path": "/broker/t-invest/connect", "headers": [(b"host", b"localhost"), (b"origin", b"http://localhost")]})
+    response = await web_router.broker_connect(request, None)
+    assert "environment=sandbox" in response.headers["location"]
+    assert "token" not in response.headers["location"]
+
+
+@pytest.mark.parametrize("environment,connected", [("production", True), ("sandbox", True), ("production", False)])
+def test_broker_cards_gate_contents_by_connection(environment, connected):
+    web_router = import_module("app.web.router")
+    request = Request({"type": "http", "method": "GET", "path": "/settings/brokers", "headers": [], "query_string": b""})
+    brokers = [{"connected": connected and env == environment, "environment": env, "accounts": [{"id": "1", "name": "Основной", "masked_id": "••••1"}], "selected_account_id": "1", "snapshot": None, "last_error": None} for env in ("production", "sandbox")]
+    html = web_router.templates.env.get_template("settings_brokers.html").render({"request": request, "brokers": brokers, "badge_styles": {"production": None, "sandbox": None}, "user": SimpleNamespace(username="test"), "profile": None, "broker_ready": True, "operation_key": "test-key"})
+    assert html.count('class="broker-data"') == int(connected)
+    assert ('id="sandbox-create"' in html) == (connected and environment == "sandbox")
+    assert ('src="/static/broker-sandbox.js"' in html) == (connected and environment == "sandbox")
+    assert html.count('type="password"') == 2
+    assert 'broker-add" disabled' in html
+    assert 'name="environment" value="production"' in html
+    assert 'name="environment" value="sandbox"' in html

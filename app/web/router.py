@@ -6,11 +6,13 @@ import os
 import re
 import uuid
 import json
+from urllib.parse import urlencode
 
 import httpx
 
 from app.config import get_settings as get_cfg
-from app.brokers import t_invest
+from app.brokers import t_invest, appearance as broker_appearance
+from app.brokers import sandbox as broker_sandbox
 from app.brokers import certificates as broker_certificates
 from app.market.oi_chart import build_net_chart, prepare_group_chart
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -1894,6 +1896,8 @@ async def settings_page(
     user = await _optional_user(request, session)
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
+    if any(key in request.query_params for key in ("broker", "broker_error", "certificate", "environment")):
+        return RedirectResponse(url="/settings/brokers?" + str(request.query_params), status_code=303)
     profile = await _profile_for_user(session, user.id)
     favorite_rows = (await session.execute(select(UserFavorite, Security).join(Security).where(UserFavorite.user_id == user.id).order_by(UserFavorite.created_at.desc()))).all()
     watchlist_count = await session.scalar(
@@ -1924,8 +1928,6 @@ async def settings_page(
     context = await _base_context(session, user)
     context.update(
         {
-            "broker": await t_invest.view(session, user.id),
-            "broker_ready": t_invest.encryption_ready(),
             "profile": profile,
             "watchlist_count": watchlist_count or 0,
             "portfolio_count": portfolio_count or 0,
@@ -1941,10 +1943,62 @@ async def settings_page(
     return response
 
 
+@router.get("/settings/brokers")
+async def broker_settings_page(request: Request, session: AsyncSession = Depends(get_session)):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    context = await _base_context(session, user)
+    context.update({
+        "profile": await _profile_for_user(session, user.id),
+        "brokers": [await t_invest.view(session, user.id, environment=environment) for environment in ("production", "sandbox")],
+        "badge_styles": {environment: await broker_appearance.style_for(session, user.id, environment) for environment in ("production", "sandbox")},
+        "broker_ready": t_invest.encryption_ready(),
+        "settings_section": "brokers",
+        "operation_key": str(uuid.uuid4()),
+        "broker_error": request.query_params.get("portfolio_error"),
+    })
+    response = templates.TemplateResponse(request, "settings_brokers.html", context)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 def _broker_form_origin(request: Request) -> bool:
     origin = request.headers.get("origin", "")
     host = request.headers.get("host", "")
     return bool(origin and host and origin.removeprefix("https://").removeprefix("http://") == host)
+
+
+@router.post("/broker/t-invest/appearance")
+async def broker_save_appearance(request: Request, session: AsyncSession = Depends(get_session)):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _broker_form_origin(request):
+        raise HTTPException(403, "Недопустимый источник запроса")
+    form = await request.form()
+    environment = str(form.get("environment") or "production")
+    t_invest.environment_base(environment)
+    upload = form.get("image")
+    image = await upload.read(broker_appearance.MAX_IMAGE_BYTES + 1) if isinstance(upload, UploadFile) and upload.filename else None
+    try:
+        await broker_appearance.save_style(session, user.id, environment, color=str(form.get("color") or ""), image=image, remove_image=form.get("remove_image") == "true", reset=form.get("reset") == "true")
+        query = {"environment": environment, "view": "appearance", "appearance": "saved"}
+    except ValueError as exc:
+        await session.rollback()
+        query = {"environment": environment, "view": "appearance", "appearance_error": str(exc)}
+    return RedirectResponse(url="/settings/brokers?" + urlencode(query), status_code=303, headers={"Cache-Control": "no-store"})
+
+
+@router.get("/broker/t-invest/badge-image")
+async def broker_badge_image(request: Request, environment: str = "production", session: AsyncSession = Depends(get_session)):
+    user = await _optional_user(request, session)
+    if user is None:
+        raise HTTPException(401, "Войдите в приложение")
+    style = await broker_appearance.style_for(session, user.id, environment)
+    if style is None or style.image_data is None:
+        raise HTTPException(404, "Фон не задан")
+    return Response(content=style.image_data, media_type="image/webp", headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
 
 
 @router.post("/broker/t-invest/repair-certificate")
@@ -1954,11 +2008,14 @@ async def broker_repair_certificate(request: Request, session: AsyncSession = De
         return RedirectResponse(url="/login", status_code=303)
     if not _broker_form_origin(request):
         raise HTTPException(403, "Недопустимый источник запроса")
+    form = await request.form()
+    environment = str(form.get("environment") or "production")
+    t_invest.environment_base(environment)
     try:
-        await asyncio.to_thread(broker_certificates.repair_and_check, t_invest.BASE)
+        await asyncio.to_thread(broker_certificates.repair_and_check, t_invest.environment_base(environment))
     except (OSError, ValueError, httpx.HTTPError):
-        return RedirectResponse(url="/settings?broker_error=502&certificate=failed#brokers", status_code=303)
-    return RedirectResponse(url="/settings?broker_error=502&certificate=ok#brokers", status_code=303)
+        return RedirectResponse(url=f"/settings/brokers?environment={environment}&broker_error=502&certificate=failed", status_code=303)
+    return RedirectResponse(url=f"/settings/brokers?environment={environment}&broker_error=502&certificate=ok", status_code=303)
 
 
 @router.post("/broker/t-invest/connect")
@@ -1969,11 +2026,13 @@ async def broker_connect(request: Request, session: AsyncSession = Depends(get_s
     if not _broker_form_origin(request):
         raise HTTPException(403, "Недопустимый источник запроса")
     form = await request.form()
+    environment = str(form.get("environment") or "production")
     try:
-        await t_invest.connect(session, user.id, str(form.get("token") or ""))
+        await t_invest.connect(session, user.id, str(form.get("token") or ""), environment=environment)
     except HTTPException as exc:
-        return RedirectResponse(url=f"/settings?broker_error={exc.status_code}#brokers", status_code=303)
-    return RedirectResponse(url="/settings?broker=connected#brokers", status_code=303)
+        environment = environment if environment in ("production", "sandbox") else "production"
+        return RedirectResponse(url=f"/settings/brokers?broker_error={exc.status_code}&environment={environment}", status_code=303)
+    return RedirectResponse(url=f"/settings/brokers?environment={environment}&broker=connected", status_code=303)
 
 
 @router.post("/broker/t-invest/select")
@@ -1984,11 +2043,13 @@ async def broker_select(request: Request, session: AsyncSession = Depends(get_se
     if not _broker_form_origin(request):
         raise HTTPException(403, "Недопустимый источник запроса")
     form = await request.form()
+    environment = str(form.get("environment") or "production")
+    t_invest.environment_base(environment)
     try:
-        await t_invest.refresh(session, user.id, str(form.get("account_id") or ""))
+        await t_invest.refresh(session, user.id, str(form.get("account_id") or ""), environment=environment)
     except HTTPException as exc:
-        return RedirectResponse(url=f"/portfolio/brokers/t-invest?error={exc.status_code}", status_code=303)
-    return RedirectResponse(url="/portfolio/brokers/t-invest", status_code=303)
+        return RedirectResponse(url=f"/settings/brokers?environment={environment}&portfolio_error={exc.status_code}#broker-portfolio", status_code=303)
+    return RedirectResponse(url=f"/settings/brokers?environment={environment}#broker-portfolio", status_code=303)
 
 
 @router.post("/broker/t-invest/refresh")
@@ -1998,11 +2059,14 @@ async def broker_refresh(request: Request, session: AsyncSession = Depends(get_s
         return RedirectResponse(url="/login", status_code=303)
     if not _broker_form_origin(request):
         raise HTTPException(403, "Недопустимый источник запроса")
+    form = await request.form()
+    environment = str(form.get("environment") or "production")
+    t_invest.environment_base(environment)
     try:
-        await t_invest.refresh(session, user.id)
+        await t_invest.refresh(session, user.id, environment=environment)
     except HTTPException as exc:
-        return RedirectResponse(url=f"/portfolio/brokers/t-invest?error={exc.status_code}", status_code=303)
-    return RedirectResponse(url="/portfolio/brokers/t-invest", status_code=303)
+        return RedirectResponse(url=f"/settings/brokers?environment={environment}&portfolio_error={exc.status_code}#broker-portfolio", status_code=303)
+    return RedirectResponse(url=f"/settings/brokers?environment={environment}#broker-portfolio", status_code=303)
 
 
 @router.post("/broker/t-invest/disconnect")
@@ -2012,8 +2076,11 @@ async def broker_disconnect(request: Request, session: AsyncSession = Depends(ge
         return RedirectResponse(url="/login", status_code=303)
     if not _broker_form_origin(request):
         raise HTTPException(403, "Недопустимый источник запроса")
-    await t_invest.disconnect(session, user.id)
-    return RedirectResponse(url="/settings?broker=disconnected#brokers", status_code=303)
+    form = await request.form()
+    environment = str(form.get("environment") or "production")
+    t_invest.environment_base(environment)
+    await t_invest.disconnect(session, user.id, environment=environment)
+    return RedirectResponse(url=f"/settings/brokers?environment={environment}&broker=disconnected", status_code=303)
 
 
 @router.get("/portfolio/brokers/t-invest")
@@ -2021,12 +2088,39 @@ async def broker_portfolio_page(request: Request, session: AsyncSession = Depend
     user = await _optional_user(request, session)
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
-    context = await _base_context(session, user)
-    context["broker"] = await t_invest.view(session, user.id)
-    context["broker_error"] = request.query_params.get("error")
-    response = templates.TemplateResponse(request, "broker_portfolio.html", context)
-    response.headers["Cache-Control"] = "no-store"
-    return response
+    query = urlencode({"portfolio_error": request.query_params["error"]}) if "error" in request.query_params else ""
+    return RedirectResponse(url="/settings/brokers" + ("?" + query if query else "") + "#broker-portfolio", status_code=303, headers={"Cache-Control": "no-store"})
+
+
+@router.get("/broker/t-invest/sandbox")
+async def sandbox_page(request: Request, session: AsyncSession = Depends(get_session)):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    query = urlencode({"environment": "sandbox", **({"sandbox_error": request.query_params["error"]} if "error" in request.query_params else {})})
+    return RedirectResponse(url="/settings/brokers" + ("?" + query if query else "") + "#broker-sandbox", status_code=303, headers={"Cache-Control": "no-store"})
+
+
+@router.post("/broker/t-invest/sandbox/{action}")
+async def sandbox_form(action: str, request: Request, session: AsyncSession = Depends(get_session)):
+    user = await _optional_user(request, session)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _broker_form_origin(request):
+        raise HTTPException(403, "Недопустимый источник запроса")
+    form = await request.form()
+    try:
+        if action == "sync":
+            await broker_sandbox.sync(session, user.id)
+        elif action in ("create", "pay-in", "close"):
+            await broker_sandbox.execute(session, user.id, action.replace("-", "_"), str(form.get("operation_key") or ""), name=str(form.get("name") or ""), account_id=str(form.get("account_id") or ""), amount=str(form.get("amount") or ""), confirmed=form.get("confirmed") == "true")
+        else:
+            raise HTTPException(404, "Действие не найдено")
+        location = "/settings/brokers?environment=sandbox#broker-sandbox"
+    except HTTPException as exc:
+        await session.rollback()
+        location = "/settings/brokers?" + urlencode({"environment": "sandbox", "sandbox_error": str(exc.detail)}) + "#broker-sandbox"
+    return RedirectResponse(url=location, status_code=303, headers={"Cache-Control": "no-store"})
 
 
 @router.post("/settings/profile")

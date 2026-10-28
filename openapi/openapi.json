@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "NewsTrader Assistant",
-    "version": "0.30.0"
+    "version": "0.33.0"
   },
   "paths": {
     "/v1/health": {
@@ -35,12 +35,44 @@
         ],
         "summary": "Status",
         "operationId": "status_v1_brokers_t_invest_get",
+        "parameters": [
+          {
+            "name": "environment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "production",
+                    "sandbox"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Environment"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -52,12 +84,44 @@
         ],
         "summary": "Disconnect",
         "operationId": "disconnect_v1_brokers_t_invest_delete",
+        "parameters": [
+          {
+            "name": "environment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "production",
+                    "sandbox"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Environment"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -149,12 +213,44 @@
         ],
         "summary": "Refresh",
         "operationId": "refresh_v1_brokers_t_invest_refresh_post",
+        "parameters": [
+          {
+            "name": "environment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "production",
+                    "sandbox"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Environment"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -168,12 +264,216 @@
         ],
         "summary": "Portfolio",
         "operationId": "portfolio_v1_brokers_t_invest_portfolio_get",
+        "parameters": [
+          {
+            "name": "environment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "production",
+                    "sandbox"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Environment"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brokers/t-invest/sandbox/accounts": {
+      "get": {
+        "tags": [
+          "brokers"
+        ],
+        "summary": "Sandbox Accounts",
+        "operationId": "sandbox_accounts_v1_brokers_t_invest_sandbox_accounts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Sandbox Accounts V1 Brokers T Invest Sandbox Accounts Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "brokers"
+        ],
+        "summary": "Sandbox Create",
+        "operationId": "sandbox_create_v1_brokers_t_invest_sandbox_accounts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SandboxCreateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Sandbox Create V1 Brokers T Invest Sandbox Accounts Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brokers/t-invest/sandbox/accounts/{account_id}/pay-in": {
+      "post": {
+        "tags": [
+          "brokers"
+        ],
+        "summary": "Sandbox Pay In",
+        "operationId": "sandbox_pay_in_v1_brokers_t_invest_sandbox_accounts__account_id__pay_in_post",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Account Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SandboxPayIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Sandbox Pay In V1 Brokers T Invest Sandbox Accounts  Account Id  Pay In Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brokers/t-invest/sandbox/accounts/{account_id}/close": {
+      "post": {
+        "tags": [
+          "brokers"
+        ],
+        "summary": "Sandbox Close",
+        "operationId": "sandbox_close_v1_brokers_t_invest_sandbox_accounts__account_id__close_post",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Account Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SandboxCloseIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Sandbox Close V1 Brokers T Invest Sandbox Accounts  Account Id  Close Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -3842,6 +4142,15 @@
             "minLength": 1,
             "title": "Token",
             "writeOnly": true
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "production",
+              "sandbox"
+            ],
+            "title": "Environment",
+            "default": "production"
           }
         },
         "type": "object",
@@ -4591,6 +4900,66 @@
         ],
         "title": "RestoreDefaultsOut"
       },
+      "SandboxCloseIn": {
+        "properties": {
+          "operation_key": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Operation Key"
+          },
+          "confirmed": {
+            "type": "boolean",
+            "title": "Confirmed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "operation_key",
+          "confirmed"
+        ],
+        "title": "SandboxCloseIn"
+      },
+      "SandboxCreateIn": {
+        "properties": {
+          "operation_key": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Operation Key"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "operation_key"
+        ],
+        "title": "SandboxCreateIn"
+      },
+      "SandboxPayIn": {
+        "properties": {
+          "operation_key": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Operation Key"
+          },
+          "amount": {
+            "type": "string",
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "operation_key",
+          "amount"
+        ],
+        "title": "SandboxPayIn"
+      },
       "SecurityOut": {
         "properties": {
           "ticker": {
@@ -4664,6 +5033,21 @@
             "maxLength": 100,
             "minLength": 1,
             "title": "Account Id"
+          },
+          "environment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "production",
+                  "sandbox"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Environment"
           }
         },
         "type": "object",
