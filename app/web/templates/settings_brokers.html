@@ -55,8 +55,9 @@
       </div>
       {% if broker.connected %}
         <div class="broker-data">
-          {% include "broker_accounts.html" %}
-          {% include "broker_portfolio.html" %}
+          <p class="broker-update-status" role="status" hidden></p>
+          <p class="broker-update-error" role="alert" hidden></p>
+          {% include "broker_portfolio_fragment.html" %}
           {% if broker.environment == 'sandbox' %}{% include "broker_sandbox.html" %}{% endif %}
         </div>
       {% endif %}

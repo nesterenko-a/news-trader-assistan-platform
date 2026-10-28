@@ -1347,7 +1347,7 @@ th.sortable .isort-tip:hover { display: block; }
 .broker-account.selected { border-color: var(--accent); }
 .broker-account p { margin: 6px 0; }
 .broker-account ul { padding-left: 18px; }
-.broker-data > .broker-panel { border-top: 1px solid var(--border); padding-top: 20px; margin-top: 20px; }
+.broker-data > .broker-panel, .broker-portfolio-content > .broker-panel { border-top: 1px solid var(--border); padding-top: 20px; margin-top: 20px; }
 .broker-total strong { font-size: 23px; }
 .broker-portfolio .client-groups-list > .card { margin-top: 10px; }
 .broker-create { margin: 16px 0; }
@@ -1356,3 +1356,6 @@ th.sortable .isort-tip:hover { display: block; }
 .sandbox-account { margin: 14px 0 !important; overflow-wrap: anywhere; }
 @media (max-width: 600px) { .broker-choices { grid-template-columns: 1fr; } .broker-appearance, .broker-workspace { padding: 14px; } .broker-style-form { display: grid; } .broker-style-form input[type="file"] { max-width: 100%; } }
 @media (pointer: coarse) { .broker-edit { min-width: 44px; min-height: 44px; } }
+
+.broker-update-status { color: var(--muted); }
+.broker-update-error { color: var(--red); }
