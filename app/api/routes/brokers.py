@@ -21,6 +21,7 @@ class ConnectIn(BaseModel):
 
 class SelectAccountIn(BaseModel):
     account_id: str = Field(min_length=1, max_length=100)
+    environment: Literal["production", "sandbox"] | None = None
 
 
 class SandboxCreateIn(BaseModel):
@@ -47,42 +48,42 @@ def _check_origin(request: Request) -> None:
 
 
 @router.get("")
-async def status(response: Response, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+async def status(response: Response, environment: Literal["production", "sandbox"] | None = None, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     response.headers["Cache-Control"] = "no-store"
-    return await t_invest.view(session, user.id)
+    return await t_invest.view(session, user.id, environment=environment)
 
 
 @router.post("/connect")
 async def connect(payload: ConnectIn, request: Request, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     _check_origin(request)
     await t_invest.connect(session, user.id, payload.token, environment=payload.environment)
-    return await t_invest.view(session, user.id)
+    return await t_invest.view(session, user.id, environment=payload.environment)
 
 
 @router.post("/select-account")
 async def select_account(payload: SelectAccountIn, request: Request, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     _check_origin(request)
-    await t_invest.refresh(session, user.id, payload.account_id)
-    return await t_invest.view(session, user.id)
+    await t_invest.refresh(session, user.id, payload.account_id, environment=payload.environment)
+    return await t_invest.view(session, user.id, environment=payload.environment)
 
 
 @router.post("/refresh")
-async def refresh(request: Request, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+async def refresh(request: Request, environment: Literal["production", "sandbox"] | None = None, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     _check_origin(request)
-    await t_invest.refresh(session, user.id)
-    return await t_invest.view(session, user.id)
+    await t_invest.refresh(session, user.id, environment=environment)
+    return await t_invest.view(session, user.id, environment=environment)
 
 
 @router.get("/portfolio")
-async def portfolio(response: Response, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+async def portfolio(response: Response, environment: Literal["production", "sandbox"] | None = None, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     response.headers["Cache-Control"] = "no-store"
-    return await t_invest.view(session, user.id)
+    return await t_invest.view(session, user.id, environment=environment)
 
 
 @router.delete("")
-async def disconnect(request: Request, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+async def disconnect(request: Request, environment: Literal["production", "sandbox"] | None = None, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     _check_origin(request)
-    await t_invest.disconnect(session, user.id)
+    await t_invest.disconnect(session, user.id, environment=environment)
     return {"connected": False}
 
 

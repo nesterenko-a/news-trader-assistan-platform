@@ -25,14 +25,15 @@ test("песочница: создать, пополнить, отменить �
       accounts = [];
     }
     actions = [{kind: kind.replace("-", "_"), message: "Действие выполнено", error_code: null}];
-    await route.fulfill({status: 303, headers: {location: "/settings/brokers#broker-sandbox"}});
+    await route.fulfill({status: 303, headers: {location: "/settings/brokers?environment=sandbox#broker-sandbox"}});
   });
   await login(page, USER.username, USER.password);
   await page.goto("/settings/brokers");
-  await page.locator('#brokers a[href="#broker-sandbox"]').click();
-  await expect(page).toHaveURL(/settings\/brokers#broker-sandbox$/);
-  await expect(page.getByRole("heading", {name: "Песочница Т‑Инвестиций"})).toBeVisible();
+  await page.locator('[data-broker="sandbox"]').click();
+  await expect(page.locator('#broker-workspace-sandbox')).toBeVisible();
+  await expect(page.getByRole("heading", {name: "Управление песочницей"})).toBeVisible();
   await expect(page.locator("#sandbox-empty")).toBeVisible();
+  await page.locator('.broker-create summary').click();
   await page.locator('#sandbox-create input[name="name"]').fill("Учебный");
   await page.locator("#sandbox-create").getByRole("button", {name: "Создать", exact: true}).click();
   const account = page.locator(".sandbox-account");
@@ -59,13 +60,14 @@ test("песочница: вход, отсутствие подключения 
   await expect(page).toHaveURL(/\/login/);
   await register(page, "sb_" + crypto.randomUUID().slice(0, 8), "secret123");
   await page.goto("/broker/t-invest/sandbox");
-  await expect(page.getByRole("link", {name: "Подключить песочницу"})).toBeVisible();
+  await expect(page.locator('#broker-workspace-sandbox [name="token"]')).toBeVisible();
   await expect(page.locator("#sandbox-create")).toHaveCount(0);
   await login(page, USER.username, USER.password);
   await page.route("**/v1/brokers/t-invest/sandbox/accounts", route => route.fulfill({json: {accounts: [], actions: [{kind: "pay_in", message: "Результат неизвестен. Проверьте баланс", error_code: "transport_unknown"}], error: "Не удалось получить счета"}}));
   await page.setViewportSize({width: 390, height: 844});
   await page.goto("/broker/t-invest/sandbox");
   await expect(page.locator("#sandbox-error")).toContainText("Не удалось получить счета");
+  await page.getByText("Последние действия", {exact:true}).click();
   await expect(page.locator("#sandbox-actions")).toContainText("Результат неизвестен");
   await expect(page.locator("#sandbox-empty")).toBeHidden();
 });

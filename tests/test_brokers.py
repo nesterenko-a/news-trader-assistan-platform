@@ -52,6 +52,8 @@ async def test_broker_certificate_repair_available_to_regular_user(monkeypatch):
     monkeypatch.setattr(web_router, "_optional_user", regular_user)
     monkeypatch.setattr(web_router.broker_certificates, "repair_and_check", lambda base: certificates.LOCAL_CA)
     request = Request({"type": "http", "method": "POST", "path": "/broker/t-invest/repair-certificate", "headers": [(b"host", b"localhost"), (b"origin", b"http://localhost")]})
+    from starlette.datastructures import FormData
+    request._form = FormData({})
     response = await web_router.broker_repair_certificate(request, None)
     assert response.status_code == 303
     assert "certificate=ok" in response.headers["location"]
@@ -152,7 +154,7 @@ async def test_sandbox_routes_accounts_portfolio_and_instruments():
 
 
 @pytest.mark.asyncio
-async def test_sandbox_connection_empty_accounts_and_environment_switch(monkeypatch):
+async def test_independent_environments_preserve_snapshots_and_tokens(monkeypatch):
     import httpx
     settings = Settings(_env_file=None, broker_token_keys="v1:" + base64.b64encode(os.urandom(32)).decode())
     monkeypatch.setattr(t_invest, "get_settings", lambda: settings)
@@ -168,8 +170,10 @@ async def test_sandbox_connection_empty_accounts_and_environment_switch(monkeypa
         assert (await t_invest.view(session, user.id))["snapshot"]
         empty = t_invest.TInvestClient("sandbox-test", httpx.MockTransport(lambda request: httpx.Response(200, json={"accounts": []})), environment="sandbox")
         stored = await t_invest.connect(session, user.id, "sandbox-test", empty, environment="sandbox")
-        data = await t_invest.view(session, user.id)
+        data = await t_invest.view(session, user.id, environment="sandbox")
         assert data["connected"] and data["environment"] == "sandbox"
+        assert (await t_invest.view(session, user.id, environment="production"))["snapshot"]
+        assert (await t_invest.view(session, user.id))["environment"] == "production"
         assert data["accounts"] == [] and data["snapshot"] is None
         assert data["selected_account_id"] is None
         assert stored.last_refreshed_at is None
@@ -180,9 +184,15 @@ async def test_sandbox_connection_empty_accounts_and_environment_switch(monkeypa
         stored.environment = "sandbox"
         with pytest.raises(HTTPException):
             await t_invest.connect(session, user.id, "empty-production", empty)
-        assert (await t_invest.view(session, user.id))["environment"] == "sandbox"
+        assert (await t_invest.view(session, user.id, environment="sandbox"))["environment"] == "sandbox"
         await t_invest.connect(session, user.id, "production-test", FakeBroker())
         assert t_invest.decrypt_token(await t_invest.connection_for(session, user.id)) == "production-test"
+        production = await t_invest.connection_for(session, user.id, environment="production")
+        production.status = "refreshing"
+        await session.commit()
+        await t_invest.disconnect(session, user.id, environment="sandbox")
+        assert (await t_invest.view(session, user.id, environment="production"))["snapshot"]
+        assert not (await t_invest.view(session, user.id, environment="sandbox"))["connected"]
     await engine.dispose()
 
 
@@ -227,20 +237,15 @@ async def test_broker_form_forwards_sandbox_and_keeps_it_on_error(monkeypatch):
 
 
 @pytest.mark.parametrize("environment,connected", [("production", True), ("sandbox", True), ("production", False)])
-def test_embedded_broker_panels_gate_controls_by_connection(environment, connected):
+def test_broker_cards_gate_contents_by_connection(environment, connected):
     web_router = import_module("app.web.router")
     request = Request({"type": "http", "method": "GET", "path": "/settings/brokers", "headers": [], "query_string": b""})
-    broker = {"connected": connected, "environment": environment, "accounts": [{"id": "1", "name": "Основной", "masked_id": "••••1"}], "selected_account_id": "1", "snapshot": None, "last_error": None}
-    context = {"request": request, "broker": broker, "operation_key": "test-key"}
-    portfolio = web_router.templates.env.get_template("broker_portfolio.html").render(context)
-    sandbox = web_router.templates.env.get_template("broker_sandbox.html").render(context)
-    assert ('action="/broker/t-invest/select"' in portfolio) == connected
-    assert ('action="/broker/t-invest/refresh"' in portfolio) == connected
-    assert ('id="sandbox-create"' in sandbox) == (connected and environment == "sandbox")
-    assert ('src="/static/broker-sandbox.js"' in sandbox) == (connected and environment == "sandbox")
-    assert ('broker-panel-disabled' in portfolio) == (not connected)
-    assert ('broker-panel-disabled' in sandbox) == (not connected or environment != "sandbox")
-
-    accounts = web_router.templates.env.get_template("broker_accounts.html").render(context)
-    assert ('action="/broker/t-invest/select"' in accounts) == (connected and environment == "production")
-    assert ('broker-panel-disabled' in accounts) == (not connected or environment != "production")
+    brokers = [{"connected": connected and env == environment, "environment": env, "accounts": [{"id": "1", "name": "Основной", "masked_id": "••••1"}], "selected_account_id": "1", "snapshot": None, "last_error": None} for env in ("production", "sandbox")]
+    html = web_router.templates.env.get_template("settings_brokers.html").render({"request": request, "brokers": brokers, "badge_styles": {"production": None, "sandbox": None}, "user": SimpleNamespace(username="test"), "profile": None, "broker_ready": True, "operation_key": "test-key"})
+    assert html.count('class="broker-data"') == int(connected)
+    assert ('id="sandbox-create"' in html) == (connected and environment == "sandbox")
+    assert ('src="/static/broker-sandbox.js"' in html) == (connected and environment == "sandbox")
+    assert html.count('type="password"') == 2
+    assert 'broker-add" disabled' in html
+    assert 'name="environment" value="production"' in html
+    assert 'name="environment" value="sandbox"' in html

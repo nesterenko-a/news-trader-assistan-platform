@@ -114,7 +114,8 @@ test.describe("Приватные функции", () => {
     await expect(page).toHaveURL(/\/settings\/brokers$/);
     await expect(page.getByRole("heading", { name: "Брокеры и торговля" })).toBeVisible();
     await expect(page.locator('#brokers')).toContainText("Т‑Инвестиции");
-    await expect(page.locator('#brokers')).toContainText("только для чтения");
+    await page.locator('[data-broker="production"]').click();
+    await expect(page.locator('#broker-workspace-production')).toContainText("только для чтения");
   });
 
   test("избранное: добавить и убрать без перезагрузки", async ({ page }) => {

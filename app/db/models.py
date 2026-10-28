@@ -11,6 +11,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
     Table,
     Text,
@@ -142,7 +143,7 @@ class PortfolioPosition(Base):
 class BrokerConnection(Base):
     __tablename__ = "broker_connections"
     __table_args__ = (
-        UniqueConstraint("user_id", "provider", name="uq_broker_connection_user_provider"),
+        UniqueConstraint("user_id", "provider", "environment", name="uq_broker_connection_user_provider_environment"),
         CheckConstraint("environment IN ('production', 'sandbox')", name="ck_broker_environment"),
     )
 
@@ -160,6 +161,21 @@ class BrokerConnection(Base):
     last_refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class BrokerBadgeStyle(Base):
+    __tablename__ = "broker_badge_styles"
+    __table_args__ = (
+        UniqueConstraint("user_id", "provider", "environment", name="uq_broker_badge_user_provider_environment"),
+        CheckConstraint("environment IN ('production', 'sandbox')", name="ck_broker_badge_environment"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    provider: Mapped[str] = mapped_column(String(30), default="t_invest")
+    environment: Mapped[str] = mapped_column(String(20))
+    color: Mapped[str] = mapped_column(String(7), default="#6897ff")
+    image_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
 
 
 class BrokerAccount(Base):

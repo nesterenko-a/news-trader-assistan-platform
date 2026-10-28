@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+    <changeSet id="038-independent-broker-environments" author="newstrader">
+        <preConditions onFail="MARK_RAN"><uniqueConstraintExists tableName="broker_connections" constraintName="uq_broker_connection_user_provider"/></preConditions>
+        <dropUniqueConstraint tableName="broker_connections" constraintName="uq_broker_connection_user_provider"/>
+        <addUniqueConstraint tableName="broker_connections" columnNames="user_id,provider,environment" constraintName="uq_broker_connection_user_provider_environment"/>
+    </changeSet>
+    <changeSet id="038-broker-badge-styles" author="newstrader">
+        <preConditions onFail="MARK_RAN"><not><tableExists tableName="broker_badge_styles"/></not></preConditions>
+        <createTable tableName="broker_badge_styles">
+            <column name="id" type="bigint" autoIncrement="true"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="user_id" type="bigint"><constraints nullable="false" foreignKeyName="fk_broker_badge_user" referencedTableName="users" referencedColumnNames="id"/></column>
+            <column name="provider" type="varchar(30)" defaultValue="t_invest"><constraints nullable="false"/></column>
+            <column name="environment" type="varchar(20)"><constraints nullable="false"/></column>
+            <column name="color" type="varchar(7)" defaultValue="#6897ff"><constraints nullable="false"/></column>
+            <column name="image_data" type="bytea"/>
+        </createTable>
+        <addUniqueConstraint tableName="broker_badge_styles" columnNames="user_id,provider,environment" constraintName="uq_broker_badge_user_provider_environment"/>
+        <sql>ALTER TABLE broker_badge_styles ADD CONSTRAINT ck_broker_badge_environment CHECK (environment IN ('production', 'sandbox'))</sql>
+        <rollback><dropTable tableName="broker_badge_styles"/></rollback>
+    </changeSet>
+</databaseChangeLog>

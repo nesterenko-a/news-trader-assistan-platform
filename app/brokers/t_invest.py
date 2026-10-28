@@ -209,8 +209,12 @@ class SandboxUnknown(Exception):
     pass
 
 
-async def connection_for(session: AsyncSession, user_id: int, *, lock=False) -> BrokerConnection | None:
+async def connection_for(session: AsyncSession, user_id: int, *, environment: str | None = None, lock=False) -> BrokerConnection | None:
     query = select(BrokerConnection).where(BrokerConnection.user_id == user_id, BrokerConnection.provider == "t_invest")
+    if environment is not None:
+        environment_base(environment)
+        query = query.where(BrokerConnection.environment == environment)
+    query = query.order_by(BrokerConnection.environment).limit(1)
     return await session.scalar(query.with_for_update().execution_options(populate_existing=True) if lock else query)
 
 
@@ -240,21 +244,13 @@ async def connect(session: AsyncSession, user_id: int, token: str, client: TInve
     rows = await (client or TInvestClient(token, environment=environment)).accounts()
     if not rows and environment == "production":
         raise HTTPException(422, "Нет доступных брокерских счетов")
-    connection = await connection_for(session, user_id, lock=True)
+    connection = await connection_for(session, user_id, environment=environment, lock=True)
     if connection is None:
         connection = BrokerConnection(user_id=user_id, provider="t_invest", environment=environment, token_ciphertext=ciphertext, token_nonce=nonce, token_key_id=key_id)
         session.add(connection)
         await session.flush()
     else:
         await ensure_available(session, connection)
-        if connection.environment != environment:
-            accounts = (await session.scalars(select(BrokerAccount).where(BrokerAccount.connection_id == connection.id))).all()
-            for account in accounts:
-                await session.execute(delete(BrokerPortfolioSnapshot).where(BrokerPortfolioSnapshot.account_id == account.id))
-                await session.delete(account)
-            connection.selected_account_id = None
-            connection.last_refreshed_at = None
-            await session.flush()
         connection.environment = environment
         connection.token_ciphertext = ciphertext
         connection.token_nonce = nonce
@@ -319,8 +315,8 @@ async def _snapshot(session: AsyncSession, client: TInvestClient, account: Broke
     }
 
 
-async def refresh(session: AsyncSession, user_id: int, account_id: str | None = None, client: TInvestClient | None = None) -> dict:
-    connection = await connection_for(session, user_id, lock=True)
+async def refresh(session: AsyncSession, user_id: int, account_id: str | None = None, client: TInvestClient | None = None, *, environment: str | None = None) -> dict:
+    connection = await connection_for(session, user_id, environment=environment, lock=True)
     if connection is None:
         raise HTTPException(404, "Подключение не найдено")
     await ensure_available(session, connection)
@@ -363,8 +359,8 @@ async def refresh(session: AsyncSession, user_id: int, account_id: str | None = 
     return data
 
 
-async def disconnect(session: AsyncSession, user_id: int) -> None:
-    connection = await connection_for(session, user_id, lock=True)
+async def disconnect(session: AsyncSession, user_id: int, *, environment: str | None = None) -> None:
+    connection = await connection_for(session, user_id, environment=environment, lock=True)
     if connection is None:
         raise HTTPException(404, "Подключение не найдено")
     await ensure_available(session, connection)
@@ -378,10 +374,10 @@ async def disconnect(session: AsyncSession, user_id: int) -> None:
     await session.commit()
 
 
-async def view(session: AsyncSession, user_id: int) -> dict:
-    connection = await connection_for(session, user_id)
+async def view(session: AsyncSession, user_id: int, *, environment: str | None = None) -> dict:
+    connection = await connection_for(session, user_id, environment=environment)
     if connection is None:
-        return {"connected": False, "accounts": [], "selected_account_id": None, "snapshot": None}
+        return {"connected": False, "environment": environment or "production", "accounts": [], "selected_account_id": None, "snapshot": None}
     accounts = (await session.scalars(select(BrokerAccount).where(BrokerAccount.connection_id == connection.id).order_by(BrokerAccount.id))).all()
     account = next((row for row in accounts if row.external_id == connection.selected_account_id), None)
     snapshots = {row.account_id: row for row in (await session.scalars(select(BrokerPortfolioSnapshot).join(BrokerAccount).where(BrokerAccount.connection_id == connection.id))).all()}

@@ -37,7 +37,7 @@ def action_view(row):
 
 
 async def connection(session, user_id, lock=False):
-    row = await t_invest.connection_for(session, user_id, lock=lock)
+    row = await t_invest.connection_for(session, user_id, environment="sandbox", lock=lock)
     if row is None or row.environment != "sandbox":
         raise HTTPException(409, "Сначала подключите Sandbox token в Настройках")
     return row

@@ -1,14 +1,6 @@
-{% set accounts_enabled = broker.connected and broker.environment == 'production' %}
-<section class="card broker-panel{% if not accounts_enabled %} broker-panel-disabled{% endif %}" id="broker-accounts" aria-disabled="{{ 'false' if accounts_enabled else 'true' }}">
-  <h2>Управление рабочими счетами</h2>
-  {% if not accounts_enabled %}
-    <p class="muted">Подключите токен рабочего контура, чтобы просматривать счета и выбирать портфель.</p>
-    <a class="btn" href="#brokers">Настройки подключения</a>
-  {% else %}
-    <p class="muted">Рабочий контур · доступ только для чтения.</p>
-    <p><a href="#broker-portfolio">Открыть портфель выбранного счёта</a></p>
+<section id="broker-accounts-{{ broker.environment }}" class="broker-account-section" aria-label="Счета брокера"><h3>Счета</h3><div class="broker-account-list">
     {% for account in broker.accounts %}
-      <article class="card broker-account">
+      <article class="broker-account{% if account.id == broker.selected_account_id %} selected{% endif %}">
         <h3>{{ account.name }}</h3>
         <p class="muted">{{ account.masked_id }} · {{ {'ACCOUNT_STATUS_OPEN': 'Открыт', 'ACCOUNT_STATUS_CLOSED': 'Закрыт', 'ACCOUNT_STATUS_NEW': 'В процессе открытия'}.get(account.status, 'Статус не указан') }}</p>
         {% if account.id == broker.selected_account_id %}
@@ -19,13 +11,12 @@
           <ul>{% for cash in account.balance %}<li>{{ cash.amount }} {{ cash.currency }}</li>{% else %}<li>Денежных позиций нет.</li>{% endfor %}</ul>
           <p class="muted">Получено: {{ account.balance_fetched_at.strftime('%d.%m.%Y %H:%M') }} UTC</p>
         {% else %}<p class="muted">Баланс ещё не загружен. Выберите счёт, чтобы получить данные.</p>{% endif %}
-        <form method="post" action="/broker/t-invest/select">
+        <form method="post" action="/broker/t-invest/select"><input type="hidden" name="environment" value="{{ broker.environment }}">
           <input type="hidden" name="account_id" value="{{ account.id }}">
           <button class="btn" type="submit">{{ 'Обновить портфель' if account.id == broker.selected_account_id else 'Выбрать и загрузить портфель' }}</button>
         </form>
       </article>
     {% else %}
-      <p class="muted">Нет доступных рабочих счетов.</p>
+      <p class="muted">Нет доступных счетов.</p>
     {% endfor %}
-  {% endif %}
-</section>
+</div></section>
