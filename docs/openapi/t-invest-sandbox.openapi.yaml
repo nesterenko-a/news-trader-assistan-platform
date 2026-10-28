@@ -20015,9 +20015,9 @@ components:
       scheme: bearer
 x-news-trader-source:
   repository: https://github.com/RussianInvestments/investAPI
-  commit: 3eaf23a25f598fe483c913184acdbd9132bc68d2
+  commit: 3eaf23a25f598fe483c913184acdbd9132bc68d2 # pragma: allowlist secret - public upstream Git commit
   url: https://raw.githubusercontent.com/RussianInvestments/investAPI/3eaf23a25f598fe483c913184acdbd9132bc68d2/src/docs/swagger-ui/openapi.yaml
-  sha256: 600bfc6555c1b39d546eb2792c960dc1e73c97d13d069bf6a6acc9a1be49eeb9
+  sha256: 600bfc6555c1b39d546eb2792c960dc1e73c97d13d069bf6a6acc9a1be49eeb9 # pragma: allowlist secret - public upstream file checksum
   retrieved_on: '2026-10-17'
   upstream_info_version: '1.43'
   scope: sandbox-rest
