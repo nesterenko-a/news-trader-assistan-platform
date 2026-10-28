@@ -42,13 +42,14 @@ test("песочница: создать, пополнить, отменить �
   await account.locator('[name="amount"]').fill("1000,50");
   await account.getByRole("button", {name: "Пополнить"}).click();
   await expect(account).toContainText("1000.50 ₽");
+  await account.locator('.sandbox-close-details summary').click();
   await account.locator('[name="confirmed"]').check();
   page.once("dialog", dialog => dialog.dismiss());
-  await account.getByRole("button", {name: "Закрыть счёт"}).click();
+  await account.getByRole("button", {name: "Подтвердить закрытие счёта"}).click();
   await expect(account).toHaveCount(1);
   expect(calls).toEqual(["create", "pay-in"]);
   page.once("dialog", dialog => dialog.accept());
-  await account.getByRole("button", {name: "Закрыть счёт"}).click();
+  await account.getByRole("button", {name: "Подтвердить закрытие счёта"}).click();
   await expect(page.locator("#sandbox-empty")).toBeVisible();
   expect(calls).toEqual(["create", "pay-in", "close"]);
   await page.reload();

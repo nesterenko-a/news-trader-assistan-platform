@@ -1359,3 +1359,30 @@ th.sortable .isort-tip:hover { display: block; }
 
 .broker-update-status { color: var(--muted); }
 .broker-update-error { color: var(--red); }
+
+.broker-hub .broker-account { padding: 0; background: var(--bg); }
+.broker-account-choice { display: grid; gap: 5px; width: 100%; text-align: left; padding: 10px 14px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+.broker-account-choice[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 18%, var(--panel)); }
+.broker-account-choice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.broker-account-name { font-weight: 600; }
+.broker-account-choice .muted { font-size: 12px; }
+.broker-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0; }
+.broker-summary p { margin: 4px 0; }
+.broker-snapshot-time { font-size: 12px; }
+.broker-position-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.broker-position-row .muted { display: block; font-size: 12px; }
+.broker-position summary { cursor: pointer; }
+.broker-position-details { padding: 8px 0; }
+.broker-position-details p { margin: 6px 0; }
+.broker-yield { margin-top: 12px; }
+.broker-hub .sandbox-account { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
+.broker-hub .sandbox-account[hidden] { display: none; }
+.sandbox-pay { display: flex; align-items: end; gap: 10px; flex: 1 1 250px; flex-wrap: wrap; }
+.sandbox-pay label { display: grid; gap: 7px; flex: 1 1 160px; }
+.sandbox-pay input, .broker-create input { padding: 9px 11px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font: inherit; }
+.sandbox-close-details[open] { flex-basis: 100%; }
+#broker-sandbox { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+#broker-sandbox > h2 { flex: 1 1 200px; margin: 0; }
+#broker-sandbox > .broker-create { margin: 0; }
+#broker-sandbox > .broker-create[open], #broker-sandbox > #sandbox-accounts, #broker-sandbox > p, #broker-sandbox > details:not(.broker-create) { flex-basis: 100%; }
+@media(max-width: 500px) { .broker-summary { grid-template-columns: 1fr; } }

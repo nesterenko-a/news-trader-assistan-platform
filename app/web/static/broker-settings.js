@@ -129,7 +129,7 @@
     const controls = [...content.querySelectorAll('button[type="submit"]')].map(button => [button, button.disabled]);
     controls.forEach(([button]) => { button.disabled = true; });
     content.setAttribute('aria-busy', 'true');
-    const name = form.closest('.broker-account')?.querySelector('h3')?.textContent;
+    const name = form.closest('.broker-account')?.querySelector('h3, .broker-account-name')?.textContent;
     status.textContent = name ? 'Обновляется… Счёт: ' + name : 'Обновляется…';
     status.hidden = false;
     error.hidden = true;

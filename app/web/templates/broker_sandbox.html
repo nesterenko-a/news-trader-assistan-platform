@@ -1,7 +1,7 @@
 {% set sandbox_enabled = broker.connected and broker.environment == 'sandbox' %}
 <section class="broker-panel" id="broker-sandbox" data-selected-account="{{ broker.selected_account_id or '' }}">
   <h2>Управление песочницей</h2>
-  <p><strong>Тестовые счета и виртуальные средства</strong></p>
+
 
   {% if request.query_params.get('sandbox_error') %}<p role="alert">{{ request.query_params.get('sandbox_error') }}</p>{% endif %}
   {% if not broker.connected or broker.environment != 'sandbox' %}
@@ -23,20 +23,20 @@
     <details><summary>Последние действия</summary>
     <div id="sandbox-actions" role="status"></div></details>
     <template id="sandbox-account-template">
-      <article class="card sandbox-account">
-        <h3 class="sandbox-name"></h3>
-        <p class="sandbox-id muted"></p>
-        <p class="sandbox-balance"></p>
+      <article class="sandbox-account">
+        <h3 class="sandbox-name" hidden></h3>
+        <p class="sandbox-id muted" hidden></p>
+        <p class="sandbox-balance" hidden></p>
         <form method="post" action="/broker/t-invest/sandbox/pay-in" class="sandbox-pay">
           <input type="hidden" name="operation_key"><input type="hidden" name="account_id">
           <label>Сумма в рублях <input name="amount" inputmode="decimal" required maxlength="30" placeholder="10000,00"></label>
           <button type="submit" class="btn">Пополнить</button>
         </form>
-        <form method="post" action="/broker/t-invest/sandbox/close" class="sandbox-close" onsubmit="return confirm('Закрыть тестовый счёт? Его позиции и история у брокера будут удалены.')">
+        <details class="sandbox-close-details"><summary class="btn">Закрыть счёт</summary><form method="post" action="/broker/t-invest/sandbox/close" class="sandbox-close" onsubmit="return confirm('Закрыть тестовый счёт? Его позиции и история у брокера будут удалены.')">
           <input type="hidden" name="operation_key"><input type="hidden" name="account_id">
           <label><input type="checkbox" name="confirmed" value="true" required> Подтверждаю закрытие тестового счёта</label>
-          <button type="submit" class="feed-remove" aria-label="Закрыть счёт" title="Закрыть счёт">✕</button>
-        </form>
+          <button type="submit" class="feed-remove" aria-label="Подтвердить закрытие счёта" title="Закрыть счёт">✕</button>
+        </form></details>
       </article>
     </template>
     <script src="/static/broker-sandbox.js" defer></script>

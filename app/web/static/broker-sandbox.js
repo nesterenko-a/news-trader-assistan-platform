@@ -20,6 +20,7 @@
       const node = document.querySelector('#sandbox-account-template').content.cloneNode(true);
       node.querySelector('.sandbox-account').dataset.accountId = account.id;
       node.querySelector('.sandbox-name').textContent = account.name;
+      node.querySelector('.sandbox-pay label').firstChild.textContent = 'Пополнить «' + account.name + '» ';
       node.querySelector('.sandbox-id').textContent = account.masked_id + ' · ' + ({ACCOUNT_STATUS_OPEN: 'Открыт', ACCOUNT_STATUS_CLOSED: 'Закрыт', ACCOUNT_STATUS_NEW: 'В процессе открытия'}[account.status] || account.status);
       node.querySelector('.sandbox-balance').textContent = account.rub_balance === null ? 'Остаток в рублях не получен' : 'Доступные рубли: ' + account.rub_balance + ' ₽';
       node.querySelectorAll('[name="account_id"]').forEach(input => { input.value = account.id; });

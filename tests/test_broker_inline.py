@@ -76,7 +76,7 @@ async def test_select_refresh_fragment_and_other_environment_preserved(inline_ap
     assert f'id="broker-content-{environment}"' in response.text
     assert 'data-selected-account="one"' in response.text
     assert "test-token" not in response.text and "<!doctype" not in response.text
-    assert "<h3>Деньги</h3>" in response.text
+    assert "Денежный баланс" in response.text
     response = await client.post("/broker/t-invest/refresh", data={"environment": environment}, headers=HEADERS)
     assert response.status_code == 200 and "Получено:" in response.text
     other_environment = "sandbox" if environment == "production" else "production"

@@ -89,7 +89,7 @@ test("Рабочий контур: счета, баланс, выбор и об�
   const first=workspace.locator('.broker-account').filter({has:page.getByRole('heading',{name:'Основной',exact:true})});
   const second=workspace.locator('.broker-account').filter({has:page.getByRole('heading',{name:'Второй',exact:true})});
   await expect(first).toContainText('1500.50 rub');
-  await expect(first).toContainText('Выбран для портфеля');
+  await expect(first.locator('button')).toHaveAttribute('aria-pressed','true');
   await expect(second).toContainText('Баланс ещё не загружен');
   await expect(workspace.locator('#sandbox-create')).toHaveCount(0);
   const originalFragment=await workspace.locator(".broker-portfolio-content").evaluate(node=>node.outerHTML);
@@ -99,8 +99,8 @@ test("Рабочий контур: счета, баланс, выбор и об�
     const account=raw.includes('production-5678')?'production-5678':'production-1234';calls.push(account);
     await route.fulfill({contentType:'text/html',body:originalFragment.replace('data-selected-account="production-1234"','data-selected-account="'+account+'"')});
   });
-  await first.getByRole('button',{name:'Обновить портфель',exact:true}).click();
-  await second.getByRole('button',{name:'Выбрать и загрузить портфель',exact:true}).click();
+  await first.getByRole('button',{name:'Выбрать счёт Основной',exact:true}).click();
+  await second.getByRole('button',{name:'Выбрать счёт Второй',exact:true}).click();
   await expect.poll(()=>calls).toEqual(['production-1234','production-5678']);
   await page.setViewportSize({width:390,height:844});
   await page.goto('/settings/brokers?environment=production#broker-accounts');
