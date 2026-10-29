@@ -10,6 +10,7 @@ from app.auth import get_current_user
 from app.brokers import t_invest
 from app.brokers import sandbox
 from app.brokers import mcp
+from app.brokers import mcp_llm
 from app.db.connection import get_session
 from app.db.models import BrokerConnection, User
 
@@ -28,6 +29,24 @@ class SelectAccountIn(BaseModel):
 
 class MCPCheckIn(BaseModel):
     environment: Literal["production", "sandbox"]
+
+
+class MCPLLMCheckIn(BaseModel):
+    provider: Literal["deepseek", "chatgpt"]
+    model: str = Field(min_length=1, max_length=200)
+
+
+@router.get("/mcp/models")
+async def mcp_models(response: Response, provider: Literal["deepseek", "chatgpt"], user: User = Depends(get_current_user)) -> dict:
+    response.headers["Cache-Control"] = "no-store"
+    return await mcp_llm.catalog(provider)
+
+
+@router.post("/mcp/check-llm")
+async def mcp_check_llm(payload: MCPLLMCheckIn, request: Request, response: Response, user: User = Depends(get_current_user)) -> dict:
+    _check_origin(request)
+    response.headers["Cache-Control"] = "no-store"
+    return await mcp_llm.check(payload.provider, payload.model, user.id)
 
 
 @router.post("/mcp/check")

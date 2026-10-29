@@ -198,3 +198,28 @@ async def test_api_changed_connection_rejects_late_result(api, monkeypatch):
     monkeypatch.setattr(brokers.mcp, "inspect_connection", inspect)
     response = await client.post("/v1/brokers/t-invest/mcp/check", json={"environment": "sandbox"})
     assert response.status_code == 409
+
+
+async def test_llm_routes_auth_origin_and_safe_fields(api, monkeypatch):
+    client, _, _, _, _, _ = api
+    calls = []
+
+    async def catalog(provider):
+        return {"provider": provider, "configured": False, "models": []}
+
+    async def check(provider, model, user_id):
+        calls.append((provider, model, user_id))
+        return {"provider": provider, "model": model, "tool_calling": True}
+
+    monkeypatch.setattr(brokers.mcp_llm, "catalog", catalog)
+    monkeypatch.setattr(brokers.mcp_llm, "check", check)
+    response = await client.get("/v1/brokers/t-invest/mcp/models?provider=deepseek")
+    assert response.headers["cache-control"] == "no-store"
+    assert response.status_code == 200
+    client.cookies.set("nt_token", "cookie")
+    url = "/v1/brokers/t-invest/mcp/check-llm"
+    payload = {"provider": "deepseek", "model": "configured"}
+    assert (await client.post(url, json=payload)).status_code == 403
+    assert not calls
+    assert (await client.post(url, json=payload, headers={"Origin": "http://test"})).status_code == 200
+    assert calls[0][:2] == ("deepseek", "configured")

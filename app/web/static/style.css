@@ -1334,6 +1334,9 @@ th.sortable .isort-tip:hover { display: block; }
 .broker-appearance, .broker-workspace { min-width: 0; border: 1px solid var(--border); border-radius: 10px; padding: 20px; background: var(--panel); }
 .broker-heading, .broker-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .broker-actions { justify-content: flex-start; }
+.broker-llm-fields { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+.broker-llm-fields label { display: flex; flex-direction: column; gap: 6px; flex: 1 1 160px; min-width: 0; }
+.broker-llm-fields select { max-width: 100%; width: 100%; }
 .broker-style-form { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
 .broker-style-form label { display: grid; gap: 7px; min-width: 0; }
 .broker-style-form input[type="file"] { width: 100%; max-width: 300px; }

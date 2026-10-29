@@ -66,10 +66,17 @@
           </div>
           <section role="tabpanel" id="broker-view-mcp-{{ broker.environment }}" aria-labelledby="broker-tab-mcp-{{ broker.environment }}" data-broker-view="mcp" hidden>
             <h3>MCP-аналитика · {{ 'Песочница' if broker.environment == 'sandbox' else 'Рабочий контур' }}</h3>
-            <p class="muted">Только чтение. Первый этап: проверка подключения и каталога MCP. Аналитические инструменты и LLM ещё не подключены.</p>
+            <p class="muted">Только чтение. Доступны проверки MCP и LLM; аналитические ответы ещё в реализации.</p>
             <button class="btn" type="button" data-mcp-check>Проверить MCP</button>
             <p role="status" data-mcp-status aria-live="polite">Подключение MCP ещё не проверено.</p>
             <p role="alert" data-mcp-error hidden></p>
+            <div class="broker-llm-fields">
+              <label>Провайдер<select data-mcp-provider><option value="deepseek">DeepSeek</option><option value="chatgpt">ChatGPT</option></select></label>
+              <label>Модель<select data-mcp-model disabled><option value="">Откройте вкладку для загрузки</option></select></label>
+              <button type="button" class="btn" data-mcp-check-llm disabled>Проверить LLM</button>
+            </div>
+            <p class="muted small">Проверка отправляет два тестовых запроса выбранному внешнему LLM-провайдеру. Данные счёта и токен брокера не передаются.</p>
+            <p role="status" data-mcp-llm-status aria-live="polite">Модель ещё не проверена.</p>
             <details data-mcp-details hidden><summary>Возможности и источники</summary><p data-mcp-time class="muted"></p><ul data-mcp-capabilities></ul><p class="muted">Инструменты ещё не допущены к аналитическим вызовам. Проверка не обращается к LLM.</p><ul data-mcp-tools></ul></details>
           </section>
         </div>

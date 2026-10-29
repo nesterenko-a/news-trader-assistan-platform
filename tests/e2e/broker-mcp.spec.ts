@@ -1,6 +1,54 @@
 import {test, expect} from '@playwright/test';
 import {login, USER} from './helpers';
 
+test.beforeEach(async ({page}) => {
+  await page.route('**/v1/brokers/t-invest/mcp/models?*', route => {
+    const provider = new URL(route.request().url()).searchParams.get('provider');
+    return route.fulfill({json: {provider, configured: true, default_model: provider + '-configured', models: [provider + '-configured', provider + '-other'], warning: null}});
+  });
+});
+
+test('LLM: явная проверка, смена пары и отсутствие скрытого переключения', async ({page}) => {
+  const checks: object[] = [];
+  await page.route('**/v1/brokers/t-invest/mcp/check-llm', async route => {
+    const pair = route.request().postDataJSON(); checks.push(pair);
+    if (pair.model.endsWith('other')) return route.fulfill({status: 502, json: {detail: 'Модель не поддерживает инструменты'}});
+    return route.fulfill({json: {...pair, tool_calling: true, expires_at: Math.floor(Date.now() / 1000) + 900, check_token: 'test-proof'}});
+  });
+  await page.route('**/v1/brokers/t-invest/sandbox/accounts', route => route.fulfill({json: {accounts: [], actions: [], error: null}}));
+  await login(page, 'broker-production', USER.password);
+  await page.goto('/settings/brokers');
+  await page.locator('[data-broker="production"]').click();
+  const workspace = page.locator('#broker-workspace-production');
+  await workspace.getByRole('tab', {name: 'MCP-аналитика'}).click();
+  const check = workspace.locator('[data-mcp-check-llm]'), status = workspace.locator('[data-mcp-llm-status]');
+  await expect(check).toBeEnabled();
+  expect(checks).toEqual([]);
+  await check.click();
+  await expect(status).toContainText('Вызов инструментов проверен: deepseek / deepseek-configured');
+  await workspace.locator('[data-mcp-model]').selectOption('deepseek-other');
+  await expect(status).toContainText('Проверьте LLM повторно');
+  await check.click();
+  await expect(status).toHaveText('Модель не поддерживает инструменты');
+  await expect(workspace.locator('[data-mcp-provider]')).toHaveValue('deepseek');
+  await workspace.locator('[data-mcp-provider]').selectOption('chatgpt');
+  await expect(workspace.locator('[data-mcp-model]')).toHaveValue('chatgpt-configured');
+  await check.click();
+  await expect(status).toContainText('Вызов инструментов проверен: chatgpt / chatgpt-configured');
+  expect(checks).toHaveLength(3);
+});
+
+test('LLM: недоступный каталог и ключ обозначены явно', async ({page}) => {
+  await page.route('**/v1/brokers/t-invest/mcp/models?*', route => route.fulfill({json: {provider: 'deepseek', configured: false, default_model: 'configured', models: ['configured'], warning: 'Ключ провайдера не настроен'}}));
+  await login(page, 'broker-production', USER.password);
+  await page.goto('/settings/brokers');
+  await page.locator('[data-broker="production"]').click();
+  const workspace = page.locator('#broker-workspace-production');
+  await workspace.getByRole('tab', {name: 'MCP-аналитика'}).click();
+  await expect(workspace.locator('[data-mcp-llm-status]')).toHaveText('Ключ провайдера не настроен');
+  await expect(workspace.locator('[data-mcp-check-llm]')).toBeDisabled();
+});
+
 for (const environment of ['production', 'sandbox']) {
   test(`MCP: диагностика ${environment}, ошибки и возврат к портфелю`, async ({page}) => {
     let calls = 0;
