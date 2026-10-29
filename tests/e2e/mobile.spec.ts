@@ -49,12 +49,19 @@ test.describe("Мобильное меню", () => {
   const PAGES = ["/", "/securities/AFLT", "/macro", "/indicators", "/login", "/register"];
   for (const path of PAGES) {
     test(`рендер без console-ошибок: ${path}`, async ({ page }) => {
+      await page.setViewportSize({ width: 375, height: 667 });
+      if (path === "/indicators") {
+        await page.route("**/v1/indicators/futures", route =>
+          route.fulfill({ json: { count: 0, futures: [] } })
+        );
+      }
       const errors: string[] = [];
       page.on("console", (msg) => {
         if (msg.type() === "error") errors.push(msg.text());
       });
-      await page.goto(path);
-      await page.waitForLoadState("domcontentloaded");
+      const response = await page.goto(path);
+      expect(response?.status()).toBe(200);
+      await page.waitForLoadState("networkidle");
       expect(errors).toEqual([]);
     });
   }

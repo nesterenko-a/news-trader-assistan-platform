@@ -21,6 +21,10 @@ async function setup(page: Page, environment: string) {
 for (const environment of ['production', 'sandbox']) {
   test(`${environment}: выбор и повторные обновления без навигации`, async ({page}) => {
     const workspace = await setup(page, environment);
+    if (environment === 'sandbox') {
+      await expect(page.locator('#sandbox-accounts .sandbox-account')).toHaveCount(2);
+      await expect(page.locator('#sandbox-accounts [name="operation_key"]')).toHaveCount(4);
+    }
     const keys = environment === 'sandbox' ? await page.locator('#sandbox-accounts [name="operation_key"]').evaluateAll(nodes => nodes.map(node => (node as HTMLInputElement).value)) : [];
     const url = page.url();
     let navigations = 0, calls = 0;
