@@ -4,12 +4,14 @@ from typing import Literal
 from uuid import UUID
 from pydantic import StrictBool
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.auth import get_current_user
 from app.brokers import t_invest
 from app.brokers import sandbox
+from app.brokers import mcp
 from app.db.connection import get_session
-from app.db.models import User
+from app.db.models import BrokerConnection, User
 
 router = APIRouter(prefix="/brokers/t-invest", tags=["brokers"])
 
@@ -22,6 +24,25 @@ class ConnectIn(BaseModel):
 class SelectAccountIn(BaseModel):
     account_id: str = Field(min_length=1, max_length=100)
     environment: Literal["production", "sandbox"] | None = None
+
+
+class MCPCheckIn(BaseModel):
+    environment: Literal["production", "sandbox"]
+
+
+@router.post("/mcp/check")
+async def check_mcp(payload: MCPCheckIn, request: Request, response: Response, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)) -> dict:
+    _check_origin(request)
+    response.headers["Cache-Control"] = "no-store"
+    connection = await t_invest.connection_for(session, user.id, environment=payload.environment)
+    if connection is None:
+        raise HTTPException(404, "Подключите выбранный контур Т-Инвестиций")
+    connection_id, version = connection.id, connection.version
+    result = await mcp.inspect_connection(t_invest.decrypt_token(connection), payload.environment)
+    current = (await session.execute(select(BrokerConnection.id, BrokerConnection.version).where(BrokerConnection.user_id == user.id, BrokerConnection.provider == "t_invest", BrokerConnection.environment == payload.environment))).first()
+    if current is None or current.id != connection_id or current.version != version:
+        raise HTTPException(409, "Подключение изменилось. Повторите проверку MCP")
+    return result
 
 
 class SandboxCreateIn(BaseModel):

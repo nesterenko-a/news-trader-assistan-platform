@@ -55,14 +55,28 @@
       </div>
       {% if broker.connected %}
         <div class="broker-data">
+          <div class="broker-actions" role="tablist" aria-label="Данные {{ name }}">
+            {% for tab, title in [('portfolio', 'Портфель'), ('mcp', 'MCP-аналитика')] %}<button class="btn" type="button" role="tab" id="broker-tab-{{ tab }}-{{ broker.environment }}" aria-selected="{{ 'true' if tab == 'portfolio' else 'false' }}" aria-controls="broker-view-{{ tab }}-{{ broker.environment }}" data-broker-tab="{{ tab }}">{{ title }}</button>{% endfor %}
+          </div>
+          <div role="tabpanel" id="broker-view-portfolio-{{ broker.environment }}" aria-labelledby="broker-tab-portfolio-{{ broker.environment }}" data-broker-view="portfolio">
           <p class="broker-update-status" role="status" hidden></p>
           <p class="broker-update-error" role="alert" hidden></p>
           {% include "broker_portfolio_fragment.html" %}
           {% if broker.environment == 'sandbox' %}{% include "broker_sandbox.html" %}{% endif %}
+          </div>
+          <section role="tabpanel" id="broker-view-mcp-{{ broker.environment }}" aria-labelledby="broker-tab-mcp-{{ broker.environment }}" data-broker-view="mcp" hidden>
+            <h3>MCP-аналитика · {{ 'Песочница' if broker.environment == 'sandbox' else 'Рабочий контур' }}</h3>
+            <p class="muted">Только чтение. Первый этап: проверка подключения и каталога MCP. Аналитические инструменты и LLM ещё не подключены.</p>
+            <button class="btn" type="button" data-mcp-check>Проверить MCP</button>
+            <p role="status" data-mcp-status aria-live="polite">Подключение MCP ещё не проверено.</p>
+            <p role="alert" data-mcp-error hidden></p>
+            <details data-mcp-details hidden><summary>Возможности и источники</summary><p data-mcp-time class="muted"></p><ul data-mcp-capabilities></ul><p class="muted">Инструменты ещё не допущены к аналитическим вызовам. Проверка не обращается к LLM.</p><ul data-mcp-tools></ul></details>
+          </section>
         </div>
       {% endif %}
     </section>
   {% endfor %}
 </section>
 <script src="/static/broker-settings.js" defer></script>
+<script src="/static/broker-mcp.js" defer></script>
 {% endblock %}

@@ -28,6 +28,49 @@
         }
       }
     },
+    "/v1/brokers/t-invest/mcp/check": {
+      "post": {
+        "tags": [
+          "brokers"
+        ],
+        "summary": "Check Mcp",
+        "operationId": "check_mcp_v1_brokers_t_invest_mcp_check_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MCPCheckIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Check Mcp V1 Brokers T Invest Mcp Check Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/brokers/t-invest": {
       "get": {
         "tags": [
@@ -4350,6 +4393,23 @@
           "password"
         ],
         "title": "LoginIn"
+      },
+      "MCPCheckIn": {
+        "properties": {
+          "environment": {
+            "type": "string",
+            "enum": [
+              "production",
+              "sandbox"
+            ],
+            "title": "Environment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "environment"
+        ],
+        "title": "MCPCheckIn"
       },
       "MacroEventOut": {
         "properties": {
