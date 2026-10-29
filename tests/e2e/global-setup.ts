@@ -1,6 +1,7 @@
 import { execSync, spawn } from "child_process";
 import fs from "fs";
 import path from "path";
+import { randomBytes } from "crypto";
 
 /**
  * Глобальный setup e2e-стенда:
@@ -94,6 +95,8 @@ export default async function globalSetup(): Promise<void> {
         ...process.env,
         DATABASE_URL: DB_URL,
         MOEX_BASE_URL: "http://127.0.0.1:9",
+        BROKER_TOKEN_KEY_ID: "e2e",
+        BROKER_TOKEN_KEYS: `e2e:${randomBytes(32).toString("base64")}`,
       },
       stdio: "ignore",
     }
