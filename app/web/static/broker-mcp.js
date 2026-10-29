@@ -3,9 +3,26 @@
   if (!root) return;
   const llmStates = new WeakMap();
   function state(workspace) {
-    if (!llmStates.has(workspace)) llmStates.set(workspace, {generation: 0, loaded: false, proof: null, configured: false});
+    if (!llmStates.has(workspace)) llmStates.set(workspace, {generation: 0, loaded: false, proof: null, configured: false, mcp: false, busy: false, askGeneration: 0});
     return llmStates.get(workspace);
   }
+  function account(workspace) { return workspace.querySelector('.broker-portfolio-content')?.dataset.selectedAccount || null; }
+  function ready(workspace) {
+    const current = state(workspace);
+    workspace.querySelector('[data-mcp-ask]').disabled = current.busy || !current.mcp || !current.proof || current.proof.expires_at * 1000 <= Date.now() || !workspace.querySelector('[data-mcp-question]').value.trim();
+    workspace.querySelector('[data-mcp-account]').textContent = account(workspace) ? 'Счёт: ••••' + account(workspace).slice(-4) : 'Счёт не выбран. Доступны рыночные вопросы.';
+  }
+  root.addEventListener('input', event => { if (event.target.matches('[data-mcp-question]')) ready(event.target.closest('.broker-workspace')); });
+  document.addEventListener('broker:portfolio-updated', event => {
+    const workspace = root.querySelector('#broker-workspace-' + event.detail.environment);
+    if (!workspace) return;
+    const current = state(workspace); current.askGeneration++; current.busy = false;
+    current.askController?.abort();
+    workspace.querySelector('[data-mcp-answer]').hidden = true;
+    workspace.querySelector('[data-mcp-ask-status]').textContent = 'Контекст счёта обновлён. Предыдущий ответ скрыт.';
+    ready(workspace);
+  });
+  setInterval(() => root.querySelectorAll('.broker-workspace[data-connected="true"]').forEach(ready), 1000);
   async function llmRequest(url, options = {}) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 85000);
@@ -20,6 +37,7 @@
     const current = state(workspace);
     const generation = ++current.generation;
     current.proof = null; current.loaded = true; current.configured = false;
+    ready(workspace);
     const provider = workspace.querySelector('[data-mcp-provider]').value;
     const model = workspace.querySelector('[data-mcp-model]');
     const status = workspace.querySelector('[data-mcp-llm-status]');
@@ -52,9 +70,44 @@
       const current = state(workspace); current.generation++; current.proof = null;
       workspace.querySelector('[data-mcp-llm-status]').textContent = 'Модель изменена. Проверьте LLM повторно.';
       workspace.querySelector('[data-mcp-check-llm]').disabled = !current.configured || !event.target.value;
+      ready(workspace);
     }
   });
   root.addEventListener('click', async event => {
+    const example = event.target.closest('[data-mcp-example]');
+    if (example) { const workspace = example.closest('.broker-workspace'); workspace.querySelector('[data-mcp-question]').value = example.dataset.mcpExample; ready(workspace); return; }
+    const ask = event.target.closest('[data-mcp-ask]');
+    if (ask && !ask.disabled) {
+      const workspace = ask.closest('.broker-workspace'), current = state(workspace);
+      const generation = ++current.askGeneration, selected = account(workspace);
+      const pair = {provider: workspace.querySelector('[data-mcp-provider]').value, model: workspace.querySelector('[data-mcp-model]').value};
+      const status = workspace.querySelector('[data-mcp-ask-status]');
+      const controller = new AbortController();
+      current.busy = true; current.askController = controller; ready(workspace);
+      workspace.querySelector('[data-mcp-answer]').hidden = true;
+      status.textContent = 'Получаем данные и формируем ответ…';
+      const timer = setTimeout(() => controller.abort(), 125000);
+      try {
+        const response = await fetch('/v1/brokers/t-invest/mcp/ask', {method: 'POST', headers: {'Content-Type': 'application/json'}, cache: 'no-store', signal: controller.signal, body: JSON.stringify({...pair, environment: workspace.dataset.environment, account_id: selected, check_token: current.proof.check_token, question: workspace.querySelector('[data-mcp-question]').value})});
+        const data = await response.json();
+        if (generation !== current.askGeneration || selected !== account(workspace)) return;
+        if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Не удалось получить аналитический ответ');
+        if (data.environment !== workspace.dataset.environment || (data.account_id || null) !== selected || data.provider !== pair.provider || data.model !== pair.model || typeof data.answer !== 'string' || !Array.isArray(data.evidence) || !Array.isArray(data.warnings)) throw new Error('Ответ не соответствует выбранному контексту');
+        workspace.querySelector('[data-mcp-answer-context]').textContent = data.environment + ' · счёт ' + (selected ? '••••' + selected.slice(-4) : 'не выбран') + ' · ' + data.provider + ' / ' + data.model + ' · ' + data.generated_at;
+        workspace.querySelector('[data-mcp-answer-text]').textContent = data.answer;
+        workspace.querySelector('[data-mcp-warnings]').replaceChildren(...data.warnings.map(text => {const li = document.createElement('li'); li.textContent = text; return li;}));
+        workspace.querySelector('[data-mcp-evidence]').replaceChildren(...data.evidence.map(item => {
+          const li = document.createElement('li'); li.textContent = item.source + ' · ' + item.tool + ' · данные: ' + (item.data_time || 'время не указано') + ' · получено: ' + item.fetched_at;
+          (item.publications || []).forEach(publication => { try {const url = new URL(publication.url); if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) return; const a = document.createElement('a'); a.href = url.href; a.rel = 'noopener noreferrer'; a.target = '_blank'; a.textContent = ' Источник · ' + (publication.date || 'дата не указана'); li.append(a);} catch (_) {} });
+          return li;
+        }));
+        workspace.querySelector('[data-mcp-calculations]').textContent = JSON.stringify(data.calculations || [], null, 2);
+        workspace.querySelector('[data-mcp-answer]').hidden = false;
+        status.textContent = {ok: 'Ответ готов.', partial: 'Частичный результат: проверьте ограничения.', needs_clarification: 'Нужно уточнение.'}[data.status] || 'Ответ получен.';
+      } catch (exc) { if (generation === current.askGeneration) status.textContent = exc.name === 'AbortError' ? 'Запрос остановлен по времени. Повторите позже.' : exc instanceof TypeError ? 'Не удалось связаться с сервером приложения.' : exc.message; }
+      finally { clearTimeout(timer); if (generation === current.askGeneration) {current.busy = false; ready(workspace);} }
+      return;
+    }
     const tab = event.target.closest('[data-broker-tab]');
     if (tab) {
       const workspace = tab.closest('.broker-workspace');
@@ -81,7 +134,7 @@
       } catch (exc) {
         if (generation !== current.generation) return;
         status.textContent = exc.name === 'AbortError' ? 'Превышено время проверки LLM.' : exc instanceof TypeError ? 'Не удалось связаться с сервером приложения.' : exc.message;
-      } finally { if (generation === current.generation) llmCheck.disabled = false; }
+      } finally { if (generation === current.generation) llmCheck.disabled = false; ready(workspace); }
       return;
     }
     const exporting = event.target.closest('[data-mcp-export]');
@@ -94,6 +147,7 @@
     const mcpButtons = workspace.querySelectorAll('[data-mcp-check], [data-mcp-export]');
     mcpButtons.forEach(button => { button.disabled = true; });
     details.hidden = true; error.hidden = true;
+    state(workspace).mcp = false; ready(workspace);
     status.textContent = exporting ? 'Загружаем схемы MCP…' : 'Проверяем MCP…';
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 125000);
@@ -112,9 +166,10 @@
         const li = document.createElement('li'); li.textContent = item.name + ' — ' + item.reason; return li;
       }));
       workspace.querySelector('[data-mcp-tools]').replaceChildren(...data.tools.map(item => {
-        const li = document.createElement('li'); li.textContent = item.name + ' · схема: ' + item.schema_sha256.slice(0, 12) + ' · не допущен'; return li;
+        const li = document.createElement('li'); li.textContent = item.name + ' · схема: ' + item.schema_sha256.slice(0, 12) + (item.approved ? ' · чтение допущено' : ' · не допущен'); return li;
       }));
       details.hidden = false;
+      state(workspace).mcp = data.tools.some(tool => tool.approved === true); ready(workspace);
       if (exporting) {
         if (data.catalog_format !== 'newstrader-mcp-review-v1' || !data.tools.every(tool => tool.input_schema && tool.schema_sha256?.length === 64)) throw new Error('Сервер не вернул схемы. Обновите приложение и повторите экспорт.');
         const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'}));

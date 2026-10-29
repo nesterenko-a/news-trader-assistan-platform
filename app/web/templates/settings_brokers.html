@@ -66,7 +66,7 @@
           </div>
           <section role="tabpanel" id="broker-view-mcp-{{ broker.environment }}" aria-labelledby="broker-tab-mcp-{{ broker.environment }}" data-broker-view="mcp" hidden>
             <h3>MCP-аналитика · {{ 'Песочница' if broker.environment == 'sandbox' else 'Рабочий контур' }}</h3>
-            <p class="muted">Только чтение. Доступны проверки MCP и LLM; аналитические ответы ещё в реализации.</p>
+            <p class="muted">Только чтение. Счёт закреплён выбранным портфелем; параметры вызовов проверяются сервером.</p>
             <button class="btn" type="button" data-mcp-check>Проверить MCP</button>
             <button class="btn" type="button" data-mcp-export>Скачать схемы MCP</button>
             <p class="muted small">JSON для проверки адаптеров: структура параметров и полные хеши исходных схем. Без токена, данных счёта и непроверенных описаний. Вызовы инструментов не выполняются.</p>
@@ -79,7 +79,16 @@
             </div>
             <p class="muted small">Проверка отправляет два тестовых запроса выбранному внешнему LLM-провайдеру. Данные счёта и токен брокера не передаются.</p>
             <p role="status" data-mcp-llm-status aria-live="polite">Модель ещё не проверена.</p>
-            <details data-mcp-details hidden><summary>Возможности и источники</summary><p data-mcp-time class="muted"></p><ul data-mcp-capabilities></ul><p class="muted">Инструменты ещё не допущены к аналитическим вызовам. Проверка не обращается к LLM.</p><ul data-mcp-tools></ul></details>
+            <p class="muted" data-mcp-account></p>
+            <label>Что хотите узнать?<textarea data-mcp-question rows="3" maxlength="4000" placeholder="Например: как распределены средства на выбранном счёте?"></textarea></label>
+            <div class="broker-actions mcp-examples">
+              {% for example in ['Как распределены средства на выбранном счёте?', 'Найди самый выгодный ОФЗ на срок 2 года', 'Какой спред в стакане у Сбера?', 'Какие новости по КазаньОргСинтезу?', 'Суммируй текущие прогнозы аналитиков по Сберу', 'Проверь аномалии цены и объёма Сбера за последний завершённый торговый день'] %}<button class="btn" type="button" data-mcp-example="{{ example }}">{{ ['Портфель', 'ОФЗ на 2 года', 'Спред Сбера', 'Новости', 'Прогнозы', 'Аномалии'][loop.index0] }}</button>{% endfor %}
+            </div>
+            <p class="muted small">При отправке вопроса необходимые данные выбранного счёта и источников обрабатываются выбранным внешним LLM-провайдером. Токен брокера не передаётся.</p>
+            <button class="btn" type="button" data-mcp-ask disabled>Спросить</button>
+            <p role="status" data-mcp-ask-status aria-live="polite">Сначала проверьте MCP и выбранную LLM.</p>
+            <section data-mcp-answer hidden aria-live="polite"><h3>Ответ</h3><p class="muted" data-mcp-answer-context></p><p data-mcp-answer-text class="mcp-answer-text"></p><ul data-mcp-warnings></ul><details><summary>Источники и расчёты</summary><ul data-mcp-evidence></ul><pre class="mcp-calculations" data-mcp-calculations></pre></details></section>
+            <details data-mcp-details hidden><summary>Возможности и источники</summary><p data-mcp-time class="muted"></p><ul data-mcp-capabilities></ul><p class="muted">Допускаются только инструменты чтения с совпавшими проверенными схемами. Диагностика не обращается к LLM.</p><ul data-mcp-tools></ul></details>
           </section>
         </div>
       {% endif %}

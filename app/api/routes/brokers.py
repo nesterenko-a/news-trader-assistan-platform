@@ -11,6 +11,7 @@ from app.brokers import t_invest
 from app.brokers import sandbox
 from app.brokers import mcp
 from app.brokers import mcp_llm
+from app.brokers import mcp_agent
 from app.db.connection import get_session
 from app.db.models import BrokerConnection, User
 
@@ -35,6 +36,22 @@ class MCPCheckIn(BaseModel):
 class MCPLLMCheckIn(BaseModel):
     provider: Literal["deepseek", "chatgpt"]
     model: str = Field(min_length=1, max_length=200)
+
+
+class MCPAskIn(MCPLLMCheckIn):
+    environment: Literal["production", "sandbox"]
+    account_id: str | None = Field(default=None, min_length=1, max_length=100)
+    check_token: str = Field(min_length=1, max_length=200, repr=False)
+    question: str = Field(min_length=1, max_length=4000)
+
+
+@router.post("/mcp/ask")
+async def ask_mcp(payload: MCPAskIn, request: Request, response: Response, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)) -> dict:
+    _check_origin(request)
+    response.headers["Cache-Control"] = "no-store"
+    if not payload.question.strip():
+        raise HTTPException(422, "Введите вопрос")
+    return await mcp_agent.ask(session, user.id, payload.environment, payload.account_id, payload.provider, payload.model, payload.check_token, payload.question)
 
 
 @router.get("/mcp/models")

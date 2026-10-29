@@ -1337,6 +1337,10 @@ th.sortable .isort-tip:hover { display: block; }
 .broker-llm-fields { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
 .broker-llm-fields label { display: flex; flex-direction: column; gap: 6px; flex: 1 1 160px; min-width: 0; }
 .broker-llm-fields select { max-width: 100%; width: 100%; }
+.mcp-answer-text, .mcp-calculations { white-space: pre-wrap; overflow-wrap: anywhere; }
+.mcp-examples { margin: 10px 0; gap: 6px; }
+[data-mcp-question] { width: 100%; box-sizing: border-box; resize: vertical; }
+[data-mcp-tools], [data-mcp-evidence] { overflow-wrap: anywhere; }
 .broker-style-form { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
 .broker-style-form label { display: grid; gap: 7px; min-width: 0; }
 .broker-style-form input[type="file"] { width: 100%; max-width: 300px; }

@@ -278,3 +278,30 @@ async def test_api_schema_export_requires_owner_and_origin(api, monkeypatch):
     current[0] = other
     assert (await client.post(url, json=payload, headers={"Origin": "http://test"})).status_code == 404
     assert len(calls) == 1
+
+
+async def test_reviewed_read_pins_hash_and_binds_account(monkeypatch):
+    from app.brokers.mcp_tools import MANIFEST
+    schema = {"type": "object", "properties": {"accountId": {"type": "string"}}, "required": ["accountId"]}
+    monkeypatch.setitem(MANIFEST, "invest_get_positions", {"schema_sha256": schema_digest(schema)})
+    reads = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        if body["method"] == "tools/list":
+            return rpc(request, {"tools": [{"name": "invest_get_positions", "inputSchema": schema}]})
+        reads.append(body["params"])
+        return rpc(request, {"structuredContent": {"money": []}})
+
+    async with MCPSession("private-token", "sandbox", transport=server(handler)) as client:
+        assert (await client.tools())[0]["approved"] is True
+        assert await client.read("positions", {}, account_id="owned-account") == {"money": []}
+        with pytest.raises(HTTPException):
+            await client.read("positions", {"accountId": "other"}, account_id="owned-account")
+        with pytest.raises(HTTPException):
+            await client.read("invest_create_order", {}, account_id="owned-account")
+        schema["additionalProperties"] = False
+        assert (await client.tools())[0]["approved"] is False
+        with pytest.raises(HTTPException):
+            await client.read("positions", {}, account_id="owned-account")
+    assert reads == [{"name": "invest_get_positions", "arguments": {"accountId": "owned-account"}}]

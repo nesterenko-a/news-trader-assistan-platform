@@ -9,6 +9,7 @@ import httpx
 from fastapi import HTTPException
 
 from app.brokers.certificates import tls_context
+from app.brokers.mcp_tools import MANIFEST, capabilities, prepare
 
 
 ENDPOINTS = {
@@ -18,7 +19,6 @@ ENDPOINTS = {
 VERSIONS = {"2025-11-25", "2025-06-18", "2025-03-26"}
 MAX_BYTES = 1024 * 1024
 MAX_TOOLS = 300
-MANIFEST: dict[str, str] = {}
 
 
 def review_schema(schema, omitted, depth=0):
@@ -74,6 +74,7 @@ class MCPSession:
         self._version = None
         self._counter = 0
         self._approved = set()
+        self._secrets = (token,)
 
     async def __aenter__(self):
         try:
@@ -228,6 +229,8 @@ class MCPSession:
                 await self.initialize()
 
     async def _tools(self, *, include_schemas=False):
+        self._approved.clear()
+        verified = set()
         tools = []
         seen = set()
         cursors = set()
@@ -245,9 +248,10 @@ class MCPSession:
                     raise failure()
                 seen.add(name)
                 digest = schema_digest(schema)
-                approved = MANIFEST.get(name) == digest
+                expected = MANIFEST.get(name)
+                approved = expected is not None and expected["schema_sha256"] == digest
                 if approved:
-                    self._approved.add(name)
+                    verified.add(name)
                 item = {"name": name, "schema_sha256": digest, "approved": approved}
                 if include_schemas:
                     omitted = set()
@@ -258,11 +262,35 @@ class MCPSession:
                     raise failure(502, "Каталог MCP превышает допустимый размер")
             cursor = page.get("nextCursor")
             if cursor is None:
+                self._approved = verified
                 return tools
             if not isinstance(cursor, str) or not cursor or len(cursor) > 4096 or cursor in cursors:
                 raise failure()
             cursors.add(cursor)
         raise failure(502, "Превышен предел страниц каталога MCP")
+
+    async def read(self, name, arguments, *, account_id=None):
+        remote, params = prepare(name, arguments, account_id)
+        if remote not in self._approved:
+            raise failure(422, "Схема инструмента MCP не проверена или изменилась")
+        result = await self._send("tools/call", {"name": remote, "arguments": params})
+        if result.get("isError"):
+            raise failure(502, "MCP не смог выполнить аналитическое чтение")
+        value = result.get("structuredContent")
+        if value is None:
+            blocks = result.get("content", [])
+            if not isinstance(blocks, list) or len(blocks) != 1 or not isinstance(blocks[0], dict) or blocks[0].get("type") != "text":
+                raise failure(502, "Формат результата MCP пока не поддерживается")
+            try:
+                value = json.loads(blocks[0]["text"])
+            except (ValueError, KeyError, TypeError, RecursionError):
+                raise failure(502, "MCP не вернул структурированные данные") from None
+        if not isinstance(value, (dict, list)):
+            raise failure()
+        encoded = json.dumps(value, ensure_ascii=False)
+        if any(secret and secret in encoded for secret in (*self._secrets, self._session)):
+            raise failure(502, "Результат MCP содержит служебные данные и не может быть передан модели")
+        return value
 
 
 async def inspect_connection(token: str, environment: str, *, include_schemas=False):
@@ -272,12 +300,11 @@ async def inspect_connection(token: str, environment: str, *, include_schemas=Fa
                 tools = await client.tools(include_schemas=include_schemas)
     except TimeoutError:
         raise failure(504, "Превышено время проверки MCP") from None
-    names = ("Портфель и счета", "Поиск ценных бумаг", "Цены, объёмы и стакан", "Новости и сентимент", "Прогнозы аналитиков", "Рыночные аномалии")
     result = {
         "available": True, "environment": environment,
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "tools": tools,
-        "capabilities": [{"name": name, "status": "unavailable", "reason": "Адаптеры инструментов ещё не проверены и не подключены"} for name in names],
+        "capabilities": capabilities({tool["name"] for tool in tools if tool["approved"]}),
     }
     if include_schemas:
         result["catalog_format"] = "newstrader-mcp-review-v1"
