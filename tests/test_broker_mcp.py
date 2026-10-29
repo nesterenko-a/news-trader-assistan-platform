@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.brokers.mcp import MAX_BYTES, MCPSession
+from app.brokers.mcp import review_schema, schema_digest
 from app.api.routes import brokers
 from app.auth import get_current_user
 from app.db.connection import Base, get_session
@@ -131,6 +132,38 @@ async def test_failed_initialize_closes_client():
     assert client._client.is_closed
 
 
+async def test_schema_export_preserves_constraints_and_original_digest():
+    schema = {"type": "object", "description": "untrusted instruction", "properties": {"account_id": {"type": "string", "default": "private-account", "examples": ["private-token"], "minLength": 1}, "kind": {"$ref": "#/$defs/Kind"}}, "$defs": {"Kind": {"type": "string", "enum": ["a", "b"]}}, "required": ["account_id"], "additionalProperties": False}
+    def handler(request):
+        return rpc(request, {"tools": [{"name": "test_read", "description": "external instructions", "inputSchema": schema}]})
+    async with MCPSession("private-token", "sandbox", transport=server(handler)) as client:
+        ordinary = await client.tools()
+        assert "input_schema" not in ordinary[0]
+        exported = (await client.tools(include_schemas=True))[0]
+        assert exported["schema_sha256"] == schema_digest(schema)
+        assert exported["approved"] is False
+        assert exported["input_schema"]["properties"]["account_id"] == {"type": "string", "minLength": 1}
+        assert exported["input_schema"]["$defs"]["Kind"]["enum"] == ["a", "b"]
+        assert exported["input_schema"]["required"] == ["account_id"]
+        assert exported["omitted_keywords"] == ["default", "description", "examples"]
+        assert "private-account" not in json.dumps(exported)
+        assert "private-token" not in json.dumps(exported)
+
+
+def test_schema_export_marks_external_references_and_unknown_keywords():
+    omitted = set()
+    assert review_schema({"$ref": "https://untrusted.invalid/schema", "x-instruction": "execute", "type": "object"}, omitted) == {"type": "object"}
+    assert omitted == {"$ref", "x-instruction"}
+
+
+def test_schema_export_limits_depth():
+    schema = {"type": "string"}
+    for _ in range(32):
+        schema = {"items": schema}
+    with pytest.raises(HTTPException):
+        review_schema(schema, set())
+
+
 @pytest_asyncio.fixture
 async def api(monkeypatch):
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
@@ -223,3 +256,25 @@ async def test_llm_routes_auth_origin_and_safe_fields(api, monkeypatch):
     assert not calls
     assert (await client.post(url, json=payload, headers={"Origin": "http://test"})).status_code == 200
     assert calls[0][:2] == ("deepseek", "configured")
+
+
+async def test_api_schema_export_requires_owner_and_origin(api, monkeypatch):
+    client, current, other, _, _, _ = api
+    calls = []
+
+    async def inspect(token, environment, **kwargs):
+        calls.append((environment, kwargs))
+        return {"available": True, "tools": [], "catalog_format": "newstrader-mcp-review-v1"}
+
+    monkeypatch.setattr(brokers.mcp, "inspect_connection", inspect)
+    client.cookies.set("nt_token", "cookie")
+    url = "/v1/brokers/t-invest/mcp/check"
+    payload = {"environment": "sandbox", "include_schemas": True}
+    assert (await client.post(url, json=payload)).status_code == 403
+    response = await client.post(url, json=payload, headers={"Origin": "http://test"})
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert calls == [("sandbox", {"include_schemas": True})]
+    current[0] = other
+    assert (await client.post(url, json=payload, headers={"Origin": "http://test"})).status_code == 404
+    assert len(calls) == 1

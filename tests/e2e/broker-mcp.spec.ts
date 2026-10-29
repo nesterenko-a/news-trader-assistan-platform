@@ -1,4 +1,5 @@
 import {test, expect} from '@playwright/test';
+import fs from 'fs';
 import {login, USER} from './helpers';
 
 test.beforeEach(async ({page}) => {
@@ -6,6 +7,31 @@ test.beforeEach(async ({page}) => {
     const provider = new URL(route.request().url()).searchParams.get('provider');
     return route.fulfill({json: {provider, configured: true, default_model: provider + '-configured', models: [provider + '-configured', provider + '-other'], warning: null}});
   });
+});
+
+test('MCP: экспорт схем скачивает JSON выбранного контура без вызова LLM', async ({page}) => {
+  let llmCalls = 0;
+  await page.route('**/v1/brokers/t-invest/mcp/check-llm', route => {llmCalls++; return route.abort();});
+  await page.route('**/v1/brokers/t-invest/mcp/check', route => {
+    expect(route.request().postDataJSON()).toEqual({environment: 'production', include_schemas: true});
+    return route.fulfill({json: {available: true, environment: 'production', checked_at: '2026-10-30T12:00:00Z', capabilities: [], catalog_format: 'newstrader-mcp-review-v1', tools: [{name: 'test_read', approved: false, schema_sha256: 'a'.repeat(64), input_schema: {type: 'object', properties: {}}, omitted_keywords: ['description']}]}});
+  });
+  await login(page, 'broker-production', USER.password);
+  await page.goto('/settings/brokers');
+  await page.locator('[data-broker="production"]').click();
+  const workspace = page.locator('#broker-workspace-production');
+  await workspace.getByRole('tab', {name: 'MCP-аналитика'}).click();
+  const downloading = page.waitForEvent('download');
+  await workspace.getByRole('button', {name: 'Скачать схемы MCP'}).click();
+  const download = await downloading;
+  expect(download.suggestedFilename()).toBe('t-invest-mcp-catalog-production.json');
+  const file = await download.path();
+  const data = JSON.parse(fs.readFileSync(file!, 'utf8'));
+  expect(data.tools[0].input_schema).toEqual({type: 'object', properties: {}});
+  expect(data.tools[0].schema_sha256).toHaveLength(64);
+  expect(llmCalls).toBe(0);
+  await expect(workspace.locator('[data-mcp-status]')).toContainText('подготовлен для скачивания');
+  await expect(workspace.getByRole('button', {name: 'Скачать схемы MCP'})).toBeEnabled();
 });
 
 test('LLM: явная проверка, смена пары и отсутствие скрытого переключения', async ({page}) => {

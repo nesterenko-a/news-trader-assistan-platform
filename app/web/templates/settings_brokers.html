@@ -68,6 +68,8 @@
             <h3>MCP-аналитика · {{ 'Песочница' if broker.environment == 'sandbox' else 'Рабочий контур' }}</h3>
             <p class="muted">Только чтение. Доступны проверки MCP и LLM; аналитические ответы ещё в реализации.</p>
             <button class="btn" type="button" data-mcp-check>Проверить MCP</button>
+            <button class="btn" type="button" data-mcp-export>Скачать схемы MCP</button>
+            <p class="muted small">JSON для проверки адаптеров: структура параметров и полные хеши исходных схем. Без токена, данных счёта и непроверенных описаний. Вызовы инструментов не выполняются.</p>
             <p role="status" data-mcp-status aria-live="polite">Подключение MCP ещё не проверено.</p>
             <p role="alert" data-mcp-error hidden></p>
             <div class="broker-llm-fields">

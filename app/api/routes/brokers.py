@@ -29,6 +29,7 @@ class SelectAccountIn(BaseModel):
 
 class MCPCheckIn(BaseModel):
     environment: Literal["production", "sandbox"]
+    include_schemas: StrictBool = False
 
 
 class MCPLLMCheckIn(BaseModel):
@@ -57,7 +58,8 @@ async def check_mcp(payload: MCPCheckIn, request: Request, response: Response, u
     if connection is None:
         raise HTTPException(404, "Подключите выбранный контур Т-Инвестиций")
     connection_id, version = connection.id, connection.version
-    result = await mcp.inspect_connection(t_invest.decrypt_token(connection), payload.environment)
+    options = {"include_schemas": True} if payload.include_schemas else {}
+    result = await mcp.inspect_connection(t_invest.decrypt_token(connection), payload.environment, **options)
     current = (await session.execute(select(BrokerConnection.id, BrokerConnection.version).where(BrokerConnection.user_id == user.id, BrokerConnection.provider == "t_invest", BrokerConnection.environment == payload.environment))).first()
     if current is None or current.id != connection_id or current.version != version:
         raise HTTPException(409, "Подключение изменилось. Повторите проверку MCP")

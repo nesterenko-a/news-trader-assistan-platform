@@ -84,20 +84,23 @@
       } finally { if (generation === current.generation) llmCheck.disabled = false; }
       return;
     }
-    const check = event.target.closest('[data-mcp-check]');
+    const exporting = event.target.closest('[data-mcp-export]');
+    const check = exporting || event.target.closest('[data-mcp-check]');
     if (!check || check.disabled) return;
     const workspace = check.closest('.broker-workspace');
     const status = workspace.querySelector('[data-mcp-status]');
     const error = workspace.querySelector('[data-mcp-error]');
     const details = workspace.querySelector('[data-mcp-details]');
-    check.disabled = true; details.hidden = true; error.hidden = true;
-    status.textContent = 'Проверяем MCP…';
+    const mcpButtons = workspace.querySelectorAll('[data-mcp-check], [data-mcp-export]');
+    mcpButtons.forEach(button => { button.disabled = true; });
+    details.hidden = true; error.hidden = true;
+    status.textContent = exporting ? 'Загружаем схемы MCP…' : 'Проверяем MCP…';
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 125000);
     try {
       const response = await fetch('/v1/brokers/t-invest/mcp/check', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({environment: workspace.dataset.environment}),
+        body: JSON.stringify({environment: workspace.dataset.environment, ...(exporting ? {include_schemas: true} : {})}),
         cache: 'no-store', signal: controller.signal,
       });
       const data = await response.json();
@@ -112,12 +115,22 @@
         const li = document.createElement('li'); li.textContent = item.name + ' · схема: ' + item.schema_sha256.slice(0, 12) + ' · не допущен'; return li;
       }));
       details.hidden = false;
+      if (exporting) {
+        if (data.catalog_format !== 'newstrader-mcp-review-v1' || !data.tools.every(tool => tool.input_schema && tool.schema_sha256?.length === 64)) throw new Error('Сервер не вернул схемы. Обновите приложение и повторите экспорт.');
+        const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'}));
+        const link = document.createElement('a');
+        link.href = url; link.download = 't-invest-mcp-catalog-' + workspace.dataset.environment + '.json';
+        document.body.append(link); link.click(); link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        status.textContent = 'Каталог схем MCP подготовлен для скачивания. Инструментов: ' + data.tools.length;
+      }
     } catch (exc) {
+      details.hidden = true;
       status.textContent = 'Проверка MCP не завершена.';
       error.textContent = exc.name === 'AbortError' ? 'Превышено время проверки MCP. Повторите позже.' : exc instanceof TypeError ? 'Не удалось связаться с сервером приложения.' : exc.message;
       error.hidden = false;
     } finally {
-      clearTimeout(timer); check.disabled = false;
+      clearTimeout(timer); mcpButtons.forEach(button => { button.disabled = false; });
     }
   });
 })();

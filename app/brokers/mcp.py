@@ -21,6 +21,38 @@ MAX_TOOLS = 300
 MANIFEST: dict[str, str] = {}
 
 
+def review_schema(schema, omitted, depth=0):
+    if depth > 30:
+        raise failure(502, "Схема MCP превышает допустимую глубину")
+    if isinstance(schema, bool):
+        return schema
+    if not isinstance(schema, dict):
+        raise failure()
+    result = {}
+    maps = {"properties", "$defs", "definitions", "patternProperties", "dependentSchemas"}
+    nodes = {"items", "additionalProperties", "unevaluatedProperties", "unevaluatedItems", "contains", "propertyNames", "not", "if", "then", "else", "additionalItems"}
+    arrays = {"allOf", "anyOf", "oneOf", "prefixItems"}
+    values = {"type", "required", "enum", "const", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf", "minLength", "maxLength", "pattern", "format", "minItems", "maxItems", "uniqueItems", "minContains", "maxContains", "minProperties", "maxProperties", "dependentRequired"}
+    for key, value in schema.items():
+        if key in maps:
+            if not isinstance(value, dict):
+                raise failure()
+            result[key] = {name: review_schema(child, omitted, depth + 1) for name, child in value.items()}
+        elif key in nodes:
+            result[key] = [review_schema(child, omitted, depth + 1) for child in value] if isinstance(value, list) else review_schema(value, omitted, depth + 1)
+        elif key in arrays:
+            if not isinstance(value, list):
+                raise failure()
+            result[key] = [review_schema(child, omitted, depth + 1) for child in value]
+        elif key in values:
+            result[key] = value
+        elif key == "$ref" and isinstance(value, str) and value.startswith("#/"):
+            result[key] = value
+        else:
+            omitted.add(key)
+    return result
+
+
 def failure(status=502, message="MCP вернул некорректный ответ"):
     return HTTPException(status, message)
 
@@ -186,16 +218,16 @@ class MCPSession:
         self._version = result["protocolVersion"]
         await self._send("notifications/initialized", notification=True)
 
-    async def tools(self):
+    async def tools(self, *, include_schemas=False):
         for attempt in range(2):
             try:
-                return await self._tools()
+                return await self._tools(include_schemas=include_schemas)
             except HTTPException as exc:
                 if exc.status_code != 409 or attempt:
                     raise
                 await self.initialize()
 
-    async def _tools(self):
+    async def _tools(self, *, include_schemas=False):
         tools = []
         seen = set()
         cursors = set()
@@ -216,7 +248,12 @@ class MCPSession:
                 approved = MANIFEST.get(name) == digest
                 if approved:
                     self._approved.add(name)
-                tools.append({"name": name, "schema_sha256": digest, "approved": approved})
+                item = {"name": name, "schema_sha256": digest, "approved": approved}
+                if include_schemas:
+                    omitted = set()
+                    item["input_schema"] = review_schema(schema, omitted)
+                    item["omitted_keywords"] = sorted(omitted)
+                tools.append(item)
                 if len(tools) > MAX_TOOLS:
                     raise failure(502, "Каталог MCP превышает допустимый размер")
             cursor = page.get("nextCursor")
@@ -228,17 +265,23 @@ class MCPSession:
         raise failure(502, "Превышен предел страниц каталога MCP")
 
 
-async def inspect_connection(token: str, environment: str):
+async def inspect_connection(token: str, environment: str, *, include_schemas=False):
     try:
         async with asyncio.timeout(120):
             async with MCPSession(token, environment) as client:
-                tools = await client.tools()
+                tools = await client.tools(include_schemas=include_schemas)
     except TimeoutError:
         raise failure(504, "Превышено время проверки MCP") from None
     names = ("Портфель и счета", "Поиск ценных бумаг", "Цены, объёмы и стакан", "Новости и сентимент", "Прогнозы аналитиков", "Рыночные аномалии")
-    return {
+    result = {
         "available": True, "environment": environment,
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "tools": tools,
         "capabilities": [{"name": name, "status": "unavailable", "reason": "Адаптеры инструментов ещё не проверены и не подключены"} for name in names],
     }
+    if include_schemas:
+        result["catalog_format"] = "newstrader-mcp-review-v1"
+        result["schema_policy"] = "Структура параметров без описаний, примеров, значений по умолчанию и внешних ссылок. schema_sha256 относится к полной исходной схеме; omitted_keywords перечисляет исключённые ключи. Экспорт не разрешает вызов инструментов."
+        if len(json.dumps(result, ensure_ascii=False).encode()) > 4 * MAX_BYTES:
+            raise failure(502, "Каталог схем превышает допустимый размер")
+    return result
