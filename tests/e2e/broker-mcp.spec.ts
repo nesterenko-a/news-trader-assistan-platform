@@ -49,7 +49,15 @@ for (const environment of ['production', 'sandbox']) {
     await expect(workspace.locator('[data-mcp-evidence] a')).toHaveCount(0);
     await expect(workspace.locator('[data-mcp-warnings]')).toContainText('Время данных не указано');
     await page.setViewportSize({width: 375, height: 667});
-    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
+    await expect.poll(() => page.evaluate(() => ({
+      fits: document.documentElement.scrollWidth <= innerWidth + 1,
+      viewport: innerWidth,
+      width: document.documentElement.scrollWidth,
+      overflow: [...document.querySelectorAll('body *')].filter(node => {
+        const rect = node.getBoundingClientRect();
+        return rect.width > 0 && rect.right > innerWidth + 1;
+      }).map(node => ({tag: node.tagName, class: node.className, width: node.getBoundingClientRect().width})),
+    }))).toMatchObject({fits: true, overflow: []});
   });
 }
 
@@ -146,7 +154,15 @@ for (const environment of ['production', 'sandbox']) {
     await expect(workspace.locator('[data-mcp-details]')).toBeHidden();
     await expect(workspace.locator('[data-mcp-check]')).toBeEnabled();
     await page.setViewportSize({width: 375, height: 667});
-    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
+    await expect.poll(() => page.evaluate(() => ({
+      fits: document.documentElement.scrollWidth <= innerWidth + 1,
+      viewport: innerWidth,
+      width: document.documentElement.scrollWidth,
+      overflow: [...document.querySelectorAll('body *')].filter(node => {
+        const rect = node.getBoundingClientRect();
+        return rect.width > 0 && rect.right > innerWidth + 1;
+      }).map(node => ({tag: node.tagName, class: node.className, width: node.getBoundingClientRect().width})),
+    }))).toMatchObject({fits: true, overflow: []});
     await workspace.getByRole('tab', {name: 'Портфель', exact: true}).click();
     await expect(workspace.locator('[data-broker-view="portfolio"]')).toBeVisible();
   });
