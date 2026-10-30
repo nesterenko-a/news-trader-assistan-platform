@@ -48,6 +48,7 @@ for (const environment of ['production', 'sandbox']) {
     await expect(workspace.locator('[data-mcp-answer] img')).toHaveCount(0);
     await expect(workspace.locator('[data-mcp-evidence] a')).toHaveCount(0);
     await expect(workspace.locator('[data-mcp-warnings]')).toContainText('Время данных не указано');
+    await page.locator('.settings-head h1').evaluate(node => {node.textContent = 'Настройки пользователя с длинным отображаемым именем';});
     await page.setViewportSize({width: 375, height: 667});
     await expect.poll(() => page.evaluate(() => ({
       fits: document.documentElement.scrollWidth <= innerWidth + 1,
@@ -153,6 +154,7 @@ for (const environment of ['production', 'sandbox']) {
     await expect(workspace.locator('[data-mcp-error]')).toHaveText('MCP не принял токен');
     await expect(workspace.locator('[data-mcp-details]')).toBeHidden();
     await expect(workspace.locator('[data-mcp-check]')).toBeEnabled();
+    await page.locator('.settings-head h1').evaluate(node => {node.textContent = 'Настройки пользователя с длинным отображаемым именем';});
     await page.setViewportSize({width: 375, height: 667});
     await expect.poll(() => page.evaluate(() => ({
       fits: document.documentElement.scrollWidth <= innerWidth + 1,
