@@ -28,6 +28,183 @@
         }
       }
     },
+    "/v1/brokers/t-invest/mcp/ask": {
+      "post": {
+        "tags": [
+          "brokers"
+        ],
+        "summary": "Ask Mcp",
+        "operationId": "ask_mcp_v1_brokers_t_invest_mcp_ask_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MCPAskIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Ask Mcp V1 Brokers T Invest Mcp Ask Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brokers/t-invest/mcp/models": {
+      "get": {
+        "tags": [
+          "brokers"
+        ],
+        "summary": "Mcp Models",
+        "operationId": "mcp_models_v1_brokers_t_invest_mcp_models_get",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "deepseek",
+                "chatgpt"
+              ],
+              "type": "string",
+              "title": "Provider"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Mcp Models V1 Brokers T Invest Mcp Models Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brokers/t-invest/mcp/check-llm": {
+      "post": {
+        "tags": [
+          "brokers"
+        ],
+        "summary": "Mcp Check Llm",
+        "operationId": "mcp_check_llm_v1_brokers_t_invest_mcp_check_llm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MCPLLMCheckIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Mcp Check Llm V1 Brokers T Invest Mcp Check Llm Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brokers/t-invest/mcp/check": {
+      "post": {
+        "tags": [
+          "brokers"
+        ],
+        "summary": "Check Mcp",
+        "operationId": "check_mcp_v1_brokers_t_invest_mcp_check_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MCPCheckIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Check Mcp V1 Brokers T Invest Mcp Check Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/brokers/t-invest": {
       "get": {
         "tags": [
@@ -4350,6 +4527,112 @@
           "password"
         ],
         "title": "LoginIn"
+      },
+      "MCPAskIn": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "deepseek",
+              "chatgpt"
+            ],
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Model"
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "production",
+              "sandbox"
+            ],
+            "title": "Environment"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "check_token": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Check Token"
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Question"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "model",
+          "environment",
+          "check_token",
+          "question"
+        ],
+        "title": "MCPAskIn"
+      },
+      "MCPCheckIn": {
+        "properties": {
+          "environment": {
+            "type": "string",
+            "enum": [
+              "production",
+              "sandbox"
+            ],
+            "title": "Environment"
+          },
+          "include_schemas": {
+            "type": "boolean",
+            "title": "Include Schemas",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "environment"
+        ],
+        "title": "MCPCheckIn"
+      },
+      "MCPLLMCheckIn": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "deepseek",
+              "chatgpt"
+            ],
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "model"
+        ],
+        "title": "MCPLLMCheckIn"
       },
       "MacroEventOut": {
         "properties": {

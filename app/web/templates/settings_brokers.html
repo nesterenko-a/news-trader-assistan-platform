@@ -55,14 +55,46 @@
       </div>
       {% if broker.connected %}
         <div class="broker-data">
+          <div class="broker-actions" role="tablist" aria-label="Данные {{ name }}">
+            {% for tab, title in [('portfolio', 'Портфель'), ('mcp', 'MCP-аналитика')] %}<button class="btn" type="button" role="tab" id="broker-tab-{{ tab }}-{{ broker.environment }}" aria-selected="{{ 'true' if tab == 'portfolio' else 'false' }}" aria-controls="broker-view-{{ tab }}-{{ broker.environment }}" data-broker-tab="{{ tab }}">{{ title }}</button>{% endfor %}
+          </div>
+          <div role="tabpanel" id="broker-view-portfolio-{{ broker.environment }}" aria-labelledby="broker-tab-portfolio-{{ broker.environment }}" data-broker-view="portfolio">
           <p class="broker-update-status" role="status" hidden></p>
           <p class="broker-update-error" role="alert" hidden></p>
           {% include "broker_portfolio_fragment.html" %}
           {% if broker.environment == 'sandbox' %}{% include "broker_sandbox.html" %}{% endif %}
+          </div>
+          <section role="tabpanel" id="broker-view-mcp-{{ broker.environment }}" aria-labelledby="broker-tab-mcp-{{ broker.environment }}" data-broker-view="mcp" hidden>
+            <h3>MCP-аналитика · {{ 'Песочница' if broker.environment == 'sandbox' else 'Рабочий контур' }}</h3>
+            <p class="muted">Только чтение. Счёт закреплён выбранным портфелем; параметры вызовов проверяются сервером.</p>
+            <button class="btn" type="button" data-mcp-check>Проверить MCP</button>
+            <button class="btn" type="button" data-mcp-export>Скачать схемы MCP</button>
+            <p class="muted small">JSON для проверки адаптеров: структура параметров и полные хеши исходных схем. Без токена, данных счёта и непроверенных описаний. Вызовы инструментов не выполняются.</p>
+            <p role="status" data-mcp-status aria-live="polite">Подключение MCP ещё не проверено.</p>
+            <p role="alert" data-mcp-error hidden></p>
+            <div class="broker-llm-fields">
+              <label>Провайдер<select data-mcp-provider><option value="deepseek">DeepSeek</option><option value="chatgpt">ChatGPT</option></select></label>
+              <label>Модель<select data-mcp-model disabled><option value="">Откройте вкладку для загрузки</option></select></label>
+              <button type="button" class="btn" data-mcp-check-llm disabled>Проверить LLM</button>
+            </div>
+            <p class="muted small">Проверка отправляет два тестовых запроса выбранному внешнему LLM-провайдеру. Данные счёта и токен брокера не передаются.</p>
+            <p role="status" data-mcp-llm-status aria-live="polite">Модель ещё не проверена.</p>
+            <p class="muted" data-mcp-account></p>
+            <label>Что хотите узнать?<textarea data-mcp-question rows="3" maxlength="4000" placeholder="Например: как распределены средства на выбранном счёте?"></textarea></label>
+            <div class="broker-actions mcp-examples">
+              {% for example in ['Как распределены средства на выбранном счёте?', 'Найди самый выгодный ОФЗ на срок 2 года', 'Какой спред в стакане у Сбера?', 'Какие новости по КазаньОргСинтезу?', 'Суммируй текущие прогнозы аналитиков по Сберу', 'Проверь аномалии цены и объёма Сбера за последний завершённый торговый день'] %}<button class="btn" type="button" data-mcp-example="{{ example }}">{{ ['Портфель', 'ОФЗ на 2 года', 'Спред Сбера', 'Новости', 'Прогнозы', 'Аномалии'][loop.index0] }}</button>{% endfor %}
+            </div>
+            <p class="muted small">При отправке вопроса необходимые данные выбранного счёта и источников обрабатываются выбранным внешним LLM-провайдером. Токен брокера не передаётся.</p>
+            <button class="btn" type="button" data-mcp-ask disabled>Спросить</button>
+            <p role="status" data-mcp-ask-status aria-live="polite">Сначала проверьте MCP и выбранную LLM.</p>
+            <section data-mcp-answer hidden aria-live="polite"><h3>Ответ</h3><p class="muted" data-mcp-answer-context></p><p data-mcp-answer-text class="mcp-answer-text"></p><ul data-mcp-warnings></ul><details><summary>Источники и расчёты</summary><ul data-mcp-evidence></ul><pre class="mcp-calculations" data-mcp-calculations></pre></details></section>
+            <details data-mcp-details hidden><summary>Возможности и источники</summary><p data-mcp-time class="muted"></p><ul data-mcp-capabilities></ul><p class="muted">Допускаются только инструменты чтения с совпавшими проверенными схемами. Диагностика не обращается к LLM.</p><ul data-mcp-tools></ul></details>
+          </section>
         </div>
       {% endif %}
     </section>
   {% endfor %}
 </section>
 <script src="/static/broker-settings.js" defer></script>
+<script src="/static/broker-mcp.js" defer></script>
 {% endblock %}

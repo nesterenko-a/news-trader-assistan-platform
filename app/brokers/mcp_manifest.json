@@ -1,0 +1,408 @@
+{
+  "invest_find_instrument": {
+    "schema_sha256": "4a6e92af0707c33adae1dcf46e40b2e3ce55587348766537be2d21e795caaef5",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "apiTradeAvailableFlag": {
+          "type": "boolean"
+        },
+        "instrumentKind": {
+          "enum": [
+            "INSTRUMENT_TYPE_UNSPECIFIED",
+            "INSTRUMENT_TYPE_BOND",
+            "INSTRUMENT_TYPE_SHARE",
+            "INSTRUMENT_TYPE_CURRENCY",
+            "INSTRUMENT_TYPE_ETF",
+            "INSTRUMENT_TYPE_FUTURES",
+            "INSTRUMENT_TYPE_SP",
+            "INSTRUMENT_TYPE_OPTION",
+            "INSTRUMENT_TYPE_DFA",
+            "INSTRUMENT_TYPE_CLEARING_CERTIFICATE",
+            "INSTRUMENT_TYPE_INDEX",
+            "INSTRUMENT_TYPE_COMMODITY"
+          ],
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        },
+        "responseView": {
+          "items": {
+            "enum": [
+              "BASE",
+              "IDENTIFIERS",
+              "STATIC_DATA",
+              "TRADING_FLAGS",
+              "MARKET_DATA",
+              "FULL"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "query"
+      ]
+    }
+  },
+  "invest_get_forecast": {
+    "schema_sha256": "c210662c7c2943ad13096faa53ffbac489026116c1c4600099e978f73b4d9640",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "instrumentId": {
+          "type": "string"
+        },
+        "responseView": {
+          "items": {
+            "enum": [
+              "BASE",
+              "TARGETS",
+              "FULL"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "instrumentId"
+      ]
+    }
+  },
+  "invest_list_bonds": {
+    "schema_sha256": "2b58fdb25408461c4007215e5b6d83638ca7aee83394e9bc7ee9b27558d25755",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "callDateFrom": {
+          "type": "string"
+        },
+        "callDateTo": {
+          "type": "string"
+        },
+        "couponQuantityPerYear": {
+          "type": "integer"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "floatingCouponFlag": {
+          "type": "boolean"
+        },
+        "instrumentStatus": {
+          "enum": [
+            "INSTRUMENT_STATUS_BASE",
+            "INSTRUMENT_STATUS_ALL"
+          ],
+          "type": "string"
+        },
+        "maturityDateFrom": {
+          "type": "string"
+        },
+        "maturityDateTo": {
+          "type": "string"
+        },
+        "nominalFrom": {
+          "type": "string"
+        },
+        "nominalTo": {
+          "type": "string"
+        },
+        "perpetualFlag": {
+          "type": "boolean"
+        },
+        "responseView": {
+          "items": {
+            "enum": [
+              "BASE",
+              "IDENTIFIERS",
+              "STATIC_DATA",
+              "ADDITIONAL_INFO",
+              "TRADING_FLAGS",
+              "MARKET_DATA",
+              "FULL"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        }
+      }
+    }
+  },
+  "invest_list_shares": {
+    "schema_sha256": "65dfa379df7ad16dcd3a55f2965fa3958f55749e03dd89d5e4e71308f8f6bb51",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "instrumentStatus": {
+          "enum": [
+            "INSTRUMENT_STATUS_BASE",
+            "INSTRUMENT_STATUS_ALL"
+          ],
+          "type": "string"
+        },
+        "responseView": {
+          "items": {
+            "enum": [
+              "BASE",
+              "IDENTIFIERS",
+              "STATIC_DATA",
+              "TRADING_FLAGS",
+              "MARKET_DATA",
+              "FULL"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        }
+      }
+    }
+  },
+  "invest_get_market_values": {
+    "schema_sha256": "77f910db5e9a745c16df906237590d1037b74eda6bb15f0d27ac0a3ec3159901",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "instrumentId": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "values": {
+          "items": {
+            "enum": [
+              "INSTRUMENT_VALUE_LAST_PRICE",
+              "INSTRUMENT_VALUE_LAST_PRICE_DEALER",
+              "INSTRUMENT_VALUE_CLOSE_PRICE",
+              "INSTRUMENT_VALUE_EVENING_SESSION_PRICE",
+              "INSTRUMENT_VALUE_OPEN_INTEREST",
+              "INSTRUMENT_VALUE_THEOR_PRICE",
+              "INSTRUMENT_VALUE_YIELD"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "instrumentId"
+      ]
+    }
+  },
+  "invest_get_orderbook": {
+    "schema_sha256": "bd1c2f56717fcf0d115e816cfc52d1b489a2aa3f01f7bc606faabdb2c65155bf",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "depth": {
+          "type": "integer"
+        },
+        "instrumentId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "instrumentId",
+        "depth"
+      ]
+    }
+  },
+  "invest_get_portfolio": {
+    "schema_sha256": "50e2fdb81656bac29417cef913d8880e7a7cd6d523aac32f34711d358b9e0d1d",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "responseView": {
+          "items": {
+            "enum": [
+              "BASE",
+              "BY_INSTRUMENT_TYPE",
+              "DETAILED",
+              "FULL"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "accountId"
+      ]
+    }
+  },
+  "invest_get_positions": {
+    "schema_sha256": "cd7cb3dde05cd81ea46995cc15f8ba557c031c560d4c65fdca9d4ec200f96d1e",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "accountId"
+      ]
+    }
+  },
+  "invest_get_bond": {
+    "schema_sha256": "50d5efd865d85ce507b9e2c3bc7b27d798f04a14c281aa89b421cb2a664134f6",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "classCode": {
+          "type": "string"
+        },
+        "idType": {
+          "enum": [
+            "INSTRUMENT_ID_TYPE_TICKER",
+            "INSTRUMENT_ID_TYPE_UID",
+            "INSTRUMENT_ID_TYPE_POSITION_UID",
+            "INSTRUMENT_ID_TYPE_ID"
+          ],
+          "type": "string"
+        },
+        "instrumentId": {
+          "type": "string"
+        },
+        "responseView": {
+          "items": {
+            "enum": [
+              "BASE",
+              "IDENTIFIERS",
+              "STATIC_DATA",
+              "ADDITIONAL_INFO",
+              "TRADING_FLAGS",
+              "MARKET_DATA",
+              "FULL"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "instrumentId",
+        "idType"
+      ]
+    }
+  },
+  "invest_get_news": {
+    "schema_sha256": "ce37f4b6e9bf6fc59227129468662dae3241a191f18cf36b4f2171846c2d12ff",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "string"
+        },
+        "instrumentId": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        }
+      }
+    }
+  },
+  "invest_get_share": {
+    "schema_sha256": "bf1ffb50c34fab6d31d191a5e8ce46fd3cd7c699b675e16e585c3389f22d7cee",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "classCode": {
+          "type": "string"
+        },
+        "idType": {
+          "enum": [
+            "INSTRUMENT_ID_TYPE_TICKER",
+            "INSTRUMENT_ID_TYPE_UID",
+            "INSTRUMENT_ID_TYPE_POSITION_UID",
+            "INSTRUMENT_ID_TYPE_ID"
+          ],
+          "type": "string"
+        },
+        "instrumentId": {
+          "type": "string"
+        },
+        "responseView": {
+          "items": {
+            "enum": [
+              "BASE",
+              "IDENTIFIERS",
+              "STATIC_DATA",
+              "TRADING_FLAGS",
+              "MARKET_DATA",
+              "FULL"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "instrumentId",
+        "idType"
+      ]
+    }
+  },
+  "invest_get_candles": {
+    "schema_sha256": "5bd30ae531f745d540741382e2f40652bced5dc74e56e2301e2e23d2f9a9077e",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "candleSourceType": {
+          "enum": [
+            "CANDLE_SOURCE_UNSPECIFIED",
+            "CANDLE_SOURCE_EXCHANGE",
+            "CANDLE_SOURCE_INCLUDE_WEEKEND"
+          ],
+          "type": "string"
+        },
+        "from": {
+          "type": "string"
+        },
+        "instrumentId": {
+          "type": "string"
+        },
+        "interval": {
+          "enum": [
+            "CANDLE_INTERVAL_5_SEC",
+            "CANDLE_INTERVAL_10_SEC",
+            "CANDLE_INTERVAL_30_SEC",
+            "CANDLE_INTERVAL_1_MIN",
+            "CANDLE_INTERVAL_2_MIN",
+            "CANDLE_INTERVAL_3_MIN",
+            "CANDLE_INTERVAL_5_MIN",
+            "CANDLE_INTERVAL_10_MIN",
+            "CANDLE_INTERVAL_15_MIN",
+            "CANDLE_INTERVAL_30_MIN",
+            "CANDLE_INTERVAL_HOUR",
+            "CANDLE_INTERVAL_2_HOUR",
+            "CANDLE_INTERVAL_4_HOUR",
+            "CANDLE_INTERVAL_DAY",
+            "CANDLE_INTERVAL_WEEK",
+            "CANDLE_INTERVAL_MONTH"
+          ],
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "instrumentId",
+        "interval",
+        "to"
+      ]
+    }
+  }
+}
