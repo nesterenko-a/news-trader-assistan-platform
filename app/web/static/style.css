@@ -1336,7 +1336,9 @@ th.sortable .isort-tip:hover { display: block; }
 .broker-actions { justify-content: flex-start; }
 .broker-llm-fields { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
 .broker-llm-fields label { display: flex; flex-direction: column; gap: 6px; flex: 1 1 160px; min-width: 0; }
-.broker-llm-fields select { max-width: 100%; width: 100%; }
+.broker-llm-fields select { box-sizing: border-box; min-width: 0; max-width: 100%; width: 100%; }
+[data-broker-view="mcp"] { min-width: 0; overflow-wrap: anywhere; }
+[data-broker-view="mcp"] .btn { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 .mcp-answer-text, .mcp-calculations { white-space: pre-wrap; overflow-wrap: anywhere; }
 .mcp-examples { margin: 10px 0; gap: 6px; }
 [data-mcp-question] { width: 100%; box-sizing: border-box; resize: vertical; }
