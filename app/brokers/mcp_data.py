@@ -31,10 +31,57 @@ def number(value):
         return None
 
 
+def forecast_potential(row, target_field):
+    current, target = row.get("currentPrice"), row.get(target_field)
+    current_value, target_value = number(current), number(target)
+    currencies = {
+        currency.strip().lower()
+        for currency in (
+            row.get("currency"),
+            current.get("currency") if isinstance(current, dict) else None,
+            target.get("currency") if isinstance(target, dict) else None,
+        )
+        if isinstance(currency, str) and currency.strip()
+    }
+    shared_currency = row.get("currency")
+    explicit_pair = all(isinstance(price, dict) and isinstance(price.get("currency"), str) and price["currency"].strip() for price in (current, target))
+    comparable = len(currencies) == 1 and (explicit_pair or isinstance(shared_currency, str) and shared_currency.strip())
+    if current_value is None or current_value <= 0 or target_value is None or target_value < 0 or not comparable:
+        return {"unavailable": "Нет корректной пары цен с подтверждённой общей валютой"}
+    difference = target_value - current_value
+    return {"difference": str(difference), "potential_pct": str(difference / current_value * 100), "currency": next(iter(currencies))}
+
+
+def forecast_calculations(data):
+    result, warnings = {}, []
+    consensus = data.get("consensus")
+    if isinstance(consensus, dict):
+        result["consensus"] = forecast_potential(consensus, "consensus")
+    targets = data.get("targets")
+    if not isinstance(targets, list) or not targets:
+        return result, ["Нет отдельных прогнозов для подсчёта рекомендаций"]
+    counts, missing = {}, 0
+    result["targets"] = []
+    for index, row in enumerate(targets, 1):
+        row = row if isinstance(row, dict) else {}
+        result["targets"].append({"row": index, **forecast_potential(row, "targetPrice")})
+        recommendation = row.get("recommendation")
+        if isinstance(recommendation, str) and recommendation.strip() and recommendation != "RECOMMENDATION_UNSPECIFIED":
+            counts[recommendation] = counts.get(recommendation, 0) + 1
+        else:
+            missing += 1
+    result["recommendation_counts"] = counts
+    if missing:
+        warnings.append(f"У {missing} из {len(targets)} отдельных прогнозов тип рекомендации отсутствует")
+    return result, warnings
+
+
 def calculations(name, data):
     result, warnings = {}, []
     if not isinstance(data, dict):
         return result, warnings
+    if name == "forecast":
+        return forecast_calculations(data)
     if name == "orderbook":
         sides = []
         invalid_book = "Спред не рассчитан: стакан пуст, односторонний или некорректный"
