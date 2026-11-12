@@ -98,6 +98,31 @@ def calculations(name, data):
         result = {"allocation": []}
         if amount is not None and currency:
             result.update({"total": str(amount), "currency": currency})
+        if amount is not None and amount > 0 and currency:
+            by_asset_class = []
+            for asset_class, field in (
+                ("shares", "totalAmountShares"),
+                ("bonds", "totalAmountBonds"),
+                ("etf", "totalAmountEtf"),
+                ("currencies", "totalAmountCurrencies"),
+                ("futures", "totalAmountFutures"),
+                ("options", "totalAmountOptions"),
+                ("structured_products", "totalAmountSp"),
+            ):
+                if field not in data:
+                    continue
+                money = data[field]
+                value = number(money)
+                if not isinstance(money, dict) or money.get("currency") != currency or value is None:
+                    warnings.append("Не все доли классов активов рассчитаны: нет сопоставимой оценки в валюте портфеля")
+                    continue
+                by_asset_class.append({
+                    "asset_class": asset_class,
+                    "value": str(value),
+                    "share_pct": format(value / amount * 100, "f"),
+                })
+            if by_asset_class:
+                result["allocation_by_asset_class"] = by_asset_class
         rows = data.get("positions", [])
         if isinstance(rows, list) and amount is not None and amount > 0 and currency:
             for row in rows[:100]:
@@ -107,7 +132,7 @@ def calculations(name, data):
                 money = row.get("currentPrice", {})
                 kind = row.get("instrumentType")
                 if kind not in ("share", "bond", "etf", "currency") or not isinstance(money, dict) or money.get("currency") != currency or price is None or quantity is None:
-                    warnings.append("Не все доли рассчитаны: для части позиций нет сопоставимой оценки и валюты либо это производный инструмент")
+                    warnings.append("Не все доли отдельных позиций рассчитаны: для части позиций нет сопоставимой оценки и валюты либо это производный инструмент")
                     continue
                 accrued = number(row.get("currentNkd"))
                 if kind == "bond" and (accrued is None or not isinstance(row.get("currentNkd"), dict) or row["currentNkd"].get("currency") != currency):
