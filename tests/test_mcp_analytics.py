@@ -83,6 +83,28 @@ def test_live_mcp_portfolio_uses_value_and_does_not_treat_average_price_as_curre
     assert warnings
 
 
+def test_portfolio_class_shares_use_broker_totals_when_positions_lack_valuation():
+    data = {
+        "totalAmountPortfolio": {"currency": "rub", "value": "1000.50"},
+        "totalAmountShares": {"currency": "rub", "value": "200.10"},
+        "totalAmountCurrencies": {"currency": "rub", "value": "800.40"},
+        "totalAmountEtf": {"currency": "rub", "value": "0"},
+        "totalAmountBonds": {"currency": "usd", "value": "7"},
+        "positions": [
+            {"ticker": "MGNT", "quantity": {"value": "1"}, "averagePositionPrice": {"currency": "rub", "value": "198"}},
+        ],
+    }
+    calc, warnings = calculations("portfolio", data)
+    assert calc["allocation"] == []
+    assert calc["allocation_by_asset_class"] == [
+        {"asset_class": "shares", "value": "200.10", "share_pct": "20.0"},
+        {"asset_class": "etf", "value": "0", "share_pct": "0"},
+        {"asset_class": "currencies", "value": "800.40", "share_pct": "80.0"},
+    ]
+    assert any("доли классов активов" in warning for warning in warnings)
+    assert any("доли отдельных позиций" in warning for warning in warnings)
+
+
 @pytest.mark.parametrize("name,args", [("positions", {"account_id": "foreign"}), ("orderbook", {"instrument_id": "uid", "depth": 100}), ("daily_candles", {"instrument_id": "uid", "from": "1900-01-01"}), ("issuer_news", {"instrument_id": "uid", "limit": 10000}), ("bonds", {"maturity_from": "2026-12-31", "maturity_to": "2026-01-01"}), ("invest_create_order", {})])
 def test_local_parameters_restrict_remote_access(name, args):
     with pytest.raises(HTTPException):
