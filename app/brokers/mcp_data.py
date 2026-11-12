@@ -98,6 +98,12 @@ def calculations(name, data):
         result = {"allocation": []}
         if amount is not None and currency:
             result.update({"total": str(amount), "currency": currency})
+        futures = data.get("totalAmountFutures")
+        if isinstance(futures, dict):
+            futures_currency = futures.get("currency")
+            futures_value = number(futures)
+            if isinstance(futures_currency, str) and futures_currency.strip() and futures_value is not None:
+                result["futures_value"] = {"value": str(futures_value), "currency": futures_currency}
         if amount is not None and amount > 0 and currency:
             by_asset_class = []
             for asset_class, field in (
@@ -105,7 +111,6 @@ def calculations(name, data):
                 ("bonds", "totalAmountBonds"),
                 ("etf", "totalAmountEtf"),
                 ("currencies", "totalAmountCurrencies"),
-                ("futures", "totalAmountFutures"),
                 ("options", "totalAmountOptions"),
                 ("structured_products", "totalAmountSp"),
             ):

@@ -88,6 +88,7 @@ def test_portfolio_class_shares_use_broker_totals_when_positions_lack_valuation(
         "totalAmountPortfolio": {"currency": "rub", "value": "1000.50"},
         "totalAmountShares": {"currency": "rub", "value": "200.10"},
         "totalAmountCurrencies": {"currency": "rub", "value": "800.40"},
+        "totalAmountFutures": {"currency": "rub", "value": "100.05"},
         "totalAmountEtf": {"currency": "rub", "value": "0"},
         "totalAmountBonds": {"currency": "usd", "value": "7"},
         "positions": [
@@ -96,6 +97,7 @@ def test_portfolio_class_shares_use_broker_totals_when_positions_lack_valuation(
     }
     calc, warnings = calculations("portfolio", data)
     assert calc["allocation"] == []
+    assert calc["futures_value"] == {"value": "100.05", "currency": "rub"}
     assert calc["allocation_by_asset_class"] == [
         {"asset_class": "shares", "value": "200.10", "share_pct": "20.0"},
         {"asset_class": "etf", "value": "0", "share_pct": "0"},
