@@ -18,6 +18,102 @@ async function setup(page: Page, environment: string) {
   return page.locator('#broker-workspace-' + environment);
 }
 
+test('Sandbox: поиск с клавиатуры, проверка той же заявки и продажа из позиции', async ({page}) => {
+  const uid = '0df39455-d251-4ad2-b80f-5634c4280a11';
+  let catalogCalls = 0;
+  await page.route('**/accounts/one/instruments*', route => {
+    catalogCalls++;
+    expect(new URL(route.request().url()).search).toBe('');
+    return route.fulfill({json: [
+      {instrument_uid: uid, ticker: 'SBER', name: 'Сбербанк', class_code: 'TQBR', is_favorite: true},
+      {instrument_uid: 'preferred', ticker: 'SBERP', name: 'Сбербанк ап', class_code: 'TQBR', is_favorite: false},
+      {instrument_uid: 'gazprom', ticker: 'GAZP', name: 'Газпром', class_code: 'TQBR', is_favorite: true},
+      {instrument_uid: 'sovcombank', ticker: 'SVCB', name: 'Совкомбанк', class_code: 'TQBR', is_favorite: false},
+      ...Array.from({length: 20}, (_, index) => ({
+        instrument_uid: 'other-' + index, ticker: 'XX' + index, name: 'Бумага ' + index,
+        class_code: 'TQBR', is_favorite: false,
+      })),
+    ]});
+  });
+  const workspace = await setup(page, 'sandbox');
+  const buy = '<div class="broker-heading"><h2>Портфель · Первый</h2><button type="button" data-stock-buy>Купить акцию</button></div>';
+  const edit = '<button type="button" data-stock-name="Сбербанк" data-stock-edit="' + uid + '">Изменить</button>';
+  await workspace.locator('#broker-portfolio-sandbox').evaluate((node, html) => node.insertAdjacentHTML('afterbegin', html), buy);
+  await page.route('**/order-details', route => route.fulfill({json: {
+    lot: 10, last_price: '250', available_shares: 10, available_lots: 1, buy_available: true, sell_available: true,
+  }}));
+  let key = '', orderCount = 0;
+  await page.route('**/accounts/one/orders', async route => {
+    const data = route.request().postDataJSON();
+    expect(data.instrument_uid).toBe(uid);
+    expect(data.lots).toBe(1);
+    orderCount++;
+    if (data.side === 'buy') {
+      key = data.operation_key;
+      return route.abort();
+    }
+    expect(data.side).toBe('sell');
+    expect(data.operation_key).not.toBe(key);
+    return route.fulfill({json: {status: 'filled', lots_requested: 1, lots_executed: 1}});
+  });
+  await page.route('**/accounts/one/orders/*', route => {
+    expect(route.request().url()).toContain('/orders/' + key);
+    return route.fulfill({json: {status: 'filled', lots_requested: 1, lots_executed: 1}});
+  });
+  await page.route('**/sandbox/portfolio-fragment', route => route.fulfill({contentType: 'text/html',
+    body: fragment('sandbox', 'one', orderCount === 1 ? '7500' : '10000').replace('<h3>Портфель one</h3>', buy + (orderCount === 1 ? edit : '')),
+  }));
+  await workspace.getByRole('button', {name: 'Купить акцию'}).click();
+  const dialog = page.getByRole('dialog');
+  const search = dialog.getByRole('combobox', {name: 'Акция'});
+  await expect(dialog.getByRole('listbox')).toBeVisible();
+  await expect(dialog.getByRole('option')).toHaveText(['SBER · Сбербанк · TQBR', 'GAZP · Газпром · TQBR']);
+  await search.fill('с');
+  await expect(dialog.locator('[data-order-matches]')).toHaveText('Найдено: 3');
+  await search.fill('сб');
+  await expect(dialog.locator('[data-order-matches]')).toHaveText('Найдено: 2');
+  await search.fill('SBERP');
+  await expect(dialog.getByRole('option')).toHaveText(['SBERP · Сбербанк ап · TQBR']);
+  await search.clear();
+  await expect(dialog.getByRole('option')).toHaveText(['SBER · Сбербанк · TQBR', 'GAZP · Газпром · TQBR']);
+  await search.fill('бумаг');
+  const list = dialog.getByRole('listbox');
+  await expect(list.getByRole('option')).toHaveCount(20);
+  await list.hover();
+  await page.mouse.wheel(0, 350);
+  await expect.poll(() => list.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
+  await search.blur();
+  await expect(dialog).toBeVisible();
+  await expect(list).toBeVisible();
+  await expect.poll(() => list.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
+  await dialog.getByLabel('Лотов').click();
+  await expect(list).toBeHidden();
+  await expect(dialog).toBeVisible();
+  await search.fill('SBER');
+  await expect(dialog.getByRole('option', {name: 'SBER · Сбербанк · TQBR'})).toBeVisible();
+  await search.press('ArrowDown');
+  await search.press('Enter');
+  await dialog.getByRole('button', {name: 'Купить по рынку'}).click();
+  await expect(dialog.getByRole('status')).toContainText('Статус неизвестен');
+  await dialog.getByRole('button', {name: 'Закрыть'}).click();
+  await workspace.getByRole('button', {name: 'Проверить статус'}).click();
+  await dialog.getByRole('button', {name: 'Проверить статус'}).click();
+  await expect(dialog.getByRole('status')).toContainText('Исполнена');
+  await dialog.getByRole('button', {name: 'Закрыть'}).click();
+  await expect(workspace.locator('.broker-total')).toHaveText('Баланс: 7500 rub');
+  await workspace.getByRole('button', {name: 'Изменить'}).click();
+  await dialog.getByLabel('Направление').selectOption('sell');
+  await expect(dialog).toContainText('Доступно к продаже: 10 акций · 1 лотов');
+  await dialog.getByLabel('Лотов').fill('2');
+  await expect(dialog.getByRole('button', {name: 'Продать по рынку'})).toBeDisabled();
+  await dialog.getByLabel('Лотов').fill('1');
+  await dialog.getByRole('button', {name: 'Продать по рынку'}).click();
+  await expect(dialog.getByRole('status')).toContainText('Исполнена');
+  await expect(workspace.locator('.broker-total')).toHaveText('Баланс: 10000 rub');
+  expect(orderCount).toBe(2);
+  expect(catalogCalls).toBe(1);
+});
+
 for (const environment of ['production', 'sandbox']) {
   test(`${environment}: выбор и повторные обновления без навигации`, async ({page}) => {
     const workspace = await setup(page, environment);

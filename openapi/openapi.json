@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "NewsTrader Assistant",
-    "version": "0.33.0"
+    "version": "0.34.0"
   },
   "paths": {
     "/v1/health": {
@@ -640,6 +640,215 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Sandbox Close V1 Brokers T Invest Sandbox Accounts  Account Id  Close Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brokers/t-invest/sandbox/accounts/{account_id}/instruments": {
+      "get": {
+        "tags": [
+          "brokers"
+        ],
+        "summary": "Sandbox Instruments",
+        "operationId": "sandbox_instruments_v1_brokers_t_invest_sandbox_accounts__account_id__instruments_get",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Account Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Sandbox Instruments V1 Brokers T Invest Sandbox Accounts  Account Id  Instruments Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brokers/t-invest/sandbox/accounts/{account_id}/instruments/{instrument_uid}/order-details": {
+      "get": {
+        "tags": [
+          "brokers"
+        ],
+        "summary": "Sandbox Order Details",
+        "operationId": "sandbox_order_details_v1_brokers_t_invest_sandbox_accounts__account_id__instruments__instrument_uid__order_details_get",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Account Id"
+            }
+          },
+          {
+            "name": "instrument_uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Instrument Uid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Sandbox Order Details V1 Brokers T Invest Sandbox Accounts  Account Id  Instruments  Instrument Uid  Order Details Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brokers/t-invest/sandbox/accounts/{account_id}/orders": {
+      "post": {
+        "tags": [
+          "brokers"
+        ],
+        "summary": "Sandbox Submit Order",
+        "operationId": "sandbox_submit_order_v1_brokers_t_invest_sandbox_accounts__account_id__orders_post",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Account Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SandboxOrderIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Sandbox Submit Order V1 Brokers T Invest Sandbox Accounts  Account Id  Orders Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brokers/t-invest/sandbox/accounts/{account_id}/orders/{operation_key}": {
+      "get": {
+        "tags": [
+          "brokers"
+        ],
+        "summary": "Sandbox Order Status",
+        "operationId": "sandbox_order_status_v1_brokers_t_invest_sandbox_accounts__account_id__orders__operation_key__get",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Account Id"
+            }
+          },
+          {
+            "name": "operation_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Operation Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Sandbox Order Status V1 Brokers T Invest Sandbox Accounts  Account Id  Orders  Operation Key  Get"
                 }
               }
             }
@@ -5221,6 +5430,42 @@
           "operation_key"
         ],
         "title": "SandboxCreateIn"
+      },
+      "SandboxOrderIn": {
+        "properties": {
+          "operation_key": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Operation Key"
+          },
+          "instrument_uid": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Instrument Uid"
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "buy",
+              "sell"
+            ],
+            "title": "Side"
+          },
+          "lots": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "exclusiveMinimum": 0.0,
+            "title": "Lots"
+          }
+        },
+        "type": "object",
+        "required": [
+          "operation_key",
+          "instrument_uid",
+          "side",
+          "lots"
+        ],
+        "title": "SandboxOrderIn"
       },
       "SandboxPayIn": {
         "properties": {

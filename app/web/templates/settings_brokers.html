@@ -62,7 +62,7 @@
           <p class="broker-update-status" role="status" hidden></p>
           <p class="broker-update-error" role="alert" hidden></p>
           {% include "broker_portfolio_fragment.html" %}
-          {% if broker.environment == 'sandbox' %}{% include "broker_sandbox.html" %}{% endif %}
+          {% if broker.environment == 'sandbox' %}{% include "broker_stock_order.html" %}{% include "broker_sandbox.html" %}{% endif %}
           </div>
           <section role="tabpanel" id="broker-view-mcp-{{ broker.environment }}" aria-labelledby="broker-tab-mcp-{{ broker.environment }}" data-broker-view="mcp" hidden>
             <h3>MCP-аналитика · {{ 'Песочница' if broker.environment == 'sandbox' else 'Рабочий контур' }}</h3>
@@ -96,5 +96,6 @@
   {% endfor %}
 </section>
 <script src="/static/broker-settings.js" defer></script>
+<script src="/static/broker-stock-orders.js" defer></script>
 <script src="/static/broker-mcp.js" defer></script>
 {% endblock %}

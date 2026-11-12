@@ -10,10 +10,10 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.brokers import sandbox, t_invest
+from app.brokers import sandbox, stock_orders, t_invest
 from app.config import Settings
 from app.db.connection import Base, get_session
-from app.db.models import BrokerAccount, BrokerPortfolioSnapshot, BrokerSandboxAction, User
+from app.db.models import BrokerAccount, BrokerPortfolioSnapshot, BrokerSandboxAction, Security, User, UserFavorite
 
 
 class Broker:
@@ -90,6 +90,111 @@ async def test_create_pay_close_sync_and_duplicate(store):
     assert connection.selected_account_id is None
     assert await session.scalar(select(BrokerAccount)) is None
     assert broker.rows == []
+
+
+async def test_stock_catalog_marks_only_users_tradeable_favorites(store, monkeypatch):
+    session, user, broker = store
+    account = await sandbox.execute(session, user.id, "create", uuid4(), client=broker)
+    account_id = account["result"]["accountId"]
+    broker.rows[0]["accessLevel"] = "ACCOUNT_ACCESS_LEVEL_FULL_ACCESS"
+    sber = Security(ticker="SBER", name="Сбербанк")
+    gazp = Security(ticker="GAZP", name="Газпром")
+    other = User(username="other-stock-owner", password_hash="x")
+    session.add_all([sber, gazp, other])
+    await session.flush()
+    session.add_all([UserFavorite(user_id=user.id, security_id=sber.id),
+                     UserFavorite(user_id=other.id, security_id=gazp.id)])
+    await session.commit()
+
+    async def shares():
+        base = {"lot": 10, "currency": "rub", "apiTradeAvailableFlag": True, "buyAvailableFlag": True}
+        return [
+            {**base, "uid": "sber", "ticker": "SBER", "name": "Сбербанк", "classCode": "TQBR"},
+            {**base, "uid": "gazp", "ticker": "GAZP", "name": "Газпром"},
+            {**base, "uid": "foreign", "ticker": "FOREIGN", "name": "Foreign", "currency": "usd"},
+            {**base, "uid": "disabled", "ticker": "DISABLED", "name": "Disabled", "buyAvailableFlag": False},
+        ]
+
+    monkeypatch.setattr(sandbox, "broker_client", lambda *_: broker)
+    monkeypatch.setattr(broker, "shares", shares, raising=False)
+    result = await stock_orders.catalog(session, user.id, account_id)
+    assert [(item["ticker"], item["is_favorite"]) for item in result] == [("GAZP", False), ("SBER", True)]
+
+
+async def test_stock_orders_reconcile_same_key_and_enforce_sellable_balance(store, monkeypatch):
+    session, user, broker = store
+    account = await sandbox.execute(session, user.id, "create", uuid4(), client=broker)
+    account_id = account["result"]["accountId"]
+    broker.rows[0]["accessLevel"] = "ACCOUNT_ACCESS_LEVEL_FULL_ACCESS"
+    broker.calls.clear()
+    uid, key = str(uuid4()), uuid4()
+    shares = 0
+
+    async def instrument(instrument_uid):
+        assert instrument_uid == uid
+        return {"instrumentType": "share", "currency": "rub", "lot": 10, "apiTradeAvailableFlag": True,
+                "buyAvailableFlag": True, "sellAvailableFlag": True}
+
+    async def positions(target):
+        assert target == account_id
+        return {"securities": [{"instrumentUid": uid, "balance": str(shares), "blocked": "5"}]}
+
+    async def portfolio(target):
+        snapshot_positions = [{"instrumentUid": uid, "instrumentType": "share",
+                               "quantity": {"units": str(shares)}}] if shares else []
+        return {"positions": snapshot_positions}, await positions(target)
+
+    async def send(method, payload):
+        nonlocal shares
+        broker.calls.append((method, payload))
+        assert method == "PostSandboxOrder"
+        assert payload["quantity"] == "2"
+        if payload["direction"] == "ORDER_DIRECTION_BUY":
+            shares += 10
+            raise t_invest.SandboxUnknown
+        shares -= 20
+        return {"executionReportStatus": "EXECUTION_REPORT_STATUS_FILL", "lotsExecuted": "2"}
+
+    async def state(target, order_id, id_type):
+        nonlocal shares
+        assert target == account_id
+        if shares == 10:
+            assert (order_id, id_type) == (str(key), "ORDER_ID_TYPE_REQUEST")
+            return {"executionReportStatus": "EXECUTION_REPORT_STATUS_PARTIALLYFILL",
+                    "lotsExecuted": "1", "orderId": "sandbox-order-id"}
+        assert (order_id, id_type) == ("sandbox-order-id", "ORDER_ID_TYPE_EXCHANGE")
+        return {"executionReportStatus": "EXECUTION_REPORT_STATUS_FILL", "lotsExecuted": "2"}
+
+    monkeypatch.setattr(sandbox, "broker_client", lambda *_: broker)
+    for name, method in (("instrument", instrument), ("sandbox_positions", positions), ("portfolio", portfolio),
+                         ("sandbox_change", send), ("sandbox_order_state", state)):
+        monkeypatch.setattr(broker, name, method, raising=False)
+
+    assert (await stock_orders.submit(session, user.id, account_id, key, uid, "buy", 2))["status"] == "unknown"
+    assert (await stock_orders.submit(session, user.id, account_id, key, uid, "buy", 2))["status"] == "unknown"
+    assert len(broker.calls) == 1
+    assert broker.calls[0][1]["orderId"] == str(key)
+    with pytest.raises(HTTPException) as conflict:
+        await stock_orders.submit(session, user.id, account_id, key, uid, "buy", 3)
+    assert conflict.value.status_code == 409
+    result = await stock_orders.status(session, user.id, account_id, key)
+    assert result["status"] == "partial"
+    assert result["lots_executed"] == 1
+    assert (await session.scalar(select(BrokerPortfolioSnapshot))).data["positions"][0]["quantity"] == "10"
+    with pytest.raises(HTTPException) as oversell:
+        await stock_orders.submit(session, user.id, account_id, uuid4(), uid, "sell", 2)
+    assert oversell.value.status_code == 422
+    with pytest.raises(HTTPException) as foreign:
+        await stock_orders.submit(session, user.id, "foreign", uuid4(), uid, "buy", 1)
+    assert foreign.value.status_code == 404
+    assert len(broker.calls) == 1
+    shares = 20
+    result = await stock_orders.status(session, user.id, account_id, key)
+    assert result["status"] == "filled"
+    assert result["lots_executed"] == 2
+    assert (await stock_orders.submit(session, user.id, account_id, uuid4(), uid, "sell", 2))["status"] == "filled"
+    assert (await session.scalar(select(BrokerPortfolioSnapshot))).data["positions"] == []
+    assert shares == 0
 
 
 @pytest.mark.parametrize("amount", ["0", "-1", "NaN", "Infinity", "1e6", "12.345", "", "9" * 30])

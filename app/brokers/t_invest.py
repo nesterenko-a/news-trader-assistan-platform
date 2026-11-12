@@ -185,7 +185,7 @@ class TInvestClient:
         return await self._call("SandboxService", "GetSandboxPositions", {"accountId": account_id})
 
     async def sandbox_change(self, method: str, payload: dict) -> dict:
-        if self.environment != "sandbox" or method not in ("OpenSandboxAccount", "SandboxPayIn", "CloseSandboxAccount"):
+        if self.environment != "sandbox" or method not in ("OpenSandboxAccount", "SandboxPayIn", "CloseSandboxAccount", "PostSandboxOrder"):
             raise HTTPException(409, "Операция доступна только в песочнице")
         try:
             async with httpx.AsyncClient(timeout=15, transport=self.transport, verify=tls_context()) as client:
@@ -203,6 +203,27 @@ class TInvestClient:
             return result
         except ValueError as exc:
             raise SandboxUnknown() from exc
+
+    async def shares(self) -> list[dict]:
+        data = await self._call("InstrumentsService", "Shares", {
+            "instrumentStatus": "INSTRUMENT_STATUS_BASE",
+        })
+        rows = data.get("instruments")
+        if not isinstance(rows, list):
+            raise HTTPException(502, "Не удалось получить список акций")
+        return rows
+
+    async def last_price(self, uid: str) -> str | None:
+        data = await self._call("MarketDataService", "GetLastPrices", {"instrumentId": [uid]})
+        return next((decimal_value(row.get("price")) for row in data.get("lastPrices", [])
+                     if row.get("instrumentUid") == uid), None)
+
+    async def sandbox_order_state(self, account_id: str, order_id: str, id_type: str) -> dict:
+        if self.environment != "sandbox":
+            raise HTTPException(409, "Выберите подключение песочницы")
+        return await self._call("SandboxService", "GetSandboxOrderState", {
+            "accountId": account_id, "orderId": order_id, "orderIdType": id_type,
+        })
 
 
 class SandboxUnknown(Exception):

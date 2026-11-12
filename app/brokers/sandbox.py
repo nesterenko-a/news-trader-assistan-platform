@@ -83,7 +83,9 @@ async def list_accounts(session, user_id, client=None):
         except HTTPException:
             pass
         accounts.append({"id": account["id"], "name": account.get("name") or "Тестовый счёт", "masked_id": "••••" + account["id"][-4:], "status": account.get("status", ""), "rub_balance": balance})
-    actions = (await session.scalars(select(BrokerSandboxAction).where(BrokerSandboxAction.user_id == user_id).order_by(BrokerSandboxAction.started_at.desc()).limit(10))).all()
+    actions = (await session.scalars(select(BrokerSandboxAction).where(
+        BrokerSandboxAction.user_id == user_id, BrokerSandboxAction.kind != "stock_order",
+    ).order_by(BrokerSandboxAction.started_at.desc()).limit(10))).all()
     return {"accounts": accounts, "actions": [action_view(item) for item in actions], "error": error}
 
 
