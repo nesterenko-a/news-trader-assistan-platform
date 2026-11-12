@@ -29,6 +29,16 @@ def test_spread_calculation_and_invalid_book():
     assert calculations("orderbook", {"bids": [], "asks": []})[1]
 
 
+@pytest.mark.parametrize("bid", ["NaN", "0", "3450"])
+def test_wrapped_orderbook_price_preserves_invalid_and_crossed_book_checks(bid):
+    book = {
+        "bids": [{"price": {"value": bid}, "quantity": "258"}],
+        "asks": [{"price": {"value": "3443.5"}, "quantity": "249"}],
+    }
+    result, warnings = calculations("orderbook", book)
+    assert not result and warnings
+
+
 def test_completed_candle_baseline_ignores_current_incomplete_data():
     now = datetime.now(timezone.utc)
     candles = [{"time": (now - timedelta(days=22 - i)).isoformat(), "volume": 100, "close": money(100), "isComplete": True} for i in range(21)]
@@ -135,6 +145,23 @@ async def test_six_directions_use_reviewed_context(api, agent, name, args, data)
     assert result["account_id"] == "owned" and result["provider"] == "deepseek"
     if name == "forecast":
         assert result["status"] == "partial" and any("история" in w for w in result["warnings"])
+
+
+async def test_orderbook_uses_live_sandbox_price_shape_and_snapshot_time(api, agent):
+    session, user_id = await add_account(api)
+    state, _ = agent
+    stamp = "2026-11-12T10:28:43Z"
+    state.update(name="orderbook", args={"instrument_id": "YDEX_TQBR"}, data={
+        "orderbookTs": stamp,
+        "lastPriceTs": "2026-11-12T10:28:39Z",
+        "bids": [{"price": {"value": "3443"}, "quantity": "258"}],
+        "asks": [{"price": {"value": "3443.5"}, "quantity": "249"}],
+    })
+    result = await mcp_agent.ask(session, user_id, "sandbox", "owned", "deepseek", "test-model", "proof", "Какой спред YDEX?")
+    assert result["status"] == "ok"
+    assert not result["warnings"]
+    assert result["calculations"][0]["spread"] == "0.5"
+    assert result["evidence"][0]["data_time"] == stamp
 
 
 async def test_foreign_account_rejected_before_llm(api, agent):

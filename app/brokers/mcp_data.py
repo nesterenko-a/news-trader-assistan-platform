@@ -27,23 +27,37 @@ def number(value):
         return None
 
 
+def order_price(value):
+    if isinstance(value, dict) and value.keys() == {"value"}:
+        value = value["value"]
+    return number(value)
+
+
 def calculations(name, data):
     result, warnings = {}, []
     if not isinstance(data, dict):
         return result, warnings
     if name == "orderbook":
         sides = []
-        invalid = False
+        invalid_book = "Спред не рассчитан: стакан пуст, односторонний или некорректный"
         for key in ("bids", "asks"):
-            rows = data.get(key, [])
-            if not isinstance(rows, list) or any(not isinstance(row, dict) or number(row.get("price")) is None or number(row.get("price")) <= 0 or number(row.get("quantity")) is None or number(row.get("quantity")) <= 0 for row in rows):
-                invalid = True
-            prices = [number(row.get("price")) for row in rows if isinstance(row, dict) and (number(row.get("quantity")) or 0) > 0] if isinstance(rows, list) else []
-            sides.append([p for p in prices if p is not None and p > 0])
-        if invalid or not all(sides) or min(sides[1]) < max(sides[0]):
-            warnings.append("Спред не рассчитан: стакан пуст, односторонний или некорректный")
+            rows = data.get(key)
+            if not isinstance(rows, list) or not rows:
+                return {}, [invalid_book]
+            prices = []
+            for row in rows:
+                if not isinstance(row, dict):
+                    return {}, [invalid_book]
+                price = order_price(row.get("price"))
+                quantity = number(row.get("quantity"))
+                if price is None or price <= 0 or quantity is None or quantity <= 0:
+                    return {}, [invalid_book]
+                prices.append(price)
+            sides.append(prices)
+        bid, ask = max(sides[0]), min(sides[1])
+        if ask < bid:
+            warnings.append(invalid_book)
         else:
-            bid, ask = max(sides[0]), min(sides[1])
             spread = ask - bid
             relative = spread / ((ask + bid) / 2) * 100
             result = {"best_bid": str(bid), "best_ask": str(ask), "spread": str(spread), "spread_pct": str(relative), "price_units": "единицы исходной котировки, не обязательно рубли", "wide_spread_threshold_pct": "1", "wide_spread": relative >= 1, "formula": "(ask-bid)/((ask+bid)/2)*100"}

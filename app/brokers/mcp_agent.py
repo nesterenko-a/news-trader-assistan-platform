@@ -43,7 +43,10 @@ def tool_result(history, provider, call_id, content):
 
 
 def evidence_for(name, remote, data, fetched_at, instrument):
-    stamp = next((data[key] for key in ("time", "timestamp", "date", "lastPriceTs") if isinstance(data.get(key), str)), None) if isinstance(data, dict) else None
+    time_fields = ("time", "timestamp", "date", "lastPriceTs")
+    if name == "orderbook":
+        time_fields = ("orderbookTs", "orderbook_ts", "time", "timestamp", "date")
+    stamp = next((data[key] for key in time_fields if isinstance(data.get(key), str) and data[key].strip()), None) if isinstance(data, dict) else None
     evidence = {"source": "T-Invest MCP", "tool": remote, "instrument": instrument, "data_time": stamp, "fetched_at": fetched_at}
     if name in ("issuer_news", "forecast") and isinstance(data, dict):
         articles = next((data[key] for key in ("news", "items", "targets", "forecasts") if isinstance(data.get(key), list)), [])
