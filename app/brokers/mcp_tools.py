@@ -37,6 +37,7 @@ class Bonds(Arguments):
     maturity_from: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     maturity_to: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     floating_coupon: bool = False
+    ofz_only: bool = Field(default=False, strict=True, description="Для запроса ОФЗ включить локальный отбор федеральных выпусков в выдаче брокера.")
 
 
 TOOLS = {
@@ -50,7 +51,7 @@ TOOLS = {
     "market_values": (Instrument, "invest_get_market_values", "Последняя цена и доходность по найденному инструменту, если брокер их предоставляет."),
     "share_details": (Lookup, "invest_get_share", "Характеристики акции. Для тикера требуется код класса."),
     "bond_details": (Lookup, "invest_get_bond", "Характеристики облигации. Для тикера требуется код класса."),
-    "bonds": (Bonds, "invest_list_bonds", "Рублёвые неперпетуальные облигации с выбранным сроком погашения. ОФЗ определять по характеристикам, не считать любую облигацию ОФЗ."),
+    "bonds": (Bonds, "invest_list_bonds", "Рублёвые неперпетуальные облигации с выбранным сроком погашения. Для ОФЗ укажи ofz_only=true. returnedInstrumentCount — размер выдачи брокера, matchingInstrumentCount — число записей после локального отбора ОФЗ и до усечения списка. При пустой выборке сообщи, что в выдаче брокера подходящие ОФЗ не найдены, и останови поиск. Уточняй характеристики только для подходящих кандидатов."),
     "shares": (Arguments, "invest_list_shares", "Ограниченная выборка акций. Она не подтверждает минимум цены по всему рынку."),
 }
 

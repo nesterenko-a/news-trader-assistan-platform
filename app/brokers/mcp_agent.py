@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.brokers import mcp, mcp_llm, t_invest
-from app.brokers.mcp_data import bounded_data, calculations, safe_url
+from app.brokers.mcp_data import bounded_data, calculations, compact_instrument_list, safe_url
 from app.brokers.mcp_tools import TOOLS, definitions
 from app.db.models import BrokerAccount, BrokerConnection
 
@@ -43,11 +43,21 @@ def tool_result(history, provider, call_id, content):
 
 
 def evidence_for(name, remote, data, fetched_at, instrument):
-    stamp = next((data[key] for key in ("time", "timestamp", "date", "lastPriceTs") if isinstance(data.get(key), str)), None) if isinstance(data, dict) else None
+    time_fields = ("time", "timestamp", "date", "lastPriceTs")
+    if name == "orderbook":
+        time_fields = ("orderbookTs", "orderbook_ts", "time", "timestamp", "date")
+    stamp = next((data[key] for key in time_fields if isinstance(data.get(key), str) and data[key].strip()), None) if isinstance(data, dict) else None
     evidence = {"source": "T-Invest MCP", "tool": remote, "instrument": instrument, "data_time": stamp, "fetched_at": fetched_at}
     if name in ("issuer_news", "forecast") and isinstance(data, dict):
         articles = next((data[key] for key in ("news", "items", "targets", "forecasts") if isinstance(data.get(key), list)), [])
-        evidence["publications"] = [{"url": safe_url(row.get("url", row.get("link"))), "date": row.get("date", row.get("publishedAt", row.get("createdAt")))} for row in articles[:20] if isinstance(row, dict)]
+        date_fields = ("recommendationDate", "date", "publishedAt", "createdAt") if name == "forecast" else ("date", "publishedAt", "createdAt")
+        evidence["publications"] = [
+            {
+                "url": safe_url(row.get("url", row.get("link"))),
+                "date": next((row[key] for key in date_fields if isinstance(row.get(key), str) and row[key].strip()), None),
+            }
+            for row in articles[:20] if isinstance(row, dict)
+        ]
     return evidence
 
 
@@ -125,20 +135,27 @@ async def ask(session, user_id, environment, account_id, provider, model, proof,
                             if evidence["data_time"] is None:
                                 warnings.append("Источник не вернул единое время данных; время получения не подтверждает их свежесть")
                             limits = (20, 5, 1) if call["name"] in ("issuer_news", "forecast") else (100, 20, 5, 1)
+                            budget = 24000 - context_size
+                            if call["name"] in ("search_instruments", "bonds", "shares"):
+                                ofz_only = call["name"] == "bonds" and arguments.get("ofz_only") is True
+                                data = compact_instrument_list(data, ofz_only=ofz_only)
+                                limits = (100, 50, 20, 5, 1)
+                                budget = min(budget, 6000)
                             for limit in limits:
-                                bounded = bounded_data(data, limit, warnings)
-                                payload = {"data": bounded, "calculations": bounded_data(calculated, limit, warnings), "evidence": evidence, "warnings": list(dict.fromkeys(warnings))}
+                                selected_warnings = warnings.copy()
+                                bounded = bounded_data(data, limit, selected_warnings)
+                                payload = {"data": bounded, "calculations": bounded_data(calculated, limit, selected_warnings), "evidence": evidence, "warnings": list(dict.fromkeys(selected_warnings))}
                                 content = json.dumps(payload, ensure_ascii=False)
-                                if context_size + len(content) <= 24000:
+                                if len(content) <= budget:
                                     break
-                            if context_size + len(content) > 24000:
-                                result["warnings"].append("Достигнут предел контекста 24000 символов; неполная выдача не передана LLM")
+                            if len(content) > budget:
+                                result["warnings"].append("Достигнут предел контекста аналитического запроса; неполная выдача не передана LLM")
                                 raise HTTPException(429, "Ответ источника не помещается в допустимый контекст")
                             context_size += len(content)
                             result["evidence"].append(evidence)
                             if calculated:
                                 result["calculations"].append({"tool": call["name"], **calculated})
-                            result["warnings"].extend(warnings)
+                            result["warnings"].extend(selected_warnings)
                             tool_result(history, provider, call["id"], content)
                     else:
                         result["warnings"].append("Достигнут предел 6 раундов LLM")
