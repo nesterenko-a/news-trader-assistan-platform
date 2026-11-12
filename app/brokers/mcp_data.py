@@ -5,6 +5,10 @@ from urllib.parse import urlsplit
 
 
 def number(value):
+    if isinstance(value, dict) and "value" in value and not {"units", "nano"} & value.keys():
+        value = value["value"]
+        if not isinstance(value, str):
+            return None
     try:
         if isinstance(value, bool) or value is None:
             return None
@@ -27,12 +31,6 @@ def number(value):
         return None
 
 
-def order_price(value):
-    if isinstance(value, dict) and value.keys() == {"value"}:
-        value = value["value"]
-    return number(value)
-
-
 def calculations(name, data):
     result, warnings = {}, []
     if not isinstance(data, dict):
@@ -48,7 +46,7 @@ def calculations(name, data):
             for row in rows:
                 if not isinstance(row, dict):
                     return {}, [invalid_book]
-                price = order_price(row.get("price"))
+                price = number(row.get("price"))
                 quantity = number(row.get("quantity"))
                 if price is None or price <= 0 or quantity is None or quantity <= 0:
                     return {}, [invalid_book]
@@ -120,6 +118,34 @@ def calculations(name, data):
         else:
             warnings.append("Доли не рассчитаны: нужна положительная стоимость портфеля и сопоставимая валюта")
     return result, list(dict.fromkeys(warnings))
+
+
+def compact_instrument_list(data, *, ofz_only=False):
+    if not isinstance(data, dict) or not isinstance(data.get("instruments"), list):
+        return data
+    fields = (
+        "ticker", "classCode", "isin", "uid", "instrumentUid", "figi", "name",
+        "instrumentKind", "instrumentType", "currency", "lot", "maturityDate",
+        "couponQuantityPerYear", "floatingCouponFlag", "perpetualFlag",
+        "amortizationFlag", "nominal", "apiTradeAvailableFlag",
+    )
+    source_rows = data["instruments"]
+    rows = [row for row in source_rows if isinstance(row, dict)]
+    if ofz_only:
+        rows = [
+            row for row in rows
+            if str(row.get("ticker", "")).upper().startswith("SU")
+            and str(row.get("name", "")).upper().startswith("ОФЗ")
+        ]
+    return {
+        **data,
+        "returnedInstrumentCount": len(source_rows),
+        "matchingInstrumentCount": len(rows),
+        "instruments": [
+            {key: row[key] for key in fields if key in row}
+            for row in rows
+        ],
+    }
 
 
 def bounded_data(value, limit, warnings, depth=0):
