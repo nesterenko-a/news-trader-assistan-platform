@@ -2092,6 +2092,16 @@ async def broker_refresh(request: Request, session: AsyncSession = Depends(get_s
     return await _broker_portfolio_update(request, session, select_account=False)
 
 
+@router.get("/broker/t-invest/sandbox/portfolio-fragment", include_in_schema=False)
+async def sandbox_portfolio_fragment(request: Request, session: AsyncSession = Depends(get_session)):
+    user = await _optional_user(request, session)
+    if user is None:
+        raise HTTPException(401, "Войдите в систему")
+    broker = await t_invest.view(session, user.id, environment="sandbox")
+    return templates.TemplateResponse(request, "broker_portfolio_fragment.html", {"broker": broker, "broker_error": None},
+                                      headers={"Cache-Control": "no-store"})
+
+
 @router.post("/broker/t-invest/disconnect")
 async def broker_disconnect(request: Request, session: AsyncSession = Depends(get_session)):
     user = await _optional_user(request, session)

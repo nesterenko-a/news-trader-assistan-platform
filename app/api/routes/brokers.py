@@ -9,6 +9,7 @@ from sqlalchemy import select
 from app.auth import get_current_user
 from app.brokers import t_invest
 from app.brokers import sandbox
+from app.brokers import stock_orders
 from app.brokers import mcp
 from app.brokers import mcp_llm
 from app.brokers import mcp_agent
@@ -98,6 +99,13 @@ class SandboxCloseIn(BaseModel):
     confirmed: StrictBool
 
 
+class SandboxOrderIn(BaseModel):
+    operation_key: UUID
+    instrument_uid: UUID
+    side: Literal["buy", "sell"]
+    lots: int = Field(strict=True, gt=0, le=2**63 - 1)
+
+
 def _check_origin(request: Request) -> None:
     if request.cookies.get("nt_token"):
         origin = request.headers.get("origin")
@@ -171,3 +179,33 @@ async def sandbox_close(account_id: str, payload: SandboxCloseIn, request: Reque
     _check_origin(request)
     response.headers["Cache-Control"] = "no-store"
     return await sandbox.execute(session, user.id, "close", payload.operation_key, account_id=account_id, confirmed=payload.confirmed)
+
+
+@router.get("/sandbox/accounts/{account_id}/instruments")
+async def sandbox_instruments(account_id: str, response: Response,
+                              user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)) -> list[dict]:
+    response.headers["Cache-Control"] = "no-store"
+    return await stock_orders.catalog(session, user.id, account_id)
+
+
+@router.get("/sandbox/accounts/{account_id}/instruments/{instrument_uid}/order-details")
+async def sandbox_order_details(account_id: str, instrument_uid: UUID, response: Response,
+                                user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)) -> dict:
+    response.headers["Cache-Control"] = "no-store"
+    return await stock_orders.details(session, user.id, account_id, str(instrument_uid))
+
+
+@router.post("/sandbox/accounts/{account_id}/orders")
+async def sandbox_submit_order(account_id: str, payload: SandboxOrderIn, request: Request, response: Response,
+                               user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)) -> dict:
+    _check_origin(request)
+    response.headers["Cache-Control"] = "no-store"
+    return await stock_orders.submit(session, user.id, account_id, payload.operation_key, str(payload.instrument_uid),
+                                     payload.side, payload.lots)
+
+
+@router.get("/sandbox/accounts/{account_id}/orders/{operation_key}")
+async def sandbox_order_status(account_id: str, operation_key: UUID, response: Response,
+                               user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)) -> dict:
+    response.headers["Cache-Control"] = "no-store"
+    return await stock_orders.status(session, user.id, account_id, operation_key)

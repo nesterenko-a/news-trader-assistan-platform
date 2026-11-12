@@ -1,0 +1,23 @@
+<p data-stock-feedback role="status" hidden></p>
+<button class="btn" type="button" data-stock-recover hidden>Проверить статус</button>
+<dialog id="broker-stock-order" aria-labelledby="stock-order-title">
+  <h3 id="stock-order-title">Рыночная заявка</h3>
+  <p data-order-account></p>
+  <form data-order-form>
+    <label>Акция
+      <input data-order-search role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="stock-order-options" maxlength="100" autocomplete="off">
+    </label>
+    <p class="muted" data-order-matches role="status" hidden></p>
+    <ul id="stock-order-options" role="listbox" hidden></ul>
+    <label data-order-side-label>Направление <select data-order-side><option value="buy">Купить</option><option value="sell">Продать</option></select></label>
+    <p data-order-available></p>
+    <label>Лотов <input data-order-lots type="number" min="1" step="1" value="1" required></label>
+    <p data-order-estimate></p>
+    <p data-order-message role="status" aria-live="polite"></p>
+    <div class="broker-actions">
+      <button class="btn" type="submit" data-order-submit disabled>Купить по рынку</button>
+      <button class="btn" type="button" data-order-check hidden>Проверить статус</button>
+      <button class="btn" type="button" data-order-close>Закрыть</button>
+    </div>
+  </form>
+</dialog>

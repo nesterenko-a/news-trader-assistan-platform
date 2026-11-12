@@ -1335,6 +1335,14 @@ th.sortable .isort-tip:hover { display: block; }
 .broker-appearance, .broker-workspace { min-width: 0; border: 1px solid var(--border); border-radius: 10px; padding: 20px; background: var(--panel); }
 .broker-heading, .broker-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .broker-actions { justify-content: flex-start; }
+#broker-stock-order { width: min(460px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow: auto; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+#broker-stock-order::backdrop { background: rgb(0 0 0 / 65%); }
+#broker-stock-order label { display: grid; gap: 4px; margin-block: 12px; }
+#broker-stock-order label[hidden] { display: none; }
+#stock-order-options { list-style: none; margin: 0; padding: 0; max-height: 180px; overflow: auto; overscroll-behavior-y: contain; border: 1px solid var(--border); }
+#stock-order-options [role="option"] { cursor: pointer; padding: 8px; }
+#stock-order-options [role="option"]:hover,
+#stock-order-options [aria-selected="true"] { outline: 1px solid currentColor; outline-offset: -2px; }
 .broker-llm-fields { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
 .broker-llm-fields label { display: flex; flex-direction: column; gap: 6px; flex: 1 1 160px; min-width: 0; }
 .broker-llm-fields select { box-sizing: border-box; min-width: 0; max-width: 100%; width: 100%; }
@@ -1381,6 +1389,9 @@ th.sortable .isort-tip:hover { display: block; }
 .broker-snapshot-time { font-size: 12px; }
 .broker-position-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); }
 .broker-position-row .muted { display: block; font-size: 12px; }
+.broker-position-entry { display: flex; align-items: flex-start; gap: 12px; }
+.broker-position-entry .broker-position { flex: 1; min-width: 0; }
+.broker-position-entry > button { margin-top: 8px; }
 .broker-position summary { cursor: pointer; }
 .broker-position-details { padding: 8px 0; }
 .broker-position-details p { margin: 6px 0; }
