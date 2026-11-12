@@ -186,6 +186,26 @@ async def test_six_directions_use_reviewed_context(api, agent, name, args, data)
         assert result["evidence"][0]["publications"] == [{"url": None, "date": "2026-10-30"}]
 
 
+async def test_forecast_calculations_use_visible_targets(api, agent):
+    session, user_id = await add_account(api)
+    state, _ = agent
+    buy = {"recommendation": "RECOMMENDATION_BUY", "currentPrice": {"value": "100"}, "targetPrice": {"value": "125"}, "currency": "rub"}
+    incomplete = {"currentPrice": money(100), "targetPrice": {**money(130), "currency": "usd"}}
+    state.update(name="forecast", args={"instrument_id": "SBER_TQBR"}, data={
+        "consensus": {"currentPrice": money(100), "consensus": money(120)},
+        "targets": [buy, incomplete, *[buy] * 18, {**buy, "recommendation": "RECOMMENDATION_HOLD"}],
+    })
+    result = await mcp_agent.ask(session, user_id, "sandbox", "owned", "deepseek", "test-model", "proof", "Покажи прогнозы SBER")
+    computed, = result["calculations"]
+    assert computed["consensus"] == {"difference": "20", "potential_pct": "20.0", "currency": "rub"}
+    assert computed["targets"][0] == {"row": 1, "difference": "25", "potential_pct": "25.00", "currency": "rub"}
+    assert "unavailable" in computed["targets"][1]
+    assert len(computed["targets"]) == 20
+    assert computed["recommendation_counts"] == {"RECOMMENDATION_BUY": 19}
+    assert any("усечена" in warning for warning in result["warnings"])
+    assert any("тип рекомендации отсутствует" in warning for warning in result["warnings"])
+
+
 async def test_orderbook_uses_live_sandbox_price_shape_and_snapshot_time(api, agent):
     session, user_id = await add_account(api)
     state, _ = agent

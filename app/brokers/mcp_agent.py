@@ -17,6 +17,7 @@ SYSTEM = """Ты аналитический ассистент NewsTrader. От�
 Не обращайся к портфелю и позициям ради общерыночного вопроса. Используй их только если пользователь спрашивает о своём счёте, активах или портфеле.
 Числовые расчёты и признаки аномалий бери только из calculations, рассчитанных сервером. Разделяй факты и интерпретацию. Не складывай валюты без конверсии. Единицы котировки не всегда рубли: облигации/фьючерсы котируются в пунктах; валюту и стоимость не додумывай. Аномалия не прогноз; укажи дату as_of, не выдавай старую свечу за сегодняшнюю. Новости и прогнозы снабжай датами/источниками; отсутствие даты явно отмечай. Сентимент — твоя интерпретация, а не факт брокера. Нет проверенной истории точности аналитиков: не строй рейтинги точности, не называй целевую цену достигнутым результатом.
 Для портфеля allocation_by_asset_class содержит доли классов активов по итогам брокера, а allocation — доли отдельных позиций. Показывай futures_value отдельно как оценочную стоимость фьючерсов в указанной валюте. Фьючерсы исключены из распределения стоимости портфеля. Если доля запрошенной бумаги недоступна, сообщи об этом и приведи доступную долю её класса с явной подписью класса.
+Для прогнозов используй calculations.consensus и calculations.targets для расчётного потенциала и calculations.recommendation_counts для подсчёта рекомендаций. Номер row соответствует порядку записей в data.targets, начиная с 1. Если расчёт недоступен, укажи причину. Готовые показатели брокера явно помечай как данные брокера.
 Окончательный ответ — JSON без markdown-обёртки: {"status":"ok"|"needs_clarification","answer":"текст"}. Без данных допустим только уточняющий вопрос, никаких фактов из памяти. Не заявляй, что выполнено действие, если инструмент не подтвердил результат. Для данных сначала используй инструменты. Факты, расчёты и интерпретацию разделяй в тексте ответа. Не придумывай ссылки, инструменты и значения."""
 
 
@@ -127,7 +128,7 @@ async def ask(session, user_id, environment, account_id, provider, model, proof,
                                 raise HTTPException(422, "LLM передала некорректные параметры инструмента") from None
                             data = await broker.read(call["name"], arguments, account_id=selected)
                             await verify_context()
-                            calculated, warnings = calculations(call["name"], data)
+                            calculated, warnings = ({}, []) if call["name"] == "forecast" else calculations(call["name"], data)
                             if call["name"] == "forecast":
                                 warnings.append("Это текущие прогнозы, не проверенная история точности аналитиков. Рейтинг точности недоступен")
                             evidence = evidence_for(call["name"], TOOLS[call["name"]][1], data, datetime.now(timezone.utc).isoformat(), arguments.get("instrument_id"))
@@ -145,6 +146,9 @@ async def ask(session, user_id, environment, account_id, provider, model, proof,
                             for limit in limits:
                                 selected_warnings = warnings.copy()
                                 bounded = bounded_data(data, limit, selected_warnings)
+                                if call["name"] == "forecast":
+                                    calculated, forecast_warnings = calculations("forecast", bounded)
+                                    selected_warnings.extend(forecast_warnings)
                                 payload = {"data": bounded, "calculations": bounded_data(calculated, limit, selected_warnings), "evidence": evidence, "warnings": list(dict.fromkeys(selected_warnings))}
                                 content = json.dumps(payload, ensure_ascii=False)
                                 if len(content) <= budget:
