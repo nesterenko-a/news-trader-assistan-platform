@@ -223,8 +223,14 @@ function submitOrder(side) {
   byId('review').hidden = true;
   order.close();
   byId('order-result').hidden = false;
-  byId('result-text').textContent = 'Заявка через ' + orderTransport + '. Ответ брокера задержался. Проверьте статус исходной заявки.';
-  byId('check').hidden = false;
+  if (orderTransport === 'MCP') {
+    byId('result-text').textContent = 'Заявка через MCP · Статус неизвестен. Ответ брокера не получен.';
+    byId('check').hidden = true;
+    pending = null;
+  } else {
+    byId('result-text').textContent = 'Заявка через REST. Ответ брокера задержался. Проверьте статус исходной заявки.';
+    byId('check').hidden = false;
+  }
 }
 </script>
 </body>
