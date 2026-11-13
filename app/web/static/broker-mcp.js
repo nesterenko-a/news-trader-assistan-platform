@@ -95,6 +95,15 @@
         if (data.environment !== workspace.dataset.environment || (data.account_id || null) !== selected || data.provider !== pair.provider || data.model !== pair.model || typeof data.answer !== 'string' || !Array.isArray(data.evidence) || !Array.isArray(data.warnings)) throw new Error('Ответ не соответствует выбранному контексту');
         workspace.querySelector('[data-mcp-answer-context]').textContent = data.environment + ' · счёт ' + (selected ? '••••' + selected.slice(-4) : 'не выбран') + ' · ' + data.provider + ' / ' + data.model + ' · ' + data.generated_at;
         workspace.querySelector('[data-mcp-answer-text]').textContent = data.answer;
+        const draftButton = workspace.querySelector('[data-mcp-order-draft]');
+        if (draftButton) {
+          draftButton.hidden = !data.order_draft;
+          draftButton.onclick = () => {
+            if (generation !== current.askGeneration || selected !== account(workspace) || !data.order_draft) return;
+            workspace.querySelector('[data-broker-tab="portfolio"]').click();
+            workspace.dispatchEvent(new CustomEvent('broker:order-draft', {detail: {account: selected, draft: data.order_draft}}));
+          };
+        }
         workspace.querySelector('[data-mcp-warnings]').replaceChildren(...data.warnings.map(text => {const li = document.createElement('li'); li.textContent = text; return li;}));
         workspace.querySelector('[data-mcp-evidence]').replaceChildren(...data.evidence.map(item => {
           const li = document.createElement('li'); li.textContent = item.source + ' · ' + item.tool + ' · данные: ' + (item.data_time || 'время не указано') + ' · получено: ' + item.fetched_at;

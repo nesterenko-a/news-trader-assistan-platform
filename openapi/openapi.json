@@ -5456,6 +5456,43 @@
             "maximum": 9.223372036854776e+18,
             "exclusiveMinimum": 0.0,
             "title": "Lots"
+          },
+          "transport": {
+            "type": "string",
+            "enum": [
+              "rest",
+              "mcp"
+            ],
+            "title": "Transport",
+            "default": "rest"
+          },
+          "connection_version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Version"
+          },
+          "last_price": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,25}0*$)\\d{0,12}\\.\\d{0,12}0*$)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Price"
           }
         },
         "type": "object",

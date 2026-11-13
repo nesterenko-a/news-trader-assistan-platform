@@ -1,6 +1,7 @@
 import base64
 import os
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from uuid import uuid4
 
 import httpx
@@ -195,6 +196,51 @@ async def test_stock_orders_reconcile_same_key_and_enforce_sellable_balance(stor
     assert (await stock_orders.submit(session, user.id, account_id, uuid4(), uid, "sell", 2))["status"] == "filled"
     assert (await session.scalar(select(BrokerPortfolioSnapshot))).data["positions"] == []
     assert shares == 0
+
+
+async def test_mcp_timeout_keeps_unknown_without_broker_retry(store, monkeypatch):
+    session, user, broker = store
+    account = await sandbox.execute(session, user.id, "create", uuid4(), client=broker)
+    account_id = account["result"]["accountId"]
+    broker.rows[0]["accessLevel"] = "ACCOUNT_ACCESS_LEVEL_FULL_ACCESS"
+    uid, key = str(uuid4()), uuid4()
+    calls = []
+
+    async def instrument(_):
+        return {"instrumentType": "share", "currency": "rub", "lot": 10,
+                "apiTradeAvailableFlag": True, "buyAvailableFlag": True}
+
+    async def positions(_):
+        return {"money": [{"currency": "rub", "units": "10000"}]}
+
+    async def price(_):
+        return "250"
+
+    class TimeoutSession:
+        def __init__(self, connection):
+            assert connection.environment == "sandbox"
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            pass
+
+        async def submit(self, *args):
+            calls.append(args)
+            raise HTTPException(504)
+
+    monkeypatch.setattr(sandbox, "broker_client", lambda *_: broker)
+    for name, method in (("instrument", instrument), ("sandbox_positions", positions), ("last_price", price)):
+        monkeypatch.setattr(broker, name, method, raising=False)
+    monkeypatch.setattr(stock_orders.mcp_stock_orders, "SandboxOrderSession", TimeoutSession)
+    connection = await t_invest.connection_for(session, user.id, environment="sandbox")
+    kwargs = dict(transport="mcp", connection_version=connection.version, last_price=Decimal("250"))
+    result = await stock_orders.submit(session, user.id, account_id, key, uid, "buy", 1, **kwargs)
+    assert result["status"] == "unknown" and not result["can_check"]
+    assert await stock_orders.submit(session, user.id, account_id, key, uid, "buy", 1, **kwargs) == result
+    assert await stock_orders.status(session, user.id, account_id, key) == result
+    assert calls == [(account_id, uid, "buy", 1)]
 
 
 @pytest.mark.parametrize("amount", ["0", "-1", "NaN", "Infinity", "1e6", "12.345", "", "9" * 30])

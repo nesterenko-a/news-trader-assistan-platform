@@ -93,25 +93,83 @@ test('Sandbox: поиск с клавиатуры, проверка той же 
   await expect(dialog.getByRole('option', {name: 'SBER · Сбербанк · TQBR'})).toBeVisible();
   await search.press('ArrowDown');
   await search.press('Enter');
-  await dialog.getByRole('button', {name: 'Купить по рынку'}).click();
+  await dialog.getByRole('button', {name: 'Купить', exact: true}).click();
   await expect(dialog.getByRole('status')).toContainText('Статус неизвестен');
-  await dialog.getByRole('button', {name: 'Закрыть'}).click();
+  await dialog.getByRole('button', {name: 'Закрыть заявку'}).click();
   await workspace.getByRole('button', {name: 'Проверить статус'}).click();
   await dialog.getByRole('button', {name: 'Проверить статус'}).click();
   await expect(dialog.getByRole('status')).toContainText('Исполнена');
-  await dialog.getByRole('button', {name: 'Закрыть'}).click();
+  await dialog.getByRole('button', {name: 'Закрыть заявку'}).click();
   await expect(workspace.locator('.broker-total')).toHaveText('Баланс: 7500 rub');
   await workspace.getByRole('button', {name: 'Изменить'}).click();
-  await dialog.getByLabel('Направление').selectOption('sell');
   await expect(dialog).toContainText('Доступно к продаже: 10 акций · 1 лотов');
   await dialog.getByLabel('Лотов').fill('2');
-  await expect(dialog.getByRole('button', {name: 'Продать по рынку'})).toBeDisabled();
+  await expect(dialog.getByRole('button', {name: 'Продать', exact: true})).toBeDisabled();
   await dialog.getByLabel('Лотов').fill('1');
-  await dialog.getByRole('button', {name: 'Продать по рынку'}).click();
+  await dialog.getByRole('button', {name: 'Продать', exact: true}).click();
   await expect(dialog.getByRole('status')).toContainText('Исполнена');
   await expect(workspace.locator('.broker-total')).toHaveText('Баланс: 10000 rub');
   expect(orderCount).toBe(2);
   expect(catalogCalls).toBe(1);
+});
+
+test('Sandbox: черновик и переключатель MCP, неизвестный статус без сверки', async ({page}) => {
+  const workspace = await setup(page, 'sandbox');
+  const uid = '0df39455-d251-4ad2-b80f-5634c4280a11';
+  await workspace.locator('#broker-portfolio-sandbox').evaluate(node => {
+    node.insertAdjacentHTML('afterbegin', '<div class="broker-heading"><h2>Портфель · Первый</h2></div>');
+  });
+  await page.route('**/accounts/one/instruments', route => route.fulfill({json: []}));
+  await page.route('**/order-details', route => route.fulfill({json: {
+    lot: 10, last_price: '250', available_rub: '10000', connection_version: 7,
+    available_shares: 10, available_lots: 1, buy_available: true, sell_available: true,
+  }}));
+  let calls = 0;
+  await page.route('**/accounts/one/orders', route => {
+    calls++;
+    expect(route.request().postDataJSON()).toMatchObject({
+      transport: 'mcp', instrument_uid: uid, side: 'buy', lots: 2, connection_version: 7, last_price: '250',
+    });
+    return route.fulfill({json: {transport: 'mcp', status: 'unknown', can_check: false, lots_requested: 2}});
+  });
+  await page.route('**/mcp/models?*', route => route.fulfill({json: {
+    provider: 'deepseek', configured: true, default_model: 'demo', models: ['demo'], warning: null,
+  }}));
+  await page.route('**/mcp/check', route => route.fulfill({json: {
+    available: true, environment: 'sandbox', checked_at: '2026-11-13T12:00:00Z', capabilities: [],
+    tools: [{name: 'invest_get_positions', approved: true, schema_sha256: 'a'.repeat(64)}],
+  }}));
+  await page.route('**/mcp/check-llm', route => route.fulfill({json: {
+    ...route.request().postDataJSON(), tool_calling: true, expires_at: Math.floor(Date.now() / 1000) + 900, check_token: 'test-proof',
+  }}));
+  await page.route('**/mcp/ask', route => route.fulfill({json: {
+    ...route.request().postDataJSON(), status: 'ok', answer: 'Черновик заявки готов.',
+    evidence: [], warnings: [], calculations: [],
+    order_draft: {instrument_uid: uid, ticker: 'SBER', name: 'Сбербанк', side: 'buy', lots: 2},
+  }}));
+  const mcpTab = workspace.getByRole('tab', {name: 'MCP-аналитика'});
+  await mcpTab.click();
+  await workspace.locator('[data-mcp-check]').click();
+  await workspace.locator('[data-mcp-check-llm]').click();
+  await workspace.locator('[data-mcp-question]').fill('Купи два лота SBER');
+  await workspace.locator('[data-mcp-ask]').click();
+  const openDraft = async () => {
+    await mcpTab.click();
+    await workspace.getByRole('button', {name: 'Проверить заявку'}).click();
+  };
+  const dialog = page.getByRole('dialog');
+  await openDraft();
+  const transport = dialog.getByRole('switch');
+  await expect(transport).toHaveAttribute('aria-checked', 'false');
+  await transport.click();
+  await dialog.getByRole('button', {name: 'Закрыть заявку'}).click();
+  await openDraft();
+  await expect(transport).toHaveAttribute('aria-checked', 'true');
+  await expect(dialog.getByLabel('Лотов')).toHaveValue('2');
+  await dialog.getByRole('button', {name: 'Купить', exact: true}).click();
+  await expect(dialog.getByRole('status')).toContainText('Статус неизвестен');
+  await expect(dialog.getByRole('button', {name: 'Проверить статус'})).toBeHidden();
+  expect(calls).toBe(1);
 });
 
 for (const environment of ['production', 'sandbox']) {

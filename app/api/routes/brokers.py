@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
+from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 from pydantic import StrictBool
@@ -104,6 +105,9 @@ class SandboxOrderIn(BaseModel):
     instrument_uid: UUID
     side: Literal["buy", "sell"]
     lots: int = Field(strict=True, gt=0, le=2**63 - 1)
+    transport: Literal["rest", "mcp"] = "rest"
+    connection_version: int | None = Field(default=None, strict=True, ge=0)
+    last_price: Decimal | None = Field(default=None, gt=0, max_digits=24, decimal_places=12, allow_inf_nan=False)
 
 
 def _check_origin(request: Request) -> None:
@@ -201,7 +205,8 @@ async def sandbox_submit_order(account_id: str, payload: SandboxOrderIn, request
     _check_origin(request)
     response.headers["Cache-Control"] = "no-store"
     return await stock_orders.submit(session, user.id, account_id, payload.operation_key, str(payload.instrument_uid),
-                                     payload.side, payload.lots)
+                                     payload.side, payload.lots, transport=payload.transport,
+                                     connection_version=payload.connection_version, last_price=payload.last_price)
 
 
 @router.get("/sandbox/accounts/{account_id}/orders/{operation_key}")

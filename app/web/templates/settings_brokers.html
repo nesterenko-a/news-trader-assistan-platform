@@ -87,7 +87,7 @@
             <p class="muted small">При отправке вопроса необходимые данные выбранного счёта и источников обрабатываются выбранным внешним LLM-провайдером. Токен брокера не передаётся.</p>
             <button class="btn" type="button" data-mcp-ask disabled>Спросить</button>
             <p role="status" data-mcp-ask-status aria-live="polite">Сначала проверьте MCP и выбранную LLM.</p>
-            <section data-mcp-answer hidden aria-live="polite"><h3>Ответ</h3><p class="muted" data-mcp-answer-context></p><p data-mcp-answer-text class="mcp-answer-text"></p><ul data-mcp-warnings></ul><details><summary>Источники и расчёты</summary><ul data-mcp-evidence></ul><pre class="mcp-calculations" data-mcp-calculations></pre></details></section>
+            <section data-mcp-answer hidden aria-live="polite"><h3>Ответ</h3><p class="muted" data-mcp-answer-context></p><p data-mcp-answer-text class="mcp-answer-text"></p>{% if broker.environment == 'sandbox' %}<button class="btn" type="button" data-mcp-order-draft hidden>Проверить заявку</button>{% endif %}<ul data-mcp-warnings></ul><details><summary>Источники и расчёты</summary><ul data-mcp-evidence></ul><pre class="mcp-calculations" data-mcp-calculations></pre></details></section>
             <details data-mcp-details hidden><summary>Возможности и источники</summary><p data-mcp-time class="muted"></p><ul data-mcp-capabilities></ul><p class="muted">Допускаются только инструменты чтения с совпавшими проверенными схемами. Диагностика не обращается к LLM.</p><ul data-mcp-tools></ul></details>
           </section>
         </div>

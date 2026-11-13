@@ -227,7 +227,8 @@ function submitOrder(side) {
     byId('result-text').textContent = 'Заявка через MCP · Статус неизвестен. Ответ брокера не получен.';
     byId('check').hidden = true;
     pending = null;
-  } else {
+  }
+  if (orderTransport === 'REST') {
     byId('result-text').textContent = 'Заявка через REST. Ответ брокера задержался. Проверьте статус исходной заявки.';
     byId('check').hidden = false;
   }
