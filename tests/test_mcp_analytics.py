@@ -240,6 +240,21 @@ async def test_mutating_call_rejected_even_if_llm_asks(api, agent):
     assert error.value.status_code == 422 and not calls
 
 
+async def test_sandbox_order_command_returns_only_a_draft(api, agent, monkeypatch):
+    session, user_id = await add_account(api)
+    state, calls = agent
+    state.update(name="prepare_order_draft", args={"ticker": "SBER", "side": "buy", "lots": 2})
+
+    async def draft(_, owner, account, args):
+        assert (owner, account, args) == (user_id, "owned", state["args"])
+        return {"instrument_uid": "uid", "ticker": "SBER", "name": "Сбер", "side": "buy", "lots": 2}
+
+    monkeypatch.setattr(mcp_agent.stock_orders, "draft_from_command", draft)
+    result = await mcp_agent.ask(session, user_id, "sandbox", "owned", "deepseek", "test-model", "proof", "Купи два лота SBER")
+    assert result["order_draft"]["lots"] == 2
+    assert result["status"] == "ok" and calls == []
+
+
 async def test_clarification_without_tool_data(api, agent, monkeypatch):
     session, user_id = await add_account(api)
     async def turn(*args):

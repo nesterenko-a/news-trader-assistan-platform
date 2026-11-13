@@ -1339,6 +1339,16 @@ th.sortable .isort-tip:hover { display: block; }
 #broker-stock-order::backdrop { background: rgb(0 0 0 / 65%); }
 #broker-stock-order label { display: grid; gap: 4px; margin-block: 12px; }
 #broker-stock-order label[hidden] { display: none; }
+.broker-order-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.broker-order-switch { width: 44px; height: 24px; border: 1px solid var(--border); border-radius: 999px; padding: 3px; background: var(--panel-2); cursor: pointer; }
+.broker-order-switch::after { content: ""; display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--text); }
+.broker-order-switch[aria-checked="true"] { background: #245dc4; }
+.broker-order-switch[aria-checked="true"]::after { transform: translateX(20px); background: #fff; }
+.broker-order-directions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.broker-order-directions .btn { width: 100%; color: #fff; }
+.broker-order-directions [data-order-buy] { background: #245dc4; }
+.broker-order-directions [data-order-sell] { background: #b72b3c; }
+.broker-order-directions .btn:disabled { opacity: .45; cursor: not-allowed; }
 #stock-order-options { list-style: none; margin: 0; padding: 0; max-height: 180px; overflow: auto; overscroll-behavior-y: contain; border: 1px solid var(--border); }
 #stock-order-options [role="option"] { cursor: pointer; padding: 8px; }
 #stock-order-options [role="option"]:hover,

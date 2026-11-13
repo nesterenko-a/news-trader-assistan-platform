@@ -8,9 +8,13 @@
   const search = field('search');
   const matches = field('matches');
   const list = dialog.querySelector('[role=listbox]');
-  const side = field('side');
   const lots = field('lots');
-  const submit = field('submit');
+  const buy = field('buy');
+  const sell = field('sell');
+  const transport = field('transport');
+  const transportKey = 'broker-stock-order-transport';
+  let selectedTransport = 'rest';
+  try { if (sessionStorage.getItem(transportKey) === 'mcp') selectedTransport = 'mcp'; } catch {}
   const check = field('check');
   const feedback = workspace.querySelector('[data-stock-feedback]');
   const recover = workspace.querySelector('[data-stock-recover]');
@@ -69,18 +73,21 @@
     if (!form) return;
     const details = form.details;
     const count = lots.valueAsNumber;
-    const selling = side.value === 'sell';
-    submit.textContent = selling ? 'Продать по рынку' : 'Купить по рынку';
     search.disabled = form.locked || Boolean(form.key);
-    side.disabled = Boolean(form.key);
+    transport.disabled = Boolean(form.key);
+    transport.setAttribute('aria-checked', String(selectedTransport === 'mcp'));
     lots.disabled = Boolean(form.key);
     check.hidden = !form.key || form.finished;
     check.disabled = form.busy;
-    submit.disabled = !details || form.busy || Boolean(form.key) || !Number.isSafeInteger(count) || count < 1 ||
-      (selling ? !details.sell_available || details.available_lots == null || count > details.available_lots : !details.buy_available);
+    const amount = Number(details?.last_price) * details?.lot * count;
+    const blocked = !details || form.busy || Boolean(form.key) || !Number.isSafeInteger(count) || count < 1;
+    const mcp = selectedTransport === 'mcp';
+    buy.disabled = blocked || !details.buy_available || (mcp && (!details.last_price || details.available_rub == null || amount > Number(details.available_rub)));
+    sell.disabled = blocked || !details.sell_available || details.available_lots == null || count > details.available_lots || (mcp && !details.last_price);
+    field('cash').textContent = details?.available_rub == null ? '' : 'Свободные средства: ' +
+      Number(details.available_rub).toLocaleString('ru-RU', {style: 'currency', currency: 'RUB'});
     field('available').textContent = !details ? '' : details.available_lots == null ? 'Не удалось получить доступный остаток.' :
       'Доступно к продаже: ' + details.available_shares + ' акций · ' + details.available_lots + ' лотов.';
-    const amount = Number(details?.last_price) * details?.lot * count;
     field('estimate').textContent = !details ? '' : 'В лоте: ' + details.lot + ' акций. ' +
       (details.last_price && Number.isFinite(amount) && count > 0
         ? 'Ориентировочно без комиссии: ' + amount.toLocaleString('ru-RU', {style: 'currency', currency: 'RUB'})
@@ -156,20 +163,25 @@
     }
     if (form === state) render();
   }
-  function open(button) {
+  function open(button, draft) {
     const id = account();
     if (!id) return;
     const key = saved(id);
     form = {account: id, locked: Boolean(button?.dataset.stockEdit), key, revision: 0};
     field('form').reset();
     closeList();
-    field('account').textContent = 'Sandbox · ' + content().querySelector('.broker-heading h2').textContent.replace(/^Портфель\s*·?\s*/, '');
-    field('side-label').hidden = !form.locked;
+    const heading = content().querySelector('.broker-heading h2');
+    field('account').textContent = 'Sandbox · ' + (heading?.textContent.replace(/^Портфель\s*·?\s*/, '') || '••••' + id.slice(-4));
+    field('draft').hidden = !draft || Boolean(key);
+    field('draft').textContent = draft?.side === 'sell' ? 'Черновик продажи' : 'Черновик покупки';
     field('message').textContent = key ? 'Проверьте статус ранее отправленной заявки.' : '';
     render();
     dialog.showModal();
     if (key) check.focus();
-    else if (form.locked) select({instrument_uid: button.dataset.stockEdit, name: button.dataset.stockName});
+    else if (draft) {
+      lots.value = draft.lots;
+      select(draft);
+    } else if (form.locked) select({instrument_uid: button.dataset.stockEdit, name: button.dataset.stockName});
     else {
       search.focus();
       openList(form);
@@ -187,7 +199,15 @@
     if (form && !form.uid && (matches.hidden || form.catalogError)) openList(form);
   });
   dialog.addEventListener('pointerdown', event => {
-    if (event.target !== dialog && event.target !== search && !list.contains(event.target)) closeList();
+    if (event.target === dialog) {
+      const rect = dialog.getBoundingClientRect();
+      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) {
+        event.preventDefault();
+        dialog.close();
+      }
+      return;
+    }
+    if (event.target !== search && !list.contains(event.target)) closeList();
   });
   list.addEventListener('mousedown', event => {
     if (event.target.closest('[role="option"]')) event.preventDefault();
@@ -232,10 +252,13 @@
     field('message').textContent = body ? 'Отправляем заявку…' : 'Проверяем статус…';
     try {
       const result = await request(state.account, body ? '/orders' : '/orders/' + state.key, body);
-      state.finished = !unresolved.has(result.status) || result.status_check_expired === true;
+      state.finished = !unresolved.has(result.status) || result.status_check_expired === true || result.can_check === false;
       if (state.finished) remember(state.account, null);
       let message = (titles[result.status] || titles.unknown) +
         (result.lots_executed == null ? '.' : ' · Исполнено ' + result.lots_executed + ' из ' + result.lots_requested + ' лотов.');
+      if (result.transport) message = result.transport.toUpperCase() + ' · ' + message;
+      if (result.can_check === false && result.status === 'unknown' && result.message) message += ' ' + result.message;
+      if (result.status === 'rejected' && result.message) message += ' ' + result.message;
       if (result.status_check_expired && unresolved.has(result.status)) message += ' Срок проверки у брокера истёк.';
       if (result.portfolio_stale) message += ' Обновите портфель вручную.';
       else if (result.lots_executed > 0) {
@@ -260,12 +283,23 @@
       if (form === state) render();
     }
   }
-  field('form').addEventListener('submit', event => {
-    event.preventDefault();
-    if (!form || submit.disabled) return;
+  field('form').addEventListener('submit', event => event.preventDefault());
+  function submit(side, button) {
+    if (!form || button.disabled) return;
     form.key = crypto.randomUUID();
     remember(form.account, form.key);
-    perform(form, {operation_key: form.key, instrument_uid: form.uid, side: side.value, lots: lots.valueAsNumber});
+    const body = {operation_key: form.key, instrument_uid: form.uid, side, lots: lots.valueAsNumber};
+    if (selectedTransport === 'mcp') Object.assign(body, {transport: 'mcp',
+      connection_version: form.details.connection_version, last_price: form.details.last_price});
+    perform(form, body);
+  }
+  buy.addEventListener('click', () => submit('buy', buy));
+  sell.addEventListener('click', () => submit('sell', sell));
+  transport.addEventListener('click', () => {
+    if (selectedTransport === 'rest') selectedTransport = 'mcp';
+    else if (selectedTransport === 'mcp') selectedTransport = 'rest';
+    try { sessionStorage.setItem(transportKey, selectedTransport); } catch {}
+    render();
   });
   check.addEventListener('click', () => perform(form));
   field('close').addEventListener('click', () => dialog.close());
@@ -276,11 +310,15 @@
     search.focus();
   });
   dialog.addEventListener('close', () => { if (!dialog.open) form = null; });
-  side.addEventListener('change', render);
   lots.addEventListener('input', render);
   workspace.addEventListener('click', event => {
     const button = event.target.closest('[data-stock-buy], [data-stock-edit], [data-stock-recover]');
     if (button && !dialog.open && content()?.getAttribute('aria-busy') !== 'true') open(button);
+  });
+  workspace.addEventListener('broker:order-draft', event => {
+    if (!dialog.open && event.detail.account === account() && content()?.getAttribute('aria-busy') !== 'true') {
+      open(null, event.detail.draft);
+    }
   });
   document.addEventListener('broker:portfolio-updated', event => {
     if (event.detail.environment !== 'sandbox') return;

@@ -276,6 +276,9 @@ class MCPSession:
         result = await self._send("tools/call", {"name": remote, "arguments": params})
         if result.get("isError"):
             raise failure(502, "MCP не смог выполнить аналитическое чтение")
+        return self.result_value(result)
+
+    def result_value(self, result):
         value = result.get("structuredContent")
         if value is None:
             blocks = result.get("content", [])
