@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Заявки через MCP в Sandbox</title>
+<link rel="stylesheet" href="../../app/web/static/style.css">
+<style>
+body{margin:0} main{width:min(820px,calc(100% - 32px));margin:32px auto}
+.surface,dialog{background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:14px;padding:22px}
+.surface{margin-top:16px}.actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+textarea,select,input{box-sizing:border-box;background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:9px;font:inherit}
+textarea{width:100%;min-height:82px;margin:8px 0}.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:12px}
+.fields label{display:grid;gap:6px}.fields input{min-width:0;width:100%}
+.transport{border:0;padding:0;margin:0 0 14px}.transport legend{margin-bottom:6px}
+.transport-switch{position:relative;display:inline-block;width:44px;height:24px;padding:0;border:1px solid var(--border);border-radius:999px;background:var(--panel-2);cursor:pointer}
+.transport-switch::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--text);transition:transform .15s ease}
+.transport-switch[aria-checked="true"]{background:var(--accent)}
+.transport-switch[aria-checked="true"]::after{transform:translateX(20px);background:#fff}
+.transport-switch:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.transport-label{color:var(--text);opacity:.65}
+.transport-label.active{opacity:1;font-weight:600}
+@media(prefers-reduced-motion:reduce){.transport-switch::after{transition:none}}
+.direction{margin-top:14px}.direction .btn{color:#fff;background:var(--direction-color);border-color:transparent}
+.direction .btn[aria-pressed="true"]{outline:2px solid var(--text);outline-offset:2px}
+.direction .btn:focus-visible{outline:2px dashed var(--text);outline-offset:3px}
+.direction .buy{--direction-color:#245dc4}.direction .sell{--direction-color:#b72b3c}
+dialog{width:min(530px,calc(100% - 64px));max-height:85vh}dialog::backdrop{background:#070b14b8}
+dl{display:grid;grid-template-columns:1fr 1fr;gap:8px}dd{margin:0;text-align:right}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <div>Настройки / Брокеры и торговля</div>
+  <h1>Т‑Инвестиции · Sandbox</h1>
+  <p>Демонстрационный счёт ••••0436 · Макет на тестовых данных</p>
+  <nav class="actions" aria-label="Разделы Sandbox">
+    <button class="btn active" type="button" id="show-portfolio" aria-pressed="true">Портфель</button>
+    <button class="btn" type="button" id="show-mcp" aria-pressed="false">MCP-аналитика</button>
+  </nav>
+  <section class="surface" id="portfolio">
+    <h2>Портфель</h2>
+    <p>Свободно <strong id="cash">25 000 ₽</strong></p>
+    <fieldset class="transport">
+      <legend>Отправка заявки</legend>
+      <div class="actions">
+        <span class="transport-label active" id="transport-rest">REST</span>
+        <button class="transport-switch" type="button" id="transport-toggle" role="switch" aria-label="Отправка через MCP" aria-checked="false"></button>
+        <span class="transport-label" id="transport-mcp">MCP</span>
+      </div>
+    </fieldset>
+    <div class="actions">
+      <button class="btn" type="button" id="buy">Купить акцию</button>
+    </div>
+    <p><strong>SBER · Сбер</strong> · <span id="position-SBER">2 лота</span> <button class="btn" type="button" id="edit-SBER">Изменить</button></p>
+    <p id="row-MGNT" hidden><strong>MGNT · Магнит</strong> · <span id="position-MGNT"></span> <button class="btn" type="button" id="edit-MGNT">Изменить</button></p>
+  </section>
+  <section class="surface" id="mcp" hidden>
+    <h2>MCP-аналитика</h2>
+    <form id="command-form">
+      <label for="command">Вопрос или команда</label>
+      <textarea id="command" placeholder="Например, купи 3 лота MGNT" required></textarea>
+      <div class="actions">
+        <button class="btn active" type="submit">Отправить</button>
+      </div>
+    </form>
+    <p id="reply" role="status"></p>
+    <button class="btn" type="button" id="review" hidden>Проверить заявку</button>
+  </section>
+  <section class="surface" id="order-result" hidden>
+    <h2>Статус заявки</h2>
+    <p id="result-text" role="status"></p>
+    <button class="btn" type="button" id="check" hidden>Проверить статус</button>
+  </section>
+</main>
+<dialog id="order" aria-labelledby="order-title">
+  <h2 id="order-title">Проверить заявку</h2>
+  <p>Sandbox · счёт ••••0436 · отправка через <strong id="order-transport"></strong></p>
+  <form id="order-form">
+    <div class="fields">
+      <label>Бумага<select id="symbol"><option value="SBER">SBER · Сбер</option><option value="MGNT">MGNT · Магнит</option></select></label>
+      <label>Лоты<input id="lots" type="number" min="1" step="1" required></label>
+    </div>
+    <div class="actions direction" role="group" aria-label="Купить или продать">
+      <button class="btn buy" type="button" id="direction-buy" aria-pressed="false">Купить</button>
+      <button class="btn sell" type="button" id="direction-sell" aria-pressed="false">Продать</button>
+    </div>
+    <dl><dt>Тип заявки</dt><dd>Рыночная</dd><dt id="available-label"></dt><dd id="available"></dd><dt>Ориентировочная сумма</dt><dd id="amount"></dd><dt>Комиссия</dt><dd>Оценка недоступна</dd></dl>
+    <p id="order-note" role="status"></p>
+    <div class="actions">
+      <button class="btn active" type="submit" id="confirm">Подтвердить заявку</button>
+      <button class="btn" type="button" id="cancel">Отмена</button>
+    </div>
+  </form>
+</dialog>
+<script>
+const byId = id => document.getElementById(id);
+const order = byId('order');
+const symbols = { SBER: { lot: 10, price: 300 }, MGNT: { lot: 1, price: 4500 } };
+const holdings = { SBER: 2, MGNT: 0 };
+const rub = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 });
+const words = { один: 1, одну: 1, два: 2, три: 3, четыре: 4, пять: 5 };
+let cash = 25000;
+let draft = null;
+let pending = null;
+let lastCommand = '';
+let incomplete = false;
+let orderSide = 'buy';
+let orderTransport = 'REST';
+
+function showTab(tab) {
+  for (const name of ['portfolio', 'mcp']) {
+    byId(name).hidden = tab !== name;
+    const button = byId('show-' + name);
+    button.classList.toggle('active', tab === name);
+    button.setAttribute('aria-pressed', tab === name);
+  }
+}
+function preview() {
+  const symbol = byId('symbol').value;
+  const sell = orderSide === 'sell';
+  const lots = byId('lots').valueAsNumber;
+  const total = lots * symbols[symbol].lot * symbols[symbol].price;
+  const valid = Number.isSafeInteger(lots) && lots > 0;
+  const affordable = sell ? holdings[symbol] >= lots : cash >= total;
+  byId('available-label').textContent = sell ? 'Доступно к продаже' : 'Свободные средства';
+  byId('available').textContent = sell ? holdings[symbol] + ' лот(а)' : rub.format(cash);
+  byId('amount').textContent = valid ? rub.format(total) : '—';
+  byId('order-note').textContent = pending ? 'Сначала проверьте статус предыдущей заявки.' :
+    valid && !affordable ? (sell ? 'Недостаточно лотов для продажи.' : 'Недостаточно свободных средств.') : '';
+  byId('confirm').disabled = !!pending || !valid || !affordable;
+  byId('confirm').textContent = sell ? 'Подтвердить продажу' : 'Подтвердить покупку';
+}
+function selectSide(side) {
+  orderSide = side;
+  for (const option of ['buy', 'sell']) {
+    byId('direction-' + option).setAttribute('aria-pressed', option === side);
+  }
+  preview();
+}
+function portfolioTransport() {
+  return byId('transport-toggle').getAttribute('aria-checked') === 'true' ? 'MCP' : 'REST';
+}
+function openOrder(symbol, side, lots, transport) {
+  orderTransport = transport;
+  byId('order-transport').textContent = transport;
+  byId('symbol').value = symbol;
+  byId('lots').value = lots;
+  selectSide(side);
+  order.showModal();
+}
+function settle() {
+  if (!pending) return;
+  const { symbol, lots, side, transport } = pending;
+  const direction = side === 'buy' ? 1 : -1;
+  holdings[symbol] += direction * lots;
+  cash -= direction * lots * symbols[symbol].lot * symbols[symbol].price;
+  byId('cash').textContent = rub.format(cash);
+  byId('position-' + symbol).textContent = holdings[symbol] + ' лот(а)';
+  byId('row-MGNT').hidden = holdings.MGNT === 0;
+  byId('result-text').textContent = 'Исполнена через ' + transport + ' · ' + symbol + ' · ' + lots + ' лот(а). Портфель обновлён.';
+  byId('check').hidden = true;
+  pending = null;
+}
+byId('show-portfolio').onclick = () => showTab('portfolio');
+byId('show-mcp').onclick = () => showTab('mcp');
+byId('transport-toggle').onclick = () => {
+  const useMcp = portfolioTransport() === 'REST';
+  byId('transport-toggle').setAttribute('aria-checked', String(useMcp));
+  byId('transport-rest').classList.toggle('active', !useMcp);
+  byId('transport-mcp').classList.toggle('active', useMcp);
+};
+byId('buy').onclick = () => openOrder('SBER', 'buy', 1, portfolioTransport());
+for (const side of ['buy', 'sell']) {
+  byId('direction-' + side).onclick = () => selectSide(side);
+}
+for (const symbol of Object.keys(symbols)) {
+  byId('edit-' + symbol).onclick = () => openOrder(symbol, 'sell', 1, portfolioTransport());
+}
+byId('command-form').onsubmit = event => {
+  event.preventDefault();
+  const value = byId('command').value.trim().toLowerCase();
+  const input = incomplete && !/куп|прод/.test(value) ? lastCommand + ' ' + value : value;
+  lastCommand = input;
+  draft = null;
+  byId('review').hidden = true;
+  const buy = /куп/.test(input);
+  const sell = /прод/.test(input);
+  const matches = Object.keys(symbols).filter(symbol => input.includes(symbol.toLowerCase()) ||
+    (symbol === 'SBER' ? input.includes('сбер') : input.includes('магнит')));
+  const quantity = input.match(/(?:^|\s)(\d+|один|одну|два|три|четыре|пять)\s+лот/);
+  const lots = quantity ? (words[quantity[1]] ?? Number(quantity[1])) : 0;
+  incomplete = buy === sell || matches.length !== 1 || !Number.isSafeInteger(lots) || lots < 1;
+  if (incomplete) {
+    byId('reply').textContent = buy === sell ? 'Уточните направление: купить или продать?' :
+      matches.length !== 1 ? 'Уточните одну бумагу: SBER или MGNT?' : 'Сколько лотов? Например, «один лот».';
+    byId('command').value = '';
+    return;
+  }
+  draft = { symbol: matches[0], side: buy ? 'buy' : 'sell', lots };
+  byId('reply').textContent = 'Черновик: ' + (buy ? 'купить ' : 'продать ') + lots + ' лот(а) ' + draft.symbol + '.';
+  byId('review').hidden = false;
+};
+byId('review').onclick = () => { if (draft) openOrder(draft.symbol, draft.side, draft.lots, 'MCP'); };
+byId('order-form').oninput = preview;
+byId('cancel').onclick = () => order.close();
+byId('check').onclick = settle;
+byId('order-form').onsubmit = event => {
+  event.preventDefault();
+  preview();
+  if (byId('confirm').disabled) return;
+  pending = { symbol: byId('symbol').value, lots: byId('lots').valueAsNumber, side: orderSide, transport: orderTransport };
+  draft = null;
+  byId('review').hidden = true;
+  order.close();
+  byId('order-result').hidden = false;
+  byId('result-text').textContent = 'Заявка через ' + orderTransport + '. Ответ брокера задержался. Проверьте статус исходной заявки.';
+  byId('check').hidden = false;
+};
+</script>
+</body>
+</html>
